@@ -1,11 +1,25 @@
 (ns clojure-algorithms.maths.lucas-series
-  "https://en.wikipedia.org/wiki/Lucas_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "https://en.wikipedia.org/wiki/Lucas_number")
 
-(declare recursive-lucas-number dynamic-lucas-number)
+(defn recursive-lucas-number
+  "Returns the nth lucas number, computed recursively."
+  [n-th-number]
+  (when-not (integer? n-th-number)
+    (throw (ex-info "recursive_lucas_number accepts only integer arguments."
+                    {:type :TypeError})))
+  (cond
+    (zero? n-th-number) 2
+    (= n-th-number 1) 1
+    :else (+' (recursive-lucas-number (dec n-th-number))
+              (recursive-lucas-number (- n-th-number 2)))))
 
-(defn recursive-lucas-number "Returns the nth lucas number\n>>> recursive_lucas_number(1)\n1\n>>> recursive_lucas_number(20)\n15127\n>>> recursive_lucas_number(0)\n2\n>>> recursive_lucas_number(25)\n167761\n>>> recursive_lucas_number(-1.5)\nTraceback (most recent call last):\n    ...\nTypeError: recursive_lucas_number accepts only integer arguments."
-  [n-th-number] (try (when (py-truthy (not (py-truthy (integer? n-th-number)))) (throw (ex-info (py-str "recursive_lucas_number accepts only integer arguments.") {:type :TypeError}))) (when (py-truthy (py-eq n-th-number 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 2}))) (when (py-truthy (py-eq n-th-number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-add (recursive-lucas-number (py-sub n-th-number 1)) (recursive-lucas-number (py-sub n-th-number 2)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-(defn dynamic-lucas-number "Returns the nth lucas number\n>>> dynamic_lucas_number(1)\n1\n>>> dynamic_lucas_number(20)\n15127\n>>> dynamic_lucas_number(0)\n2\n>>> dynamic_lucas_number(25)\n167761\n>>> dynamic_lucas_number(-1.5)\nTraceback (most recent call last):\n    ...\nTypeError: dynamic_lucas_number accepts only integer arguments."
-  [n-th-number] (let [--v (atom nil) a (atom nil) b (atom nil)] (try (when (py-truthy (not (py-truthy (integer? n-th-number)))) (throw (ex-info (py-str "dynamic_lucas_number accepts only integer arguments.") {:type :TypeError}))) (let [__d1 (vec [2 1])] (reset! a (nth __d1 0)) (reset! b (nth __d1 1))) (doseq [__i2 (py-iter (range n-th-number))] (reset! --v __i2) (let [__d3 (vec [@b (py-add @a @b)])] (reset! a (nth __d3 0)) (reset! b (nth __d3 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @a})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn dynamic-lucas-number
+  "Returns the nth lucas number, computed iteratively."
+  [n-th-number]
+  (when-not (integer? n-th-number)
+    (throw (ex-info "dynamic_lucas_number accepts only integer arguments."
+                    {:type :TypeError})))
+  (loop [a 2 b 1 i 0]
+    (if (>= i n-th-number)
+      a
+      (recur b (+' a b) (inc i)))))

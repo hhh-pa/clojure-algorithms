@@ -1,18 +1,26 @@
 (ns clojure-algorithms.maths.fermat-little-theorem
-  "Port of maths/fermat_little_theorem.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Fermat's little theorem: (a / b) mod p always equals
+a * (b ^ (p - 2)) mod p, where p is prime, b divides a,
+and p doesn't divide b.
+Wikipedia reference: https://en.wikipedia.org/wiki/Fermat%27s_little_theorem")
 
-(declare binary-exponentiation p a b)
+(defn binary-exponentiation
+  "Calculate (a ** n) % mod using binary exponentiation, O(log n) time."
+  [a n mod-v]
+  (cond
+    (zero? n) 1
+    (odd? n) (mod (*' (binary-exponentiation a (dec n) mod-v) a) mod-v)
+    :else (let [b (binary-exponentiation a (quot n 2) mod-v)]
+            (mod (*' b b) mod-v))))
 
-(defn binary-exponentiation "Calculate (a ** n) % mod using binary exponentiation, which runs in O(log n) time.\n\n>>> binary_exponentiation(2, 10, 17)\n4\n>>> binary_exponentiation(3, 0, 5)\n1\n>>> binary_exponentiation(5, 3, 13)\n8"
-  [a n mod-v] (let [b (atom nil)] (try (if (py-truthy (py-eq n 0)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (do (if (py-truthy (py-eq (py-mod n 2) 1)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mod (py-mul (binary-exponentiation a (py-sub n 1) mod-v) a) mod-v)}))) (do (reset! b (binary-exponentiation a (py-floordiv n 2) mod-v)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mod (py-mul @b @b) mod-v)})))))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(def p
+  "A prime number used in the Fermat's little theorem demo."
+  701)
 
-(def p 701)
+(def a
+  "Dividend used in the Fermat's little theorem demo."
+  1000000000)
 
-(def a 1000000000)
-
-(def b 10)
-
-(println (clojure.string/join " " [(py-str (py-eq (py-mod (py-div a b) p) (py-mod (py-mul a (binary-exponentiation b (py-sub p 2) p)) p)))]))
-
-(println (clojure.string/join " " [(py-str (py-eq (py-mod (py-div a b) p) (py-mod (py-mul a (py-pow b (py-sub p 2))) p)))]))
+(def b
+  "Divisor used in the Fermat's little theorem demo."
+  10)

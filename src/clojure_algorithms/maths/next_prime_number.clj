@@ -1,11 +1,29 @@
 (ns clojure-algorithms.maths.next-prime-number
-  "Next Prime Number -- https://en.wikipedia.org/wiki/Prime_number\n\nIn the ancient city of Numeria,\nlegends speak of an oracle whose whispers\ncould bend the very fabric of mathematics.\nTravelers from distant lands would bring her a number,\nand in return, she would reveal its future:\nthe very next prime number.\nYour task is to embody the oracle's wisdom.\nYou will be given a number.\nYou must find the smallest prime number\nthat is strictly greater than it."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Next Prime Number -- https://en.wikipedia.org/wiki/Prime_number
 
-(declare is-prime next-prime)
+Find the smallest prime number strictly greater than a given number.")
 
-(defn is-prime "Check if a number is prime.\n\n>>> is_prime(2)\nTrue\n>>> is_prime(15)\nFalse\n>>> is_prime(19)\nTrue\n>>> is_prime(1)\nFalse\n>>> is_prime(-7)\nFalse"
-  [number] (let [factor (atom nil)] (try (when (py-truthy (py-le number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-le number 3)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (when (py-truthy (let [__b1 (py-eq (py-mod number 2) 0)] (if (py-truthy __b1) __b1 (py-eq (py-mod number 3) 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! factor 5) (while (py-truthy (py-le (py-mul @factor @factor) number)) (when (py-truthy (let [__b2 (py-eq (py-mod number @factor) 0)] (if (py-truthy __b2) __b2 (py-eq (py-mod number (py-add @factor 2)) 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (swap! factor py-add 6)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-prime
+  "Check if a number is prime."
+  [number]
+  (cond
+    (<= number 1) false
+    (<= number 3) true
+    (or (zero? (mod number 2)) (zero? (mod number 3))) false
+    :else (loop [factor 5]
+            (cond
+              (> (* factor factor) number) true
+              (or (zero? (mod number factor))
+                  (zero? (mod number (+ factor 2)))) false
+              :else (recur (+ factor 6))))))
 
-(defn next-prime "Find the smallest prime number strictly greater than the given number.\n\n>>> next_prime(2)\n3\n>>> next_prime(7)\n11\n>>> next_prime(14)\n17\n>>> next_prime(0)\n2\n>>> next_prime(-10)\n2"
-  [number] (let [candidate (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "next_prime() only accepts integral values") {:type :ValueError}))) (reset! candidate (py-add number 1)) (while (py-truthy (not (py-truthy (is-prime @candidate)))) (swap! candidate py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @candidate})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn next-prime
+  "Find the smallest prime number strictly greater than the given number."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info "next_prime() only accepts integral values"
+                    {:type :ValueError})))
+  (loop [candidate (inc number)]
+    (if (is-prime candidate)
+      candidate
+      (recur (inc candidate)))))

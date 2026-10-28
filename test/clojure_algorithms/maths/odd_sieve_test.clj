@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.odd-sieve-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.odd-sieve :as sut]))
 
 (deftest test-fn-odd-sieve-examples

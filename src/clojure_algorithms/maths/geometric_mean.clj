@@ -1,8 +1,28 @@
 (ns clojure-algorithms.maths.geometric-mean
-  "The Geometric Mean of n numbers is defined as the n-th root of the product\nof those numbers. It is used to measure the central tendency of the numbers.\nhttps://en.wikipedia.org/wiki/Geometric_mean"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "The Geometric Mean of n numbers is defined as the n-th root of the product
+  of those numbers. It is used to measure the central tendency of the numbers.
+  https://en.wikipedia.org/wiki/Geometric_mean")
 
-(declare compute-geometric-mean)
-
-(defn compute-geometric-mean "Return the geometric mean of the argument numbers.\n>>> compute_geometric_mean(2,8)\n4.0\n>>> compute_geometric_mean('a', 4)\nTraceback (most recent call last):\n    ...\nTypeError: Not a Number\n>>> compute_geometric_mean(5, 125)\n25.0\n>>> compute_geometric_mean(1, 0)\n0.0\n>>> compute_geometric_mean(1, 5, 25, 5)\n5.0\n>>> compute_geometric_mean(2, -2)\nTraceback (most recent call last):\n    ...\nArithmeticError: Cannot Compute Geometric Mean for these numbers.\n>>> compute_geometric_mean(-5, 25, 1)\n-5.0"
-  [& args] (let [mean (atom nil) number (atom nil) possible-mean (atom nil) product (atom nil)] (try (reset! product 1) (doseq [__i1 (py-iter args)] (reset! number __i1) (when (py-truthy (let [__b2 (not (py-truthy (integer? @number)))] (if (py-truthy __b2) (not (py-truthy (number? @number))) __b2))) (throw (ex-info (py-str "Not a Number") {:type :TypeError}))) (swap! product py-mul @number)) (when (py-truthy (let [__b3 (py-lt @product 0)] (if (py-truthy __b3) (py-eq (py-mod (count args) 2) 0) __b3))) (throw (ex-info (py-str "Cannot Compute Geometric Mean for these numbers.") {:type :ArithmeticError}))) (reset! mean (py-pow (py-abs @product) (py-div 1 (count args)))) (when (py-truthy (py-lt @product 0)) (reset! mean (py-neg @mean))) (reset! possible-mean (py-float (py-round @mean))) (when (py-truthy (py-eq (py-pow @possible-mean (count args)) @product)) (reset! mean @possible-mean)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @mean})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn compute-geometric-mean
+  "Returns the geometric mean of the argument numbers."
+  [& args]
+  (when (empty? args)
+    (throw (ArithmeticException. "Divide by zero")))
+  (doseq [number args]
+    (when-not (number? number)
+      (throw (ex-info "Not a Number" {:type :TypeError}))))
+  (let [product (reduce *' 1 args)]
+    ;; Cannot calculate the even root for negative product.
+    (when (and (neg? product) (even? (count args)))
+      (throw (ex-info "Cannot Compute Geometric Mean for these numbers."
+                      {:type :ArithmeticError})))
+    (let [mean (Math/pow (Math/abs (double product)) (/ 1.0 (count args)))
+          ;; Python calculates complex roots for negative products
+          ;; with odd roots, so negate instead.
+          mean (if (neg? product) (- mean) mean)
+          ;; Floating point arithmetic may give e.g. 64**(1/3) as
+          ;; 3.99999996; snap back when the rounded value is exact.
+          possible-mean (double (Math/round mean))]
+      (if (== (Math/pow possible-mean (count args)) product)
+        possible-mean
+        mean))))

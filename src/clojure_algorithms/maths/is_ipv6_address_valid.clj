@@ -1,13 +1,44 @@
 (ns clojure-algorithms.maths.is-ipv6-address-valid
-  "Validate IPv6 addresses (full and compressed forms).\n\nReferences:\n- Wikipedia: https://en.wikipedia.org/wiki/IPv6_address\n- RFC 4291: https://tools.ietf.org/html/rfc4291\n\nRules implemented (subset of RFC 4291):\n- Hex groups are 1-4 hex digits (0-9, a-f, A-F).\n- Exactly 8 groups in total. A single '::' may compress one or more groups of\n  zeros. No more than one '::' is allowed.\n- No leading/trailing single ':' (e.g., ':1:2::' is invalid).\n- Does NOT support IPv4-mapped endings like '::ffff:192.0.2.128'.\n\nExamples (doctests):\n\n>>> is_ipv6_address_valid(\"2001:0db8:85a3:0000:0000:8a2e:0370:7334\")\nTrue\n>>> is_ipv6_address_valid(\"2001:db8:85a3:0:0:8A2E:0370:7334\")\nTrue\n>>> is_ipv6_address_valid(\"2001:db8:85a3::8A2E:0370:7334\")  # '::' compresses two groups\nTrue\n>>> is_ipv6_address_valid(\"::1\")  # loopback, 7 groups compressed\nTrue\n>>> is_ipv6_address_valid(\"2001:db8::\")  # trailing compression is OK\nTrue\n>>> is_ipv6_address_valid(\"::\")  # all groups compressed\nTrue\n\nInvalids:\n\n>>> is_ipv6_address_valid(\"\")  # empty\nFalse\n>>> is_ipv6_address_valid(\"2001:db8:85a3:::8a2e:370:7334\")  # multiple '::'\nFalse\n>>> is_ipv6_address_valid(\"2001:db8:85a3:0:0:8a2e:370:7334:abcd\")  # 9 groups\nFalse\n>>> is_ipv6_address_valid(\"2001:db8:85a3:0:0:8a2e:0370:g334\")  # non-hex char\nFalse\n>>> is_ipv6_address_valid(\"2001:db8:85a3:0:0:8a2e:0370:\")  # trailing ':'\nFalse\n>>> is_ipv6_address_valid(\":2001:db8::1\")  # leading ':'\nFalse\n>>> is_ipv6_address_valid(\"a::b:c:d:e:f:g:h\")  # '::' compresses zero groups (already 8)\nFalse\n>>> is_ipv6_address_valid(\"1::1:1:1:1:1:1:1\")  # same idea; zero groups compressed\nFalse"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Validate IPv6 addresses (full and compressed forms).
 
-(declare -is-valid-group is-ipv6-address-valid -HEX-DIGITS)
+  References:
+  - Wikipedia: https://en.wikipedia.org/wiki/IPv6_address
+  - RFC 4291: https://tools.ietf.org/html/rfc4291"
+  (:require [clojure.string :as str]))
 
-(defn -is-valid-group "Return True iff group is 1-4 hex digits.\nArgs:\n    group (str): The hex group to validate.\n\nReturns:\n    bool: True if the group is 1-4 hex digits, False otherwise.\n\nExamples:\n\n>>> _is_valid_group(\"1\")\nTrue\n>>> _is_valid_group(\"abcd\")\nTrue\n>>> _is_valid_group(\"12345\")  # too long\nFalse\n>>> _is_valid_group(\"g\")  # non-hex character\nFalse"
-  [group] (let [__b4 (let [__c1 1 __c2 (count group) __c3 4] (and (py-le __c1 __c2) (py-le __c2 __c3)))] (if (py-truthy __b4) (every? py-truthy (doall (for [ch (py-iter group)] (py-in ch -HEX-DIGITS)))) __b4)))
+(def -HEX-DIGITS
+  (set "0123456789abcdefABCDEF"))
 
-(defn is-ipv6-address-valid "Return True iff `address` is a valid IPv6 address in full or compressed form.\n\nSee module docstring for rules and doctests."
-  [address] (let [double-colon-count (atom nil) left (atom nil) left-groups (atom nil) parts (atom nil) right (atom nil) right-groups (atom nil) total-groups (atom nil)] (try (when (py-truthy (not (py-truthy address))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (let [__b3 (let [__b1 (py-startswith address ":")] (if (py-truthy __b1) (not (py-truthy (py-startswith address "::"))) __b1))] (if (py-truthy __b3) __b3 (let [__b2 (py-endswith address ":")] (if (py-truthy __b2) (not (py-truthy (py-endswith address "::"))) __b2))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-in ":::" address)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! double-colon-count (py-count address "::")) (when (py-truthy (py-gt @double-colon-count 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-eq @double-colon-count 0)) (reset! parts (py-split address ":" -1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (let [__b5 (py-eq (count @parts) 8)] (if (py-truthy __b5) (let [__b4 (every? py-truthy (doall (for [part (py-iter @parts)] (not (py-eq part "")))))] (if (py-truthy __b4) (every? py-truthy (doall (for [part (py-iter @parts)] (-is-valid-group part)))) __b4)) __b5))}))) (let [__d6 (vec (py-split address "::" 1))] (reset! left (nth __d6 0)) (reset! right (nth __d6 1))) (reset! left-groups (if (py-truthy @left) (vec (for [g (py-iter (py-split @left ":" -1)) :when (py-truthy (not (py-eq g "")))] g)) [])) (reset! right-groups (if (py-truthy @right) (vec (for [g (py-iter (py-split @right ":" -1)) :when (py-truthy (not (py-eq g "")))] g)) [])) (reset! total-groups (py-add (count @left-groups) (count @right-groups))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (let [__b7 (py-lt @total-groups 8)] (if (py-truthy __b7) (every? py-truthy (doall (for [g (py-iter (py-add @left-groups @right-groups))] (-is-valid-group g)))) __b7))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn -is-valid-group
+  "Return true iff group is 1-4 hex digits."
+  [group]
+  (boolean (and (<= 1 (count group) 4) (every? -HEX-DIGITS group))))
 
-(def -HEX-DIGITS (py-set "0123456789abcdefABCDEF"))
+(defn is-ipv6-address-valid
+  "Return true iff address is a valid IPv6 address in full or compressed form."
+  [address]
+  (boolean
+   (and (seq address)
+        (not (and (str/starts-with? address ":")
+                  (not (str/starts-with? address "::"))))
+        (not (and (str/ends-with? address ":")
+                  (not (str/ends-with? address "::"))))
+        (not (str/includes? address ":::"))
+        (let [sides (str/split address #"::" -1)
+              double-colon-count (dec (count sides))]
+          (and (<= double-colon-count 1)
+               (if (zero? double-colon-count)
+                 (let [parts (str/split address #":" -1)]
+                   (and (= 8 (count parts))
+                        (every? seq parts)
+                        (every? -is-valid-group parts)))
+                 (let [left (first sides)
+                       right (second sides)
+                       left-groups (if (empty? left)
+                                     []
+                                     (remove empty? (str/split left #":" -1)))
+                       right-groups (if (empty? right)
+                                      []
+                                      (remove empty? (str/split right #":" -1)))]
+                   (and (< (+ (count left-groups) (count right-groups)) 8)
+                        (every? -is-valid-group (concat left-groups right-groups))))))))))

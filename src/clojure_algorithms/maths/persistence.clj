@@ -1,11 +1,39 @@
 (ns clojure-algorithms.maths.persistence
-  "Port of maths/persistence.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Persistence of a number.
+https://en.wikipedia.org/wiki/Persistence_of_a_number")
 
-(declare multiplicative-persistence additive-persistence)
+(defn- check-persistence-arg
+  "Validates the argument for the persistence functions."
+  [fname num]
+  (when-not (integer? num)
+    (throw (ex-info (str fname "() only accepts integral values")
+                    {:type :ValueError})))
+  (when (neg? num)
+    (throw (ex-info (str fname "() does not accept negative values")
+                    {:type :ValueError}))))
 
-(defn multiplicative-persistence "Return the persistence of a given number.\n\nhttps://en.wikipedia.org/wiki/Persistence_of_a_number\n\n>>> multiplicative_persistence(217)\n2\n>>> multiplicative_persistence(-1)\nTraceback (most recent call last):\n    ...\nValueError: multiplicative_persistence() does not accept negative values\n>>> multiplicative_persistence(\"long number\")\nTraceback (most recent call last):\n    ...\nValueError: multiplicative_persistence() only accepts integral values"
-  [num] (let [num-string (atom nil) number (atom nil) numbers (atom nil) steps (atom nil) total (atom nil)] (try (when (py-truthy (not (py-truthy (integer? num)))) (throw (ex-info (py-str "multiplicative_persistence() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt num 0)) (throw (ex-info (py-str "multiplicative_persistence() does not accept negative values") {:type :ValueError}))) (reset! steps 0) (reset! num-string (py-str num)) (while (py-truthy (not (py-eq (count @num-string) 1))) (reset! numbers (vec (for [i (py-iter @num-string)] (py-int i nil)))) (reset! total 1) (doseq [__i1 (py-iter @numbers)] (reset! number __i1) (swap! total py-mul @number)) (reset! num-string (py-str @total)) (swap! steps py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @steps})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- digit-values
+  "Returns the decimal digits of the string s as numbers."
+  [s]
+  (map #(- (int %) (int \0)) s))
 
-(defn additive-persistence "Return the persistence of a given number.\n\nhttps://en.wikipedia.org/wiki/Persistence_of_a_number\n\n>>> additive_persistence(199)\n3\n>>> additive_persistence(-1)\nTraceback (most recent call last):\n    ...\nValueError: additive_persistence() does not accept negative values\n>>> additive_persistence(\"long number\")\nTraceback (most recent call last):\n    ...\nValueError: additive_persistence() only accepts integral values"
-  [num] (let [num-string (atom nil) number (atom nil) numbers (atom nil) steps (atom nil) total (atom nil)] (try (when (py-truthy (not (py-truthy (integer? num)))) (throw (ex-info (py-str "additive_persistence() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt num 0)) (throw (ex-info (py-str "additive_persistence() does not accept negative values") {:type :ValueError}))) (reset! steps 0) (reset! num-string (py-str num)) (while (py-truthy (not (py-eq (count @num-string) 1))) (reset! numbers (vec (for [i (py-iter @num-string)] (py-int i nil)))) (reset! total 0) (doseq [__i1 (py-iter @numbers)] (reset! number __i1) (swap! total py-add @number)) (reset! num-string (py-str @total)) (swap! steps py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @steps})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- persistence-steps
+  "Counts the steps needed to reduce num to a single digit by repeatedly
+combining its digits with f starting from start."
+  [num f start]
+  (loop [s (str num), steps 0]
+    (if (= 1 (count s))
+      steps
+      (recur (str (reduce f start (digit-values s))) (inc steps)))))
+
+(defn multiplicative-persistence
+  "Return the multiplicative persistence of a given number."
+  [num]
+  (check-persistence-arg "multiplicative_persistence" num)
+  (persistence-steps num *' 1))
+
+(defn additive-persistence
+  "Return the additive persistence of a given number."
+  [num]
+  (check-persistence-arg "additive_persistence" num)
+  (persistence-steps num +' 0))

@@ -1,11 +1,52 @@
 (ns clojure-algorithms.maths.special-numbers.jacobsthal-number
-  "Jacobsthal numbers\n\nThe Jacobsthal sequence starts with 0 and 1, and every later term is the\nprevious term plus twice the term before it:\n\n    J(0) = 0\n    J(1) = 1\n    J(n) = J(n - 1) + 2 * J(n - 2)\n\nThe first terms are 0, 1, 1, 3, 5, 11, 21, 43, 85, 171, 341, ...\n\nThey also have the closed form J(n) = (2 ** n - (-1) ** n) / 3, which is used\nbelow to cross-check the iterative result.\n\nSource:\n    https://en.wikipedia.org/wiki/Jacobsthal_number\n    https://oeis.org/A001045"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Jacobsthal numbers
 
-(declare jacobsthal-number jacobsthal-sequence)
+The Jacobsthal sequence starts with 0 and 1, and every later term is the
+previous term plus twice the term before it:
 
-(defn jacobsthal-number "Return the nth Jacobsthal number, counting from J(0) = 0.\n\n:param n: index of the Jacobsthal number, must be a non-negative integer\n:return: the nth Jacobsthal number\n\n>>> jacobsthal_number(0)\n0\n>>> jacobsthal_number(1)\n1\n>>> jacobsthal_number(5)\n11\n>>> jacobsthal_number(10)\n341\n>>> jacobsthal_number(64)\n6148914691236517205\n>>> all(\n...     jacobsthal_number(i) == (2**i - (-1) ** i) // 3 for i in range(100)\n... )\nTrue\n>>> jacobsthal_number(-1)\nTraceback (most recent call last):\n    ...\nValueError: n must be a non-negative integer, got -1\n>>> jacobsthal_number(2.5)\nTraceback (most recent call last):\n    ...\nValueError: n must be a non-negative integer, got 2.5\n>>> jacobsthal_number(\"3\")\nTraceback (most recent call last):\n    ...\nValueError: n must be a non-negative integer, got '3'"
-  [n] (let [--v (atom nil) current (atom nil) msg (atom nil) previous (atom nil)] (try (when (py-truthy (let [__b2 (not (py-truthy (integer? n)))] (if (py-truthy __b2) __b2 (let [__b1 (boolean? n)] (if (py-truthy __b1) __b1 (py-lt n 0)))))) (reset! msg (str "n must be a non-negative integer, got " (py-str (pr-str n)))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (let [__d3 (vec [0 1])] (reset! previous (nth __d3 0)) (reset! current (nth __d3 1))) (doseq [__i4 (py-iter (range n))] (reset! --v __i4) (let [__d5 (vec [@current (py-add @current (py-mul 2 @previous))])] (reset! previous (nth __d5 0)) (reset! current (nth __d5 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @previous})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+    J(0) = 0
+    J(1) = 1
+    J(n) = J(n - 1) + 2 * J(n - 2)
 
-(defn jacobsthal-sequence "Return the first `length` Jacobsthal numbers as a list.\n\n:param length: how many terms to return, must be a non-negative integer\n:return: list of the first `length` Jacobsthal numbers\n\n>>> jacobsthal_sequence(0)\n[]\n>>> jacobsthal_sequence(1)\n[0]\n>>> jacobsthal_sequence(11)\n[0, 1, 1, 3, 5, 11, 21, 43, 85, 171, 341]\n>>> jacobsthal_sequence(-3)\nTraceback (most recent call last):\n    ...\nValueError: length must be a non-negative integer, got -3\n>>> jacobsthal_sequence(4.0)\nTraceback (most recent call last):\n    ...\nValueError: length must be a non-negative integer, got 4.0"
-  [length] (let [--v (atom nil) current (atom nil) msg (atom nil) previous (atom nil) sequence (atom nil)] (try (when (py-truthy (let [__b2 (not (py-truthy (integer? length)))] (if (py-truthy __b2) __b2 (let [__b1 (boolean? length)] (if (py-truthy __b1) __b1 (py-lt length 0)))))) (reset! msg (str "length must be a non-negative integer, got " (py-str (pr-str length)))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! sequence []) (let [__d3 (vec [0 1])] (reset! previous (nth __d3 0)) (reset! current (nth __d3 1))) (doseq [__i4 (py-iter (range length))] (reset! --v __i4) (swap! sequence conj @previous) (let [__d5 (vec [@current (py-add @current (py-mul 2 @previous))])] (reset! previous (nth __d5 0)) (reset! current (nth __d5 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @sequence})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+The first terms are 0, 1, 1, 3, 5, 11, 21, 43, 85, 171, 341, ...
+
+They also have the closed form J(n) = (2 ** n - (-1) ** n) / 3, which is used
+below to cross-check the iterative result.
+
+Source:
+    https://en.wikipedia.org/wiki/Jacobsthal_number
+    https://oeis.org/A001045")
+
+(defn- value-repr
+  "Python-repr-style rendering used in error messages: strings are wrapped in
+single quotes, other values use their plain string form."
+  [v]
+  (if (string? v) (str "'" v "'") (str v)))
+
+(defn- check-non-negative-int!
+  "Throws an ex-info with :type :ValueError unless v is a non-negative integer."
+  [name v]
+  (when (or (not (integer? v)) (neg? v))
+    (throw (ex-info (str name " must be a non-negative integer, got "
+                         (value-repr v))
+                    {:type :ValueError}))))
+
+(defn jacobsthal-number
+  "Returns the nth Jacobsthal number, counting from J(0) = 0. Throws an
+ex-info with :type :ValueError when n is not a non-negative integer."
+  [n]
+  (check-non-negative-int! "n" n)
+  (loop [i 0, previous 0, current 1]
+    (if (= i n)
+      previous
+      (recur (inc i) current (+' current (*' 2 previous))))))
+
+(defn jacobsthal-sequence
+  "Returns a vector of the first `length` Jacobsthal numbers. Throws an
+ex-info with :type :ValueError when `length` is not a non-negative integer."
+  [length]
+  (check-non-negative-int! "length" length)
+  (loop [i 0, previous 0, current 1, acc []]
+    (if (= i length)
+      acc
+      (recur (inc i) current (+' current (*' 2 previous)) (conj acc previous)))))

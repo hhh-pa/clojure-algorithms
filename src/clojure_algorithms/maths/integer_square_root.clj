@@ -1,8 +1,28 @@
 (ns clojure-algorithms.maths.integer-square-root
-  "Integer Square Root Algorithm -- An efficient method to calculate the square root of a\nnon-negative integer 'num' rounded down to the nearest integer. It uses a binary search\napproach to find the integer square root without using any built-in exponent functions\nor operators.\n* https://en.wikipedia.org/wiki/Integer_square_root\n* https://docs.python.org/3/library/math.html#math.isqrt\nNote:\n    - This algorithm is designed for non-negative integers only.\n    - The result is rounded down to the nearest integer.\n    - The algorithm has a time complexity of O(log(x)).\n    - Original algorithm idea based on binary search."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Integer Square Root Algorithm -- An efficient method to calculate the square root of a
+  non-negative integer 'num' rounded down to the nearest integer. It uses a binary search
+  approach to find the integer square root without using any built-in exponent functions
+  or operators.
+  * https://en.wikipedia.org/wiki/Integer_square_root
+  Note:
+      - This algorithm is designed for non-negative integers only.
+      - The result is rounded down to the nearest integer.
+      - The algorithm has a time complexity of O(log(x)).")
 
-(declare integer-square-root)
-
-(defn integer-square-root "Returns the integer square root of a non-negative integer num.\nArgs:\n    num: A non-negative integer.\nReturns:\n    The integer square root of num.\nRaises:\n    ValueError: If num is not an integer or is negative.\n>>> [integer_square_root(i) for i in range(18)]\n[0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4]\n>>> integer_square_root(625)\n25\n>>> integer_square_root(2_147_483_647)\n46340\n>>> from math import isqrt\n>>> all(integer_square_root(i) == isqrt(i) for i in range(20))\nTrue\n>>> integer_square_root(-1)\nTraceback (most recent call last):\n    ...\nValueError: num must be non-negative integer\n>>> integer_square_root(1.5)\nTraceback (most recent call last):\n    ...\nValueError: num must be non-negative integer\n>>> integer_square_root(\"0\")\nTraceback (most recent call last):\n    ...\nValueError: num must be non-negative integer"
-  [num] (let [left-bound (atom nil) mid (atom nil) mid-squared (atom nil) right-bound (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? num)))] (if (py-truthy __b1) __b1 (py-lt num 0)))) (throw (ex-info (py-str "num must be non-negative integer") {:type :ValueError}))) (when (py-truthy (py-lt num 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value num}))) (reset! left-bound 0) (reset! right-bound (py-floordiv num 2)) (while (py-truthy (py-le @left-bound @right-bound)) (reset! mid (py-add @left-bound (py-floordiv (py-sub @right-bound @left-bound) 2))) (reset! mid-squared (py-mul @mid @mid)) (when (py-truthy (py-eq @mid-squared num)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @mid}))) (if (py-truthy (py-lt @mid-squared num)) (do (reset! left-bound (py-add @mid 1))) (do (reset! right-bound (py-sub @mid 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @right-bound})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn integer-square-root
+  "Returns the integer square root of the non-negative integer `num`,
+  rounded down."
+  [num]
+  (when (or (not (integer? num)) (neg? num))
+    (throw (ex-info "num must be non-negative integer" {:type :ValueError})))
+  (if (< num 2)
+    num
+    (loop [lo 0, hi (quot num 2)]
+      (if (> lo hi)
+        hi
+        (let [mid (+ lo (quot (- hi lo) 2))
+              sq (* mid mid)]
+          (cond
+            (== sq num) mid
+            (< sq num) (recur (inc mid) hi)
+            :else (recur lo (dec mid))))))))

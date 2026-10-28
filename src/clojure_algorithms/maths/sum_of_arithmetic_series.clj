@@ -1,8 +1,20 @@
 (ns clojure-algorithms.maths.sum-of-arithmetic-series
-  "Port of maths/sum_of_arithmetic_series.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Port of maths/sum_of_arithmetic_series.py.")
 
-(declare sum-of-ap-series)
+(defn sum-of-ap-series
+  "Calculates the sum of the first 'n' terms of an arithmetic progression
+  (AP) series with the first term 'a' and common difference 'd'.
 
-(defn sum-of-ap-series "Calculates the sum of the first 'n' terms of an arithmetic progression (AP)\nseries with the first term 'a' and common difference 'd'.\n\nParameters:\na (int): The first term of the AP.\nd (int): The common difference between terms.\nn (int): The number of terms to sum.\n\nReturns:\nint: The sum of the first 'n' terms of the AP.\n\nExamples:\n>>> sum_of_ap_series(1, 1, 5)  # Sum of first 5 natural numbers\n15\n>>> sum_of_ap_series(2, 3, 4)  # Sum of 2, 5, 8, 11\n26\n>>> sum_of_ap_series(5, 0, 3)  # Sum of 5, 5, 5\n15\n>>> sum_of_ap_series(1, 2, 1)  # Single term AP series\n1\n>>> sum_of_ap_series(1, -1, 5)  # Decreasing AP series\n-5\n>>> sum_of_ap_series(1, 1, -5)  # Negative 'n' should raise an error\nTraceback (most recent call last):\n...\nValueError: Number of terms 'n' must be a positive integer\n>>> sum_of_ap_series(1, 1, 0)  # Zero terms should also raise an error\nTraceback (most recent call last):\n...\nValueError: Number of terms 'n' must be a positive integer"
-  [a d n] (try (when (py-truthy (py-le n 0)) (throw (ex-info (py-str "Number of terms 'n' must be a positive integer") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-floordiv (py-mul n (py-add (py-mul 2 a) (py-mul (py-sub n 1) d))) 2)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  Parameters:
+  a (int): The first term of the AP.
+  d (int): The common difference between terms.
+  n (int): The number of terms to sum.
+
+  Returns:
+  int: The sum of the first 'n' terms of the AP."
+  [a d n]
+  (when (<= n 0)
+    (throw (ex-info "Number of terms 'n' must be a positive integer"
+                    {:type :ValueError})))
+  ;; Formula for the sum of an AP series: S_n = n/2 * (2a + (n-1) * d)
+  (quot (* n (+ (* 2 a) (* (dec n) d))) 2))

@@ -1,17 +1,80 @@
 (ns clojure-algorithms.maths.binary-exponentiation
-  "Binary Exponentiation\n\nThis is a method to find a^b in O(log b) time complexity and is one of the most commonly\nused methods of exponentiation. The method is also useful for modular exponentiation,\nwhen the solution to (a^b) % c is required.\n\nTo calculate a^b:\n- If b is even, then a^b = (a * a)^(b / 2)\n- If b is odd, then a^b = a * a^(b - 1)\nRepeat until b = 1 or b = 0\n\nFor modular exponentiation, we use the fact that (a * b) % c = ((a % c) * (b % c)) % c"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Binary Exponentiation
 
-(declare binary-exp-recursive binary-exp-iterative binary-exp-mod-recursive binary-exp-mod-iterative)
+  This is a method to find a^b in O(log b) time complexity and is one of the
+  most commonly used methods of exponentiation. The method is also useful for
+  modular exponentiation, when the solution to (a^b) % c is required.
 
-(defn binary-exp-recursive "Computes a^b recursively, where a is the base and b is the exponent\n\n>>> binary_exp_recursive(3, 5)\n243\n>>> binary_exp_recursive(11, 13)\n34522712143931\n>>> binary_exp_recursive(-1, 3)\n-1\n>>> binary_exp_recursive(0, 5)\n0\n>>> binary_exp_recursive(3, 1)\n3\n>>> binary_exp_recursive(3, 0)\n1\n>>> binary_exp_recursive(1.5, 4)\n5.0625\n>>> binary_exp_recursive(3, -1)\nTraceback (most recent call last):\n    ...\nValueError: Exponent must be a non-negative integer"
-  [base exponent] (let [b (atom nil)] (try (when (py-truthy (py-lt exponent 0)) (throw (ex-info (py-str "Exponent must be a non-negative integer") {:type :ValueError}))) (when (py-truthy (py-eq exponent 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (when (py-truthy (py-eq (py-mod exponent 2) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (binary-exp-recursive base (py-sub exponent 1)) base)}))) (reset! b (binary-exp-recursive base (py-floordiv exponent 2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul @b @b)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  To calculate a^b:
+  - If b is even, then a^b = (a * a)^(b / 2)
+  - If b is odd, then a^b = a * a^(b - 1)
+  Repeat until b = 1 or b = 0
 
-(defn binary-exp-iterative "Computes a^b iteratively, where a is the base and b is the exponent\n\n>>> binary_exp_iterative(3, 5)\n243\n>>> binary_exp_iterative(11, 13)\n34522712143931\n>>> binary_exp_iterative(-1, 3)\n-1\n>>> binary_exp_iterative(0, 5)\n0\n>>> binary_exp_iterative(3, 1)\n3\n>>> binary_exp_iterative(3, 0)\n1\n>>> binary_exp_iterative(1.5, 4)\n5.0625\n>>> binary_exp_iterative(3, -1)\nTraceback (most recent call last):\n    ...\nValueError: Exponent must be a non-negative integer"
-  [base exponent] (let [base (atom base) exponent (atom exponent)] (let [res (atom nil)] (try (when (py-truthy (py-lt @exponent 0)) (throw (ex-info (py-str "Exponent must be a non-negative integer") {:type :ValueError}))) (reset! res 1) (while (py-truthy (py-gt @exponent 0)) (when (py-truthy (py-band @exponent 1)) (swap! res py-mul @base)) (swap! base py-mul @base) (swap! exponent (fn [__o] (.shiftRight (.toBigInteger (bigint __o)) (int 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @res})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  For modular exponentiation, we use the fact that
+  (a * b) % c = ((a % c) * (b % c)) % c")
 
-(defn binary-exp-mod-recursive "Computes a^b % c recursively, where a is the base, b is the exponent, and c is the\nmodulus\n\n>>> binary_exp_mod_recursive(3, 4, 5)\n1\n>>> binary_exp_mod_recursive(11, 13, 7)\n4\n>>> binary_exp_mod_recursive(1.5, 4, 3)\n2.0625\n>>> binary_exp_mod_recursive(7, -1, 10)\nTraceback (most recent call last):\n    ...\nValueError: Exponent must be a non-negative integer\n>>> binary_exp_mod_recursive(7, 13, 0)\nTraceback (most recent call last):\n    ...\nValueError: Modulus must be a positive integer"
-  [base exponent modulus] (let [r (atom nil)] (try (when (py-truthy (py-lt exponent 0)) (throw (ex-info (py-str "Exponent must be a non-negative integer") {:type :ValueError}))) (when (py-truthy (py-le modulus 0)) (throw (ex-info (py-str "Modulus must be a positive integer") {:type :ValueError}))) (when (py-truthy (py-eq exponent 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (when (py-truthy (py-eq (py-mod exponent 2) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mod (py-mul (binary-exp-mod-recursive base (py-sub exponent 1) modulus) base) modulus)}))) (reset! r (binary-exp-mod-recursive base (py-floordiv exponent 2) modulus)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mod (py-mul @r @r) modulus)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- check-exponent
+  [exponent]
+  (when (neg? exponent)
+    (throw (ex-info "Exponent must be a non-negative integer"
+                    {:type :ValueError}))))
 
-(defn binary-exp-mod-iterative "Computes a^b % c iteratively, where a is the base, b is the exponent, and c is the\nmodulus\n\n>>> binary_exp_mod_iterative(3, 4, 5)\n1\n>>> binary_exp_mod_iterative(11, 13, 7)\n4\n>>> binary_exp_mod_iterative(1.5, 4, 3)\n2.0625\n>>> binary_exp_mod_iterative(7, -1, 10)\nTraceback (most recent call last):\n    ...\nValueError: Exponent must be a non-negative integer\n>>> binary_exp_mod_iterative(7, 13, 0)\nTraceback (most recent call last):\n    ...\nValueError: Modulus must be a positive integer"
-  [base exponent modulus] (let [base (atom base) exponent (atom exponent)] (let [res (atom nil)] (try (when (py-truthy (py-lt @exponent 0)) (throw (ex-info (py-str "Exponent must be a non-negative integer") {:type :ValueError}))) (when (py-truthy (py-le modulus 0)) (throw (ex-info (py-str "Modulus must be a positive integer") {:type :ValueError}))) (reset! res 1) (while (py-truthy (py-gt @exponent 0)) (when (py-truthy (py-band @exponent 1)) (reset! res (py-mod (py-mul (py-mod @res modulus) (py-mod @base modulus)) modulus))) (swap! base py-mul @base) (swap! exponent (fn [__o] (.shiftRight (.toBigInteger (bigint __o)) (int 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @res})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- floored-mod
+  "Python-style floored modulo, preserving integer results for integer inputs."
+  [a m]
+  (if (and (integer? a) (integer? m))
+    (mod a m)
+    (- a (* m (Math/floor (/ (double a) (double m)))))))
+
+(defn binary-exp-recursive
+  "Computes a^b recursively, where a is the base and b is the exponent."
+  [base exponent]
+  (check-exponent exponent)
+  (cond (zero? exponent) 1
+        (odd? exponent) (*' (binary-exp-recursive base (dec exponent)) base)
+        :else (let [b (binary-exp-recursive base (quot exponent 2))]
+                (*' b b))))
+
+(defn binary-exp-iterative
+  "Computes a^b iteratively, where a is the base and b is the exponent."
+  [base exponent]
+  (check-exponent exponent)
+  (loop [res 1 b base e exponent]
+    (if (zero? e)
+      res
+      (recur (if (odd? e) (*' res b) res)
+             (*' b b)
+             (quot e 2)))))
+
+(defn binary-exp-mod-recursive
+  "Computes a^b % c recursively, where a is the base, b is the exponent,
+  and c is the modulus."
+  [base exponent modulus]
+  (check-exponent exponent)
+  (when (<= modulus 0)
+    (throw (ex-info "Modulus must be a positive integer" {:type :ValueError})))
+  (cond (zero? exponent) 1
+        (odd? exponent)
+        (floored-mod (*' (binary-exp-mod-recursive base (dec exponent) modulus)
+                         base)
+                     modulus)
+        :else (let [r (binary-exp-mod-recursive base (quot exponent 2) modulus)]
+                (floored-mod (*' r r) modulus))))
+
+(defn binary-exp-mod-iterative
+  "Computes a^b % c iteratively, where a is the base, b is the exponent,
+  and c is the modulus."
+  [base exponent modulus]
+  (check-exponent exponent)
+  (when (<= modulus 0)
+    (throw (ex-info "Modulus must be a positive integer" {:type :ValueError})))
+  (loop [res 1 b base e exponent]
+    (if (zero? e)
+      res
+      (recur (if (odd? e)
+               (floored-mod (*' (floored-mod res modulus)
+                                (floored-mod b modulus))
+                            modulus)
+               res)
+             (*' b b)
+             (quot e 2)))))

@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.jacobsthal-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.jacobsthal-number :as sut]))
 
 (deftest test-fn-jacobsthal-number-examples
@@ -20,3 +19,18 @@
   (is (approx [0 1 1 3 5 11 21 43 85 171 341] (sut/jacobsthal-sequence 11)))
   (is (thrown? Exception (sut/jacobsthal-sequence -3)))
   (is (thrown? Exception (sut/jacobsthal-sequence 4.0))))
+
+(deftest test-jacobsthal-closed-form
+  (let [pow (fn [base exp] (reduce *' 1 (repeat exp base)))]
+    (is (every? true?
+                (map (fn [i]
+                       (= (sut/jacobsthal-number i)
+                          (quot (- (pow 2 i) (pow -1 i)) 3)))
+                     (range 100))))))
+
+(deftest test-error-details
+  (let [thrown (try (sut/jacobsthal-number "3")
+                    nil
+                    (catch clojure.lang.ExceptionInfo e e))]
+    (is (= :ValueError (:type (ex-data thrown))))
+    (is (= "n must be a non-negative integer, got '3'" (ex-message thrown)))))

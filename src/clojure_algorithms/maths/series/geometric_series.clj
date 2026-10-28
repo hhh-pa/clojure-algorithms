@@ -1,8 +1,34 @@
 (ns clojure-algorithms.maths.series.geometric-series
-  "This is a pure Python implementation of the Geometric Series algorithm\nhttps://en.wikipedia.org/wiki/Geometric_series\nRun the doctests with the following command:\npython3 -m doctest -v geometric_series.py\nor\npython -m doctest -v geometric_series.py\nFor manual testing run:\npython3 geometric_series.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "This is a pure Python implementation of the Geometric Series algorithm
+https://en.wikipedia.org/wiki/Geometric_series
+Run the doctests with the following command:
+python3 -m doctest -v geometric_series.py
+or
+python -m doctest -v geometric_series.py
+For manual testing run:
+python3 geometric_series.py")
 
-(declare geometric-series)
+(defn- truthy-arg?
+  [v]
+  (cond (nil? v) false
+        (false? v) false
+        (number? v) (not (zero? v))
+        (string? v) (not (empty? v))
+        (coll? v) (not (empty? v))
+        :else true))
 
-(defn geometric-series "Pure Python implementation of Geometric Series algorithm\n\n:param nth_term: The last term (nth term of Geometric Series)\n:param start_term_a : The first term of Geometric Series\n:param common_ratio_r : The common ratio between all the terms\n:return: The Geometric Series starting from first term a and multiple of common\n    ration with first term with increase in power till last term (nth term)\nExamples:\n>>> geometric_series(4, 2, 2)\n[2, 4.0, 8.0, 16.0]\n>>> geometric_series(4.0, 2.0, 2.0)\n[2.0, 4.0, 8.0, 16.0]\n>>> geometric_series(4.1, 2.1, 2.1)\n[2.1, 4.41, 9.261000000000001, 19.448100000000004]\n>>> geometric_series(4, 2, -2)\n[2, -4.0, 8.0, -16.0]\n>>> geometric_series(4, -2, 2)\n[-2, -4.0, -8.0, -16.0]\n>>> geometric_series(-4, 2, 2)\n[]\n>>> geometric_series(0, 100, 500)\n[]\n>>> geometric_series(1, 1, 1)\n[1]\n>>> geometric_series(0, 0, 0)\n[]"
-  [nth-term start-term-a common-ratio-r] (let [--v (atom nil) multiple (atom nil) power (atom nil) series (atom nil)] (try (when (py-truthy (not (py-truthy (every? py-truthy [nth-term start-term-a common-ratio-r])))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (reset! series []) (reset! power 1) (reset! multiple common-ratio-r) (doseq [__i1 (py-iter (range (py-int nth-term nil)))] (reset! --v __i1) (if (py-truthy (not (py-truthy @series))) (do (swap! series conj start-term-a)) (do (swap! power py-add 1) (swap! series conj (py-float (py-mul start-term-a @multiple))) (reset! multiple (py-pow (py-float common-ratio-r) @power))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @series})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn geometric-series
+  "Return the Geometric Series of nth-term terms starting from start-term-a
+with common ratio common-ratio-r.
+
+  Returns an empty vector when any argument is zero-like, matching the
+  upstream guard."
+  [nth-term start-term-a common-ratio-r]
+  (if-not (every? truthy-arg? [nth-term start-term-a common-ratio-r])
+    []
+    (mapv (fn [i]
+            (if (zero? i)
+              start-term-a
+              (double (* start-term-a
+                         (Math/pow (double common-ratio-r) i)))))
+          (range (int nth-term)))))

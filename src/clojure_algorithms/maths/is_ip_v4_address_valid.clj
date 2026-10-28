@@ -1,8 +1,20 @@
 (ns clojure-algorithms.maths.is-ip-v4-address-valid
-  "wiki: https://en.wikipedia.org/wiki/IPv4\n\nIs IP v4 address valid?\nA valid IP address must be four octets in the form of A.B.C.D,\nwhere A, B, C and D are numbers from 0-255\nfor example: 192.168.23.1, 172.255.255.255 are valid IP address\n             192.168.256.0, 256.192.3.121 are invalid IP address"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "wiki: https://en.wikipedia.org/wiki/IPv4
 
-(declare is-ip-v4-address-valid)
+Is IP v4 address valid?
+A valid IP address must be four octets in the form of A.B.C.D,
+where A, B, C and D are numbers from 0-255."
+  (:require [clojure.string :as str]))
 
-(defn is-ip-v4-address-valid "print \"Valid IP address\" If IP is valid.\nor\nprint \"Invalid IP address\" If IP is invalid.\n\n>>> is_ip_v4_address_valid(\"192.168.0.23\")\nTrue\n\n>>> is_ip_v4_address_valid(\"192.256.15.8\")\nFalse\n\n>>> is_ip_v4_address_valid(\"172.100.0.8\")\nTrue\n\n>>> is_ip_v4_address_valid(\"255.256.0.256\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.33333333.4\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.-3.4\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.3\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.3.4.5\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.A.4\")\nFalse\n\n>>> is_ip_v4_address_valid(\"0.0.0.0\")\nTrue\n\n>>> is_ip_v4_address_valid(\"1.2.3.\")\nFalse\n\n>>> is_ip_v4_address_valid(\"1.2.3.05\")\nFalse"
-  [ip] (let [number (atom nil) octet (atom nil) octets (atom nil)] (try (reset! octets (py-split ip "." -1)) (when (py-truthy (not (py-eq (count @octets) 4))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (doseq [__i1 (py-iter @octets)] (reset! octet __i1) (when (py-truthy (not (py-truthy (boolean (re-matches #"\d+" @octet))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! number (py-int @octet nil)) (when (py-truthy (not (py-eq (count (py-str @number)) (count @octet)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (not (py-truthy (let [__c2 0 __c3 @number __c4 255] (and (py-le __c2 __c3) (py-le __c3 __c4)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- valid-octet?
+  "Checks one dotted-decimal octet: all digits, no leading zeros, 0-255."
+  [octet]
+  (and (re-matches #"\d+" octet)
+       (= (str (Long/parseLong octet)) octet)
+       (<= 0 (Long/parseLong octet) 255)))
+
+(defn is-ip-v4-address-valid
+  "Returns true if the string is a valid IPv4 address, false otherwise."
+  [ip]
+  (let [octets (str/split ip #"\." -1)]
+    (boolean (and (= 4 (count octets)) (every? valid-octet? octets)))))

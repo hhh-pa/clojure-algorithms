@@ -1,7 +1,6 @@
 (ns clojure-algorithms.matrix.searching-in-sorted-matrix-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.matrix.searching-in-sorted-matrix :as sut]))
 
 (deftest test-fn-search-in-a-sorted-matrix-examples

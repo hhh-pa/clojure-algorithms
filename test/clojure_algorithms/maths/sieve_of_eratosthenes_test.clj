@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.sieve-of-eratosthenes-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is]]
             [clojure-algorithms.maths.sieve-of-eratosthenes :as sut]))
 
 (deftest test-fn-prime-sieve-examples
@@ -10,4 +9,6 @@
   (is (approx [2 3 5 7] (sut/prime-sieve 10)))
   (is (approx [2 3 5 7] (sut/prime-sieve 9)))
   (is (approx [2] (sut/prime-sieve 2)))
-  (is (approx [] (sut/prime-sieve 1))))
+  (is (approx [] (sut/prime-sieve 1)))
+  (is (thrown? clojure.lang.ExceptionInfo (sut/prime-sieve 0)))
+  (is (thrown? clojure.lang.ExceptionInfo (sut/prime-sieve -5))))

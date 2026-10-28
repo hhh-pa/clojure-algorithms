@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.is-ip-v4-address-valid-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.is-ip-v4-address-valid :as sut]))
 
 (deftest test-fn-is-ip-v4-address-valid-examples

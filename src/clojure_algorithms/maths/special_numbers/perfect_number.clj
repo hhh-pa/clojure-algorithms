@@ -1,8 +1,24 @@
 (ns clojure-algorithms.maths.special-numbers.perfect-number
-  "== Perfect Number ==\nIn number theory, a perfect number is a positive integer that is equal to the sum of\nits positive divisors, excluding the number itself.\nFor example: 6 ==> divisors[1, 2, 3, 6]\n    Excluding 6, the sum(divisors) is 1 + 2 + 3 = 6\n    So, 6 is a Perfect Number\n\nOther examples of Perfect Numbers: 28, 486, ...\n\nhttps://en.wikipedia.org/wiki/Perfect_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Perfect Number ==
+In number theory, a perfect number is a positive integer that is equal to the sum of
+its positive divisors, excluding the number itself.
+For example: 6 ==> divisors[1, 2, 3, 6]
+    Excluding 6, the sum(divisors) is 1 + 2 + 3 = 6
+    So, 6 is a Perfect Number
 
-(declare perfect)
+Other examples of Perfect Numbers: 28, 486, ...
 
-(defn perfect "Check if a number is a perfect number.\n\nA perfect number is a positive integer that is equal to the sum of its proper\ndivisors (excluding itself).\n\nArgs:\n    number: The number to be checked.\n\nReturns:\n    True if the number is a perfect number, False otherwise.\n\nStart from 1 because dividing by 0 will raise ZeroDivisionError.\nA number at most can be divisible by the half of the number except the number\nitself. For example, 6 is at most can be divisible by 3 except by 6 itself.\n\nExamples:\n>>> perfect(27)\nFalse\n>>> perfect(28)\nTrue\n>>> perfect(29)\nFalse\n>>> perfect(6)\nTrue\n>>> perfect(12)\nFalse\n>>> perfect(496)\nTrue\n>>> perfect(8128)\nTrue\n>>> perfect(0)\nFalse\n>>> perfect(-1)\nFalse\n>>> perfect(12.34)\nTraceback (most recent call last):\n  ...\nValueError: number must be an integer\n>>> perfect(\"Hello\")\nTraceback (most recent call last):\n  ...\nValueError: number must be an integer"
-  [number] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "number must be an integer") {:type :ValueError}))) (when (py-truthy (py-le number 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq (reduce +' 0 (doall (for [i (py-iter (range 1 (py-add (py-floordiv number 2) 1))) :when (py-truthy (py-eq (py-mod number i) 0))] i))) number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+https://en.wikipedia.org/wiki/Perfect_number")
+
+(defn perfect
+  "Returns true if `number` is perfect: it equals the sum of its proper
+divisors. Returns false for integers below 1. Throws an ex-info with :type
+:ValueError when `number` is not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info "number must be an integer" {:type :ValueError})))
+  (if (<= number 0)
+    false
+    (= number
+       (reduce + 0 (filter #(zero? (rem number %))
+                           (range 1 (inc (quot number 2))))))))

@@ -1,25 +1,48 @@
 (ns clojure-algorithms.maths.points-are-collinear-3d
-  "Check if three points are collinear in 3D.\n\nIn short, the idea is that we are able to create a triangle using three points,\nand the area of that triangle can determine if the three points are collinear or not.\n\n\nFirst, we create two vectors with the same initial point from the three points,\nthen we will calculate the cross-product of them.\n\nThe length of the cross vector is numerically equal to the area of a parallelogram.\n\nFinally, the area of the triangle is equal to half of the area of the parallelogram.\n\nSince we are only differentiating between zero and anything else,\nwe can get rid of the square root when calculating the length of the vector,\nand also the division by two at the end.\n\nFrom a second perspective, if the two vectors are parallel and overlapping,\nwe can't get a nonzero perpendicular vector,\nsince there will be an infinite number of orthogonal vectors.\n\nTo simplify the solution we will not calculate the length,\nbut we will decide directly from the vector whether it is equal to (0, 0, 0) or not.\n\n\nRead More:\n    https://math.stackexchange.com/a/1951650"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Check if three points are collinear in 3D.
 
-(declare create-vector get-3d-vectors-cross is-zero-vector are-collinear Vector3d Point3d)
+  Three points form a triangle; the area of that triangle determines whether
+  the points are collinear. Two vectors with the same initial point are built
+  from the three points, then their cross-product is computed. If the cross
+  vector is (0, 0, 0) the points are collinear.
 
-(defn create-vector "Pass two points to get the vector from them in the form (x, y, z).\n\n>>> create_vector((0, 0, 0), (1, 1, 1))\n(1, 1, 1)\n>>> create_vector((45, 70, 24), (47, 32, 1))\n(2, -38, -23)\n>>> create_vector((-14, -1, -8), (-7, 6, 4))\n(7, 7, 12)"
-  [end-point1 end-point2] (let [x (atom nil) y (atom nil) z (atom nil)] (try (reset! x (py-sub (py-get end-point2 0) (py-get end-point1 0))) (reset! y (py-sub (py-get end-point2 1) (py-get end-point1 1))) (reset! z (py-sub (py-get end-point2 2) (py-get end-point1 2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@x @y @z]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Read More:
+      https://math.stackexchange.com/a/1951650")
 
-(defn get-3d-vectors-cross "Get the cross of the two vectors AB and AC.\n\nI used determinant of 2x2 to get the determinant of the 3x3 matrix in the process.\n\nRead More:\n    https://en.wikipedia.org/wiki/Cross_product\n    https://en.wikipedia.org/wiki/Determinant\n\n>>> get_3d_vectors_cross((3, 4, 7), (4, 9, 2))\n(-55, 22, 11)\n>>> get_3d_vectors_cross((1, 1, 1), (1, 1, 1))\n(0, 0, 0)\n>>> get_3d_vectors_cross((-4, 3, 0), (3, -9, -12))\n(-36, -48, 27)\n>>> get_3d_vectors_cross((17.67, 4.7, 6.78), (-9.5, 4.78, -19.33))\n(-123.2594, 277.15110000000004, 129.11260000000001)"
-  [ab ac] (let [x (atom nil) y (atom nil) z (atom nil)] (try (reset! x (py-sub (py-mul (py-get ab 1) (py-get ac 2)) (py-mul (py-get ab 2) (py-get ac 1)))) (reset! y (py-mul (py-sub (py-mul (py-get ab 0) (py-get ac 2)) (py-mul (py-get ab 2) (py-get ac 0))) (py-neg 1))) (reset! z (py-sub (py-mul (py-get ab 0) (py-get ac 1)) (py-mul (py-get ab 1) (py-get ac 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@x @y @z]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn create-vector
+  "Returns the vector from `end-point1` to `end-point2` as [x y z]."
+  [end-point1 end-point2]
+  (mapv - end-point2 end-point1))
 
-(defn is-zero-vector "Check if vector is equal to (0, 0, 0) or not.\n\nSince the algorithm is very accurate, we will never get a zero vector,\nso we need to round the vector axis,\nbecause we want a result that is either True or False.\nIn other applications, we can return a float that represents the collinearity ratio.\n\n>>> is_zero_vector((0, 0, 0), accuracy=10)\nTrue\n>>> is_zero_vector((15, 74, 32), accuracy=10)\nFalse\n>>> is_zero_vector((-15, -74, -32), accuracy=10)\nFalse"
-  [vector-v accuracy] (py-eq (py-list (doall (for [x (py-iter vector-v)] (py-round x accuracy)))) [0 0 0]))
+(defn get-3d-vectors-cross
+  "Returns the cross product of the 3D vectors `ab` and `ac` as [x y z].
+  See https://en.wikipedia.org/wiki/Cross_product"
+  [ab ac]
+  (let [[abx aby abz] ab
+        [acx acy acz] ac]
+    [(- (* aby acz) (* abz acy))
+     (- (* abz acx) (* abx acz))
+     (- (* abx acy) (* aby acx))]))
 
-(defn are-collinear "Check if three points are collinear or not.\n\n1- Create two vectors AB and AC.\n2- Get the cross vector of the two vectors.\n3- Calculate the length of the cross vector.\n4- If the length is zero then the points are collinear, else they are not.\n\nThe use of the accuracy parameter is explained in is_zero_vector docstring.\n\n>>> are_collinear((4.802293498137402, 3.536233125455244, 0),\n...               (-2.186788107953106, -9.24561398001649, 7.141509524846482),\n...               (1.530169574640268, -2.447927606600034, 3.343487096469054))\nTrue\n>>> are_collinear((-6, -2, 6),\n...               (6.200213806439997, -4.930157614926678, -4.482371908289856),\n...               (-4.085171149525941, -2.459889509029438, 4.354787180795383))\nTrue\n>>> are_collinear((2.399001826862445, -2.452009976680793, 4.464656666157666),\n...               (-3.682816335934376, 5.753788986533145, 9.490993909044244),\n...               (1.962903518985307, 3.741415730125627, 7))\nFalse\n>>> are_collinear((1.875375340689544, -7.268426006071538, 7.358196269835993),\n...               (-3.546599383667157, -4.630005261513976, 3.208784032924246),\n...               (-2.564606140206386, 3.937845170672183, 7))\nFalse"
+(defn- round-to
+  "Rounds `x` to `ndigits` decimals with round-half-even on the exact binary
+  value, matching Python's round()."
+  [x ndigits]
+  (let [bd (if (integer? x)
+             (BigDecimal. ^java.math.BigInteger (biginteger x))
+             (BigDecimal. ^double (double x)))]
+    (.setScale bd ndigits java.math.RoundingMode/HALF_EVEN)))
+
+(defn is-zero-vector
+  "Returns true if `vector-v` rounds to [0 0 0] at the given `accuracy`
+  (number of decimals)."
+  [vector-v accuracy]
+  (every? #(zero? (round-to % accuracy)) vector-v))
+
+(defn are-collinear
+  "Returns true if the three 3D points `a`, `b` and `c` are collinear."
   ([a b c] (are-collinear a b c 10))
-  ([a b c accuracy] (let [ab (atom nil) ac (atom nil)] (try (reset! ab (create-vector a b)) (reset! ac (create-vector a c)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (is-zero-vector (get-3d-vectors-cross @ab @ac) accuracy)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
-
-(def Vector3d nil)
-
-(def Point3d nil)
-
-;; NOTE: const Vector3d is a typing alias
-;; NOTE: const Point3d is a typing alias
+  ([a b c accuracy]
+   (is-zero-vector (get-3d-vectors-cross (create-vector a b)
+                                         (create-vector a c))
+                   accuracy)))

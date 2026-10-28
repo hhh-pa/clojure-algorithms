@@ -1,11 +1,29 @@
 (ns clojure-algorithms.maths.factorial
-  "Factorial of a positive integer -- https://en.wikipedia.org/wiki/Factorial"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Factorial of a positive integer -- https://en.wikipedia.org/wiki/Factorial")
 
-(declare factorial factorial-recursive)
+(defn factorial
+  "Calculate the factorial of the specified number."
+  [number]
+  (when (not (number? number))
+    (throw (ex-info "factorial() only accepts integral values" {:type :ValueError})))
+  (when (not (== number (long number)))
+    (throw (ex-info "factorial() only accepts integral values" {:type :ValueError})))
+  (when (neg? number)
+    (throw (ex-info "factorial() not defined for negative values" {:type :ValueError})))
+  (when (not (integer? number))
+    (throw (ex-info "'float' object cannot be interpreted as an integer"
+                    {:type :TypeError})))
+  (reduce * 1 (range 1 (inc (long number)))))
 
-(defn factorial "Calculate the factorial of the specified number.\n\n>>> import math\n>>> all(factorial(i) == math.factorial(i) for i in range(20))\nTrue\n>>> factorial(0)\n1\n>>> factorial(1)\n1\n>>> factorial(5)\n120\n>>> factorial(0.1)\nTraceback (most recent call last):\n    ...\nValueError: factorial() only accepts integral values\n>>> factorial(-1)\nTraceback (most recent call last):\n    ...\nValueError: factorial() not defined for negative values"
-  [number] (let [i (atom nil) value (atom nil)] (try (when (py-truthy (not (py-eq number (py-int number nil)))) (throw (ex-info (py-str "factorial() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt number 0)) (throw (ex-info (py-str "factorial() not defined for negative values") {:type :ValueError}))) (reset! value 1) (doseq [__i1 (py-iter (range 1 (py-add number 1)))] (reset! i __i1) (swap! value py-mul @i)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @value})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn factorial-recursive "Calculate the factorial of a number using recursion.\n\n>>> import math\n>>> all(factorial_recursive(i) == math.factorial(i) for i in range(20))\nTrue\n>>> factorial_recursive(0)\n1\n>>> factorial_recursive(1)\n1\n>>> factorial_recursive(5)\n120\n>>> factorial_recursive(0.1)\nTraceback (most recent call last):\n    ...\nValueError: factorial_recursive() only accepts integral values\n>>> factorial_recursive(-1)\nTraceback (most recent call last):\n    ...\nValueError: factorial_recursive() not defined for negative values"
-  [number] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "factorial_recursive() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt number 0)) (throw (ex-info (py-str "factorial_recursive() not defined for negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-in number (set [0 1]))) 1 (py-mul number (factorial-recursive (py-sub number 1))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn factorial-recursive
+  "Calculate the factorial of a number using recursion."
+  [number]
+  (when (not (integer? number))
+    (throw (ex-info "factorial_recursive() only accepts integral values"
+                    {:type :ValueError})))
+  (when (neg? number)
+    (throw (ex-info "factorial_recursive() not defined for negative values"
+                    {:type :ValueError})))
+  (if (<= number 1)
+    1
+    (* number (factorial-recursive (dec number)))))

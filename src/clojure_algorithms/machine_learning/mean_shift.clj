@@ -1,28 +1,93 @@
 (ns clojure-algorithms.machine-learning.mean-shift
-  "Mean Shift Clustering\n\nA non-parametric, centroid-based clustering algorithm that does not require\nspecifying the number of clusters in advance. It works by iteratively shifting\neach data point toward the mean of points within a given bandwidth (radius),\nuntil convergence.\n\nHow it works:\n    1. Each point starts as its own candidate centroid.\n    2. For each candidate, compute the mean of all points within `bandwidth`\n       distance (the \"window\").\n    3. Shift the candidate to that mean.\n    4. Repeat until candidates stop moving (convergence).\n    5. Merge candidates that are closer than `bandwidth` to each other.\n    6. Assign each original point to its nearest final centroid.\n\nKey Properties:\n    - No need to specify number of clusters (unlike K-Means)\n    - Can find arbitrarily shaped clusters (like DBSCAN)\n    - Sensitive to the `bandwidth` parameter\n    - Deterministic (no random initialization)\n\nTime Complexity:  O(n² * iterations) with brute-force window search\nSpace Complexity: O(n)\n\nReferences:\n    - https://en.wikipedia.org/wiki/Mean_shift\n    - Comaniciu, D. & Meer, P. \"Mean Shift: A Robust Approach Toward\n      Feature Space Analysis.\" IEEE TPAMI, 2002.\n      https://doi.org/10.1109/34.1000236"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Mean Shift clustering.
 
-(declare euclidean-distance get-points-within-bandwidth compute-mean shift-point has-converged merge-centroids mean-shift)
+  A non-parametric, centroid-based algorithm: each point is iteratively shifted
+  toward the mean of points within a bandwidth window until convergence, then
+  nearby candidates are merged and every point is assigned to its nearest
+  centroid. The cluster count emerges from the data.
 
-(defn euclidean-distance "Compute the Euclidean distance between two n-dimensional points.\n\n>>> euclidean_distance([0.0, 0.0], [3.0, 4.0])\n5.0\n>>> euclidean_distance([1.0, 1.0], [1.0, 1.0])\n0.0\n>>> euclidean_distance([0.0], [5.0])\n5.0\n>>> euclidean_distance([0.0, 0.0], [1.0])\nTraceback (most recent call last):\n    ...\nValueError: Both points must have the same number of dimensions."
-  [point-a point-b] (try (when (py-truthy (not (py-eq (count point-a) (count point-b)))) (throw (ex-info (py-str "Both points must have the same number of dimensions.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-pow (reduce +' 0 (doall (for [[a b] (py-iter (map vector point-a point-b))] (py-pow (py-sub a b) 2)))) 0.5)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  References:
+  https://en.wikipedia.org/wiki/Mean_shift
+  Comaniciu, D. & Meer, P. \"Mean Shift: A Robust Approach Toward Feature
+  Space Analysis.\" IEEE TPAMI, 2002.")
 
-(defn get-points-within-bandwidth "Return all points in data that lie within `bandwidth` distance of `center`.\n\n>>> data = [[0.0, 0.0], [0.5, 0.5], [5.0, 5.0]]\n>>> get_points_within_bandwidth(data, [0.0, 0.0], 1.0)\n[[0.0, 0.0], [0.5, 0.5]]\n>>> get_points_within_bandwidth(data, [5.0, 5.0], 1.0)\n[[5.0, 5.0]]\n>>> get_points_within_bandwidth(data, [0.0, 0.0], 10.0)\n[[0.0, 0.0], [0.5, 0.5], [5.0, 5.0]]"
-  [data center bandwidth] (vec (for [point (py-iter data) :when (py-truthy (py-le (euclidean-distance point center) bandwidth))] point)))
+(defn euclidean-distance
+  "Euclidean distance between two n-dimensional points.
+  Throws :ValueError when the points have different dimensions."
+  [point-a point-b]
+  (when (not= (count point-a) (count point-b))
+    (throw (ex-info "Both points must have the same number of dimensions."
+                    {:type :ValueError})))
+  (Math/sqrt (reduce + (map #(let [d (- (double %1) (double %2))] (* d d))
+                            point-a point-b))))
 
-(defn compute-mean "Compute the element-wise mean of a list of points.\n\n>>> compute_mean([[1.0, 2.0], [3.0, 4.0]])\n[2.0, 3.0]\n>>> compute_mean([[0.0, 0.0, 0.0]])\n[0.0, 0.0, 0.0]\n>>> compute_mean([])\nTraceback (most recent call last):\n    ...\nValueError: Cannot compute mean of empty list."
-  [points] (let [n-dims (atom nil)] (try (when (py-truthy (not (py-truthy points))) (throw (ex-info (py-str "Cannot compute mean of empty list.") {:type :ValueError}))) (reset! n-dims (count (py-get points 0))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [dim (py-iter (range @n-dims))] (py-div (reduce +' 0 (doall (for [point (py-iter points)] (py-get point dim)))) (count points))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn get-points-within-bandwidth
+  "All points of data lying within bandwidth distance of center."
+  [data center bandwidth]
+  (vec (filter #(<= (euclidean-distance % center) bandwidth) data)))
 
-(defn shift-point "Shift a single point to the mean of all data points within `bandwidth`.\n\nIf no points fall within the bandwidth, the point remains unchanged.\n\n>>> data = [[1.0, 1.0], [1.5, 1.5], [10.0, 10.0]]\n>>> shift_point([1.0, 1.0], data, 2.0)\n[1.25, 1.25]\n>>> shift_point([10.0, 10.0], data, 1.0)\n[10.0, 10.0]"
-  [point data bandwidth] (let [neighbors (atom nil)] (try (reset! neighbors (get-points-within-bandwidth data point bandwidth)) (when (py-truthy (not (py-truthy @neighbors))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value point}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (compute-mean @neighbors)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn compute-mean
+  "Element-wise mean of points. Throws :ValueError on empty input."
+  [points]
+  (when (empty? points)
+    (throw (ex-info "Cannot compute mean of empty list." {:type :ValueError})))
+  (let [n (count points)
+        dims (count (first points))]
+    (mapv (fn [dim]
+            (/ (double (reduce + (map #(nth % dim) points))) n))
+          (range dims))))
 
-(defn has-converged "Check whether a point has converged (moved less than `tolerance`).\n\n>>> has_converged([1.0, 1.0], [1.0000001, 1.0000001], 1e-4)\nTrue\n>>> has_converged([1.0, 1.0], [1.5, 1.5], 1e-4)\nFalse"
-  [old-point new-point tolerance] (py-lt (euclidean-distance old-point new-point) tolerance))
+(defn shift-point
+  "Shift point to the mean of data points within bandwidth of it.
+  The point is unchanged when the window is empty."
+  [point data bandwidth]
+  (let [neighbors (get-points-within-bandwidth data point bandwidth)]
+    (if (empty? neighbors) point (compute-mean neighbors))))
 
-(defn merge-centroids "Merge centroids that are within `bandwidth` distance of each other.\n\nIterates through centroids and greedily merges any that are close enough,\nkeeping the first encountered as the representative.\n\n>>> centroids = [[1.0, 1.0], [1.1, 1.1], [10.0, 10.0]]\n>>> merged = merge_centroids(centroids, 1.0)\n>>> len(merged)\n2\n>>> centroids = [[0.0, 0.0], [5.0, 5.0], [10.0, 10.0]]\n>>> len(merge_centroids(centroids, 1.0))\n3"
-  [centroids bandwidth] (let [centroid (atom nil) merged (atom nil)] (try (reset! merged []) (doseq [__i1 (py-iter centroids)] (reset! centroid __i1) (when (py-truthy (every? py-truthy (doall (for [existing (py-iter @merged)] (py-ge (euclidean-distance @centroid existing) bandwidth))))) (swap! merged conj @centroid))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @merged})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn has-converged
+  "True when old-point moved less than tolerance to reach new-point."
+  [old-point new-point tolerance]
+  (< (euclidean-distance old-point new-point) tolerance))
 
-(defn mean-shift "Perform Mean Shift clustering on a dataset.\n\nArgs:\n    data:           List of n-dimensional data points.\n    bandwidth:      Radius of the window used to compute the mean.\n                    Must be greater than 0.\n    max_iterations: Maximum number of shift iterations per point.\n                    Must be at least 1.\n    tolerance:      Convergence threshold — stop shifting when movement\n                    is smaller than this value. Must be greater than 0.\n\nReturns:\n    A list of integer cluster labels, one per input point.\n    Cluster IDs start from 0.\n\nRaises:\n    ValueError: If data is empty.\n    ValueError: If bandwidth is not positive.\n    ValueError: If max_iterations is less than 1.\n    ValueError: If tolerance is not positive.\n\nExample — two well-separated clusters:\n>>> data = [\n...     [1.0, 1.0], [1.2, 1.0], [1.0, 1.2],\n...     [9.0, 9.0], [9.2, 9.0], [9.0, 9.2],\n... ]\n>>> labels = mean_shift(data, bandwidth=2.0)\n>>> len(set(labels))  # two clusters\n2\n>>> labels[0] == labels[1] == labels[2]  # first group same cluster\nTrue\n>>> labels[3] == labels[4] == labels[5]  # second group same cluster\nTrue\n>>> labels[0] != labels[3]               # different clusters\nTrue\n\nExample — single cluster (all points close together):\n>>> data = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1], [0.1, 0.1]]\n>>> labels = mean_shift(data, bandwidth=2.0)\n>>> len(set(labels))\n1\n\nExample — invalid inputs:\n>>> mean_shift([], bandwidth=1.0)\nTraceback (most recent call last):\n    ...\nValueError: Data must not be empty.\n>>> mean_shift([[1.0, 2.0]], bandwidth=0.0)\nTraceback (most recent call last):\n    ...\nValueError: Bandwidth must be greater than 0.\n>>> mean_shift([[1.0, 2.0]], bandwidth=1.0, max_iterations=0)\nTraceback (most recent call last):\n    ...\nValueError: max_iterations must be at least 1.\n>>> mean_shift([[1.0, 2.0]], bandwidth=1.0, tolerance=0.0)\nTraceback (most recent call last):\n    ...\nValueError: Tolerance must be greater than 0."
-  ([data bandwidth] (mean-shift data bandwidth 300 0.0001))
-  ([data bandwidth max-iterations] (mean-shift data bandwidth max-iterations 0.0001))
-  ([data bandwidth max-iterations tolerance] (let [--v (atom nil) candidates (atom nil) centroids (atom nil) labels (atom nil) new-candidates (atom nil)] (try (when (py-truthy (not (py-truthy data))) (throw (ex-info (py-str "Data must not be empty.") {:type :ValueError}))) (when (py-truthy (py-le bandwidth 0)) (throw (ex-info (py-str "Bandwidth must be greater than 0.") {:type :ValueError}))) (when (py-truthy (py-lt max-iterations 1)) (throw (ex-info (py-str "max_iterations must be at least 1.") {:type :ValueError}))) (when (py-truthy (py-le tolerance 0)) (throw (ex-info (py-str "Tolerance must be greater than 0.") {:type :ValueError}))) (reset! candidates (vec (for [point (py-iter data)] (py-slice point nil nil nil)))) (try (doseq [__i1 (py-iter (range max-iterations))] (reset! --v __i1) (reset! new-candidates (vec (for [candidate (py-iter @candidates)] (shift-point candidate data bandwidth)))) (when (py-truthy (every? py-truthy (doall (for [[old new-v] (py-iter (map vector @candidates @new-candidates))] (has-converged old new-v tolerance))))) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (reset! candidates @new-candidates)) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (reset! centroids (merge-centroids @candidates bandwidth)) (reset! labels (vec (for [point (py-iter data)] (py-min-by (fn [centroid-index] (euclidean-distance point (py-get @centroids centroid-index))) (range (count @centroids)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @labels})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn merge-centroids
+  "Greedily drop centroids within bandwidth of an already kept one."
+  [centroids bandwidth]
+  (reduce (fn [merged centroid]
+            (if (every? #(>= (euclidean-distance centroid %) bandwidth) merged)
+              (conj merged centroid)
+              merged))
+          []
+          centroids))
+
+(defn mean-shift
+  "Cluster data with Mean Shift. Returns one integer label per point, with
+  cluster ids starting at 0.
+
+  Throws :ValueError when data is empty, bandwidth/tolerance are not
+  positive, or max-iterations is less than 1."
+  ([data bandwidth] (mean-shift data bandwidth 300 1e-4))
+  ([data bandwidth max-iterations] (mean-shift data bandwidth max-iterations 1e-4))
+  ([data bandwidth max-iterations tolerance]
+   (when (empty? data)
+     (throw (ex-info "Data must not be empty." {:type :ValueError})))
+   (when (<= bandwidth 0)
+     (throw (ex-info "Bandwidth must be greater than 0." {:type :ValueError})))
+   (when (< max-iterations 1)
+     (throw (ex-info "max_iterations must be at least 1." {:type :ValueError})))
+   (when (<= tolerance 0)
+     (throw (ex-info "Tolerance must be greater than 0." {:type :ValueError})))
+   (let [candidates
+         (loop [candidates (vec data)
+                iteration 0]
+           (if (>= iteration max-iterations)
+             candidates
+             (let [shifted (mapv #(shift-point % data bandwidth) candidates)]
+               (if (every? true? (map #(has-converged %1 %2 tolerance)
+                                      candidates shifted))
+                 shifted
+                 (recur shifted (inc iteration))))))
+         centroids (merge-centroids candidates bandwidth)]
+     (mapv (fn [point]
+             (apply min-key #(euclidean-distance point (nth centroids %))
+                    (range (count centroids))))
+           data))))

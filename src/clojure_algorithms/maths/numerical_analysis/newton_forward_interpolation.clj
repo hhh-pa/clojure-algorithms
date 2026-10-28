@@ -1,11 +1,49 @@
 (ns clojure-algorithms.maths.numerical-analysis.newton-forward-interpolation
-  "Port of maths/numerical_analysis/newton_forward_interpolation.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Newton forward interpolation.
+https://www.geeksforgeeks.org/newton-forward-backward-interpolation/")
 
-(declare ucal main)
+(defn ucal
+  "Compute u * (u - 1) * ... * (u - p + 1)."
+  [u p]
+  (loop [i 1
+         temp u]
+    (if (>= i p)
+      temp
+      (recur (inc i) (* temp (- u i))))))
 
-(defn ucal ">>> ucal(1, 2)\n0\n>>> ucal(1.1, 2)\n0.11000000000000011\n>>> ucal(1.2, 2)\n0.23999999999999994"
-  [u p] (let [i (atom nil) temp (atom nil)] (try (reset! temp u) (doseq [__i1 (py-iter (range 1 p))] (reset! i __i1) (reset! temp (py-mul @temp (py-sub u @i)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @temp})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- factorial
+  [n]
+  (reduce *' 1 (range 1 (inc n))))
 
 (defn main
-  [] (let [--v (atom nil) i (atom nil) j (atom nil) n (atom nil) summ (atom nil) u (atom nil) value (atom nil) x (atom nil) y (atom nil)] (reset! n (py-int (do (print "enter the numbers of values: ") (flush) (read-line)) nil)) (reset! y []) (doseq [__i1 (py-iter (range @n))] (reset! --v __i1) (swap! y conj [])) (doseq [__i2 (py-iter (range @n))] (reset! i __i2) (doseq [__i3 (py-iter (range @n))] (reset! j __i3) (conj (vec (py-get @y @i)) @j) (swap! y (fn [__c] (py-assoc-in __c [@i @j] 0))))) (println (clojure.string/join " " [(py-str "enter the values of parameters in a list: ")])) (reset! x (py-list (map (fn [x] (py-int x nil)) (py-split (read-line))))) (println (clojure.string/join " " [(py-str "enter the values of corresponding parameters: ")])) (doseq [__i4 (py-iter (range @n))] (reset! i __i4) (swap! y (fn [__c] (py-assoc-in __c [@i 0] (py-float (read-line)))))) (reset! value (py-int (do (print "enter the value to interpolate: ") (flush) (read-line)) nil)) (reset! u (py-div (py-sub @value (py-get @x 0)) (py-sub (py-get @x 1) (py-get @x 0)))) (doseq [__i5 (py-iter (range 1 @n))] (reset! i __i5) (doseq [__i6 (py-iter (range (py-sub @n @i)))] (reset! j __i6) (swap! y (fn [__c] (py-assoc-in __c [@j @i] (py-sub (py-get (py-get @y (py-add @j 1)) (py-sub @i 1)) (py-get (py-get @y @j) (py-sub @i 1)))))))) (reset! summ (py-get (py-get @y 0) 0)) (doseq [__i7 (py-iter (range 1 @n))] (reset! i __i7) (swap! summ py-add (py-div (py-mul (ucal @u @i) (py-get (py-get @y 0) @i)) (py-factorial @i)))) (println (clojure.string/join " " [(py-str (str "the value at " (py-str @value) " is " (py-str @summ)))])) nil))
+  "Read interpolation data from stdin and print the interpolated value."
+  []
+  (let [n (Integer/parseInt (do (print "enter the numbers of values: ")
+                                (flush)
+                                (read-line)))]
+    (println "enter the values of parameters in a list: ")
+    (let [x (mapv #(Integer/parseInt %) (.split (read-line) " "))]
+      (println "enter the values of corresponding parameters: ")
+      (let [first-col (mapv (fn [_] (Double/parseDouble (read-line))) (range n))
+            value (Integer/parseInt (do (print "enter the value to interpolate: ")
+                                        (flush)
+                                        (read-line)))
+            u (/ (double (- value (nth x 0))) (- (nth x 1) (nth x 0)))
+            table (loop [i 1
+                         table (mapv (fn [v] (assoc (vec (repeat n 0)) 0 (double v)))
+                                     first-col)]
+                    (if (>= i n)
+                      table
+                      (recur (inc i)
+                             (reduce (fn [table j]
+                                       (assoc-in table [j i]
+                                                 (- (get-in table [(inc j) (dec i)])
+                                                    (get-in table [j (dec i)]))))
+                                     table
+                                     (range (- n i))))))
+            result (reduce (fn [summ i]
+                             (+ summ (/ (* (ucal u i) (get-in table [0 i]))
+                                        (factorial i))))
+                           (double (get-in table [0 0]))
+                           (range 1 n))]
+        (println (str "the value at " value " is " result))))))

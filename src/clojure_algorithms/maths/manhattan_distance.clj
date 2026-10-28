@@ -1,14 +1,64 @@
 (ns clojure-algorithms.maths.manhattan-distance
-  "Port of maths/manhattan_distance.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Manhattan distance. https://en.wikipedia.org/wiki/Taxicab_geometry"
+  (:require [clojure.string :as str]))
 
-(declare manhattan-distance -validate-point manhattan-distance-one-liner)
+(defn- type-name
+  "Python-style type name used in error messages."
+  [x]
+  (cond
+    (string? x) "str"
+    (integer? x) "int"
+    (number? x) "float"
+    (boolean? x) "bool"
+    (nil? x) "NoneType"
+    :else (str/lower-case (.getSimpleName (class x)))))
 
-(defn manhattan-distance "Expectts two list of numbers representing two points in the same\nn-dimensional space\n\nhttps://en.wikipedia.org/wiki/Taxicab_geometry\n\n>>> manhattan_distance([1,1], [2,2])\n2.0\n>>> manhattan_distance([1.5,1.5], [2,2])\n1.0\n>>> manhattan_distance([1.5,1.5], [2.5,2])\n1.5\n>>> manhattan_distance([-3, -3, -3], [0, 0, 0])\n9.0\n>>> manhattan_distance([1,1], None)\nTraceback (most recent call last):\n    ...\nValueError: Missing an input\n>>> manhattan_distance([1,1], [2, 2, 2])\nTraceback (most recent call last):\n    ...\nValueError: Both points must be in the same n-dimensional space\n>>> manhattan_distance([1,\"one\"], [2, 2, 2])\nTraceback (most recent call last):\n    ...\nTypeError: Expected a list of numbers as input, found str\n>>> manhattan_distance(1, [2, 2, 2])\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found int\n>>> manhattan_distance([1,1], \"not_a_list\")\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found str"
-  [point-a point-b] (try (-validate-point point-a) (-validate-point point-b) (when (py-truthy (not (py-eq (count point-a) (count point-b)))) (throw (ex-info (py-str "Both points must be in the same n-dimensional space") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-float (reduce +' 0 (doall (for [[a b] (py-iter (map vector point-a point-b))] (py-abs (py-sub a b))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn- missing-input?
+  "Mimics Python's falsy check on the point argument."
+  [point]
+  (or (nil? point)
+      (false? point)
+      (and (number? point) (zero? point))
+      (and (string? point) (empty? point))
+      (and (coll? point) (empty? point))))
 
-(defn -validate-point ">>> _validate_point(None)\nTraceback (most recent call last):\n     ...\nValueError: Missing an input\n>>> _validate_point([1,\"one\"])\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found str\n>>> _validate_point(1)\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found int\n>>> _validate_point(\"not_a_list\")\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found str"
-  [point] (let [item (atom nil) msg (atom nil)] (if (py-truthy point) (do (if (py-truthy (sequential? point)) (do (doseq [__i1 (py-iter point)] (reset! item __i1) (when (py-truthy (not (py-truthy (or (integer? @item) (number? @item))))) (reset! msg (str "Expected a list of numbers as input, found " (py-str (:--name-- (py-type @item))))) (throw (ex-info (py-str @msg) {:type :TypeError}))))) (do (reset! msg (str "Expected a list of numbers as input, found " (py-str (:--name-- (py-type point))))) (throw (ex-info (py-str @msg) {:type :TypeError}))))) (do (throw (ex-info (py-str "Missing an input") {:type :ValueError})))) nil))
+(defn -validate-point
+  "Validates that point is a non-empty list of numbers."
+  [point]
+  (cond
+    (missing-input? point)
+    (throw (ex-info "Missing an input" {:type :ValueError}))
 
-(defn manhattan-distance-one-liner "Version with one liner\n\n>>> manhattan_distance_one_liner([1,1], [2,2])\n2.0\n>>> manhattan_distance_one_liner([1.5,1.5], [2,2])\n1.0\n>>> manhattan_distance_one_liner([1.5,1.5], [2.5,2])\n1.5\n>>> manhattan_distance_one_liner([-3, -3, -3], [0, 0, 0])\n9.0\n>>> manhattan_distance_one_liner([1,1], None)\nTraceback (most recent call last):\n     ...\nValueError: Missing an input\n>>> manhattan_distance_one_liner([1,1], [2, 2, 2])\nTraceback (most recent call last):\n     ...\nValueError: Both points must be in the same n-dimensional space\n>>> manhattan_distance_one_liner([1,\"one\"], [2, 2, 2])\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found str\n>>> manhattan_distance_one_liner(1, [2, 2, 2])\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found int\n>>> manhattan_distance_one_liner([1,1], \"not_a_list\")\nTraceback (most recent call last):\n     ...\nTypeError: Expected a list of numbers as input, found str"
-  [point-a point-b] (try (-validate-point point-a) (-validate-point point-b) (when (py-truthy (not (py-eq (count point-a) (count point-b)))) (throw (ex-info (py-str "Both points must be in the same n-dimensional space") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-float (reduce +' 0 (doall (for [[x y] (py-iter (map vector point-a point-b))] (py-abs (py-sub x y))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+    (not (sequential? point))
+    (throw (ex-info (str "Expected a list of numbers as input, found "
+                         (type-name point))
+                    {:type :TypeError}))
+
+    :else
+    (when-let [bad (first (remove number? point))]
+      (throw (ex-info (str "Expected a list of numbers as input, found "
+                           (type-name bad))
+                      {:type :TypeError})))))
+
+(defn- manhattan-sum
+  "Sums the absolute coordinate differences of two validated points."
+  [point-a point-b]
+  (-validate-point point-a)
+  (-validate-point point-b)
+  (when (not= (count point-a) (count point-b))
+    (throw (ex-info "Both points must be in the same n-dimensional space"
+                    {:type :ValueError})))
+  (double (reduce + 0.0
+                  (map (fn [a b] (Math/abs (- (double a) (double b))))
+                       point-a point-b))))
+
+(defn manhattan-distance
+  "Expects two lists of numbers representing two points in the same
+n-dimensional space, and returns their Manhattan distance."
+  [point-a point-b]
+  (manhattan-sum point-a point-b))
+
+(defn manhattan-distance-one-liner
+  "One-liner version of manhattan-distance."
+  [point-a point-b]
+  (manhattan-sum point-a point-b))

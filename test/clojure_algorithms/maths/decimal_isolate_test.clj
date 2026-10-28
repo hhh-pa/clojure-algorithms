@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.decimal-isolate-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.decimal-isolate :as sut]))
 
 (deftest test-fn-decimal-isolate-examples

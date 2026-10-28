@@ -1,8 +1,20 @@
 (ns clojure-algorithms.maths.special-numbers.hexagonal-number
-  "== Hexagonal Number ==\nThe nth hexagonal number hn is the number of distinct dots\nin a pattern of dots consisting of the outlines of regular\nhexagons with sides up to n dots, when the hexagons are\noverlaid so that they share one vertex.\n\nhttps://en.wikipedia.org/wiki/Hexagonal_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "== Hexagonal Number ==
+The nth hexagonal number hn is the number of distinct dots
+in a pattern of dots consisting of the outlines of regular
+hexagons with sides up to n dots, when the hexagons are
+overlaid so that they share one vertex.
 
-(declare hexagonal)
+https://en.wikipedia.org/wiki/Hexagonal_number")
 
-(defn hexagonal ":param number: nth hexagonal number to calculate\n:return: the nth hexagonal number\nNote: A hexagonal number is only defined for positive integers\n>>> hexagonal(4)\n28\n>>> hexagonal(11)\n231\n>>> hexagonal(22)\n946\n>>> hexagonal(0)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive integer\n>>> hexagonal(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive integer\n>>> hexagonal(11.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=11.0] must be an integer"
-  [number] (let [msg (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (throw (ex-info (py-str "Input must be a positive integer") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul number (py-sub (py-mul 2 number) 1))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn hexagonal
+  "Returns the nth hexagonal number, n * (2n - 1). Only defined for positive
+integers. Throws an ex-info with :type :TypeError when `number` is not an
+integer, and :type :ValueError when it is below 1."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (when (< number 1)
+    (throw (ex-info "Input must be a positive integer" {:type :ValueError})))
+  (*' number (dec (*' 2 number))))

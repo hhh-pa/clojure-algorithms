@@ -1,8 +1,12 @@
 (ns clojure-algorithms.machine-learning.principle-component-analysis-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [clojure-algorithms.machine-learning.principle-component-analysis :as sut]))
+  (:require [clojure-algorithms.machine-learning.principle-component-analysis
+             :as sut]
+            [clojure.test :refer [deftest is]]))
 
-(deftest test-vars-exist
-  (is (some? #'sut/collect-dataset))
-  (is (some? #'sut/apply-pca))
-  (is (some? #'sut/main)))
+(deftest test-sklearn-stubs-throw
+  (doseq [[f args] [[sut/collect-dataset []]
+                    [sut/apply-pca [nil 2]]
+                    [sut/main []]]]
+    (is (= :UnsupportedOperation
+           (:type (try (apply f args)
+                       (catch clojure.lang.ExceptionInfo e (ex-data e))))))))

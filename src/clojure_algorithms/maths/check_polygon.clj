@@ -1,8 +1,16 @@
 (ns clojure-algorithms.maths.check-polygon
-  "Port of maths/check_polygon.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/check_polygon.py")
 
-(declare check-polygon)
-
-(defn check-polygon "Takes list of possible side lengths and determines whether a\ntwo-dimensional polygon with such side lengths can exist.\n\nReturns a boolean value for the < comparison\nof the largest side length with sum of the rest.\nWiki: https://en.wikipedia.org/wiki/Triangle_inequality\n\n>>> check_polygon([6, 10, 5])\nTrue\n>>> check_polygon([3, 7, 13, 2])\nFalse\n>>> check_polygon([1, 4.3, 5.2, 12.2])\nFalse\n>>> nums = [3, 7, 13, 2]\n>>> _ = check_polygon(nums)\n>>> nums\n[3, 7, 13, 2]\n>>> check_polygon([])\nTraceback (most recent call last):\n    ...\nValueError: Monogons and Digons are not polygons in the Euclidean space\n>>> check_polygon([4, 5])\nTraceback (most recent call last):\n    ...\nValueError: Monogons and Digons are not polygons in the Euclidean space\n>>> check_polygon([-2, 5, 6])\nTraceback (most recent call last):\n    ...\nValueError: All values must be greater than 0"
-  [nums] (let [sorted-nums (atom nil)] (try (when (py-truthy (py-lt (count nums) 3)) (throw (ex-info (py-str "Monogons and Digons are not polygons in the Euclidean space") {:type :ValueError}))) (when (py-truthy (boolean (some py-truthy (doall (for [i (py-iter nums)] (py-le i 0)))))) (throw (ex-info (py-str "All values must be greater than 0") {:type :ValueError}))) (reset! sorted-nums (py-sorted nums)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-lt (py-get @sorted-nums (py-neg 1)) (reduce +' 0 (py-slice @sorted-nums nil (py-neg 1) nil)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn check-polygon
+  "Takes a list of possible side lengths and determines whether a
+two-dimensional polygon with such side lengths can exist.
+Returns whether the largest side is shorter than the sum of the rest.
+Wiki: https://en.wikipedia.org/wiki/Triangle_inequality"
+  [nums]
+  (when (< (count nums) 3)
+    (throw (ex-info "Monogons and Digons are not polygons in the Euclidean space"
+                    {:type :ValueError})))
+  (when (some #(<= % 0) nums)
+    (throw (ex-info "All values must be greater than 0" {:type :ValueError})))
+  (let [sorted-nums (sort nums)]
+    (< (last sorted-nums) (reduce +' 0 (butlast sorted-nums)))))

@@ -1,11 +1,39 @@
 (ns clojure-algorithms.maths.pell-number
-  "Port of maths/pell_number.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Port of maths/pell_number.py")
 
-(declare pell-number-iterative pell-number-recursive)
+(defn- check-subscript
+  "Validate the subscript shared by both Pell functions."
+  [subscript]
+  (when-not (integer? subscript)
+    (throw (ex-info "The input must be an integer." {:type :ValueError})))
+  (when (< subscript 0)
+    (throw (ex-info "The input number must be non-negative."
+                    {:type :ValueError}))))
 
-(defn pell-number-iterative "This function returns the `subscript`-th Pell number iteratively, where\n`subscript` is a non-negative integer. Pell numbers are defined by the\nrecurrence relation:\n\nP_0 = 0, P_1 = 1, P_n = 2 * P_(n-1) + P_(n-2)\n\nhttps://en.wikipedia.org/wiki/Pell_number\nhttps://oeis.org/A000129\n\n>>> pell_number_iterative(0)\n0\n>>> pell_number_iterative(1)\n1\n>>> pell_number_iterative(12)\n13860\n>>> pell_number_iterative(\"1\")\nTraceback (most recent call last):\n    ...\nValueError: The input must be an integer.\n>>> pell_number_iterative(-1)\nTraceback (most recent call last):\n    ...\nValueError: The input number must be non-negative."
-  [subscript] (let [--v (atom nil) prev-num (atom nil) prev-prev-num (atom nil) temp (atom nil)] (try (when (py-truthy (not (py-truthy (integer? subscript)))) (throw (ex-info (py-str "The input must be an integer.") {:type :ValueError}))) (when (py-truthy (py-lt subscript 0)) (throw (ex-info (py-str "The input number must be non-negative.") {:type :ValueError}))) (when (py-truthy (py-in subscript [0 1])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value subscript}))) (reset! prev-prev-num 0) (reset! prev-num 1) (doseq [__i1 (py-iter (range 2 (py-add subscript 1)))] (reset! --v __i1) (reset! temp (py-add (py-mul 2 @prev-num) @prev-prev-num)) (reset! prev-prev-num @prev-num) (reset! prev-num @temp)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @prev-num})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn pell-number-iterative
+  "Return the subscript-th Pell number, computed iteratively.
+  Pell numbers follow P_0 = 0, P_1 = 1, P_n = 2 * P_(n-1) + P_(n-2).
+  https://en.wikipedia.org/wiki/Pell_number"
+  [subscript]
+  (check-subscript subscript)
+  (if (<= subscript 1)
+    subscript
+    (loop [i 2
+           prev-prev-num 0
+           prev-num 1]
+      (if (> i subscript)
+        prev-num
+        (recur (inc i)
+               prev-num
+               (+' (*' 2 prev-num) prev-prev-num))))))
 
-(defn pell-number-recursive "This function calculates the `subscript`-th Pell number recursively. Due to\nits recursive nature, this function grows exponentially with `subscript`.\nFor large values of `subscript`, use pell_number_iterative instead.\n\n>>> pell_number_recursive(0)\n0\n>>> pell_number_recursive(1)\n1\n>>> pell_number_recursive(12)\n13860\n>>> pell_number_recursive(\"1\")\nTraceback (most recent call last):\n    ...\nValueError: The input must be an integer.\n>>> pell_number_recursive(-1)\nTraceback (most recent call last):\n    ...\nValueError: The input number must be non-negative."
-  [subscript] (try (when (py-truthy (not (py-truthy (integer? subscript)))) (throw (ex-info (py-str "The input must be an integer.") {:type :ValueError}))) (when (py-truthy (py-lt subscript 0)) (throw (ex-info (py-str "The input number must be non-negative.") {:type :ValueError}))) (when (py-truthy (py-in subscript [0 1])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value subscript}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-add (py-mul 2 (pell-number-recursive (py-sub subscript 1))) (pell-number-recursive (py-sub subscript 2)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn pell-number-recursive
+  "Return the subscript-th Pell number, computed recursively.
+  Grows exponentially with subscript; prefer pell-number-iterative
+  for large values."
+  [subscript]
+  (check-subscript subscript)
+  (if (<= subscript 1)
+    subscript
+    (+' (*' 2 (pell-number-recursive (dec subscript)))
+        (pell-number-recursive (- subscript 2)))))

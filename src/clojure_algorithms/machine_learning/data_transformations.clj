@@ -1,13 +1,50 @@
 (ns clojure-algorithms.machine-learning.data-transformations
-  "Normalization.\n\nWikipedia: https://en.wikipedia.org/wiki/Normalization\nNormalization is the process of converting numerical data to a standard range of values.\nThis range is typically between [0, 1] or [-1, 1]. The equation for normalization is\nx_norm = (x - x_min)/(x_max - x_min) where x_norm is the normalized value, x is the\nvalue, x_min is the minimum value within the column or list of data, and x_max is the\nmaximum value within the column or list of data. Normalization is used to speed up the\ntraining of data and put all of the data on a similar scale. This is useful because\nvariance in the range of values of a dataset can heavily impact optimization\n(particularly Gradient Descent).\n\nStandardization Wikipedia: https://en.wikipedia.org/wiki/Standardization\nStandardization is the process of converting numerical data to a normally distributed\nrange of values. This range will have a mean of 0 and standard deviation of 1. This is\nalso known as z-score normalization. The equation for standardization is\nx_std = (x - mu)/(sigma) where mu is the mean of the column or list of values and sigma\nis the standard deviation of the column or list of values.\n\nChoosing between Normalization & Standardization is more of an art of a science, but it\nis often recommended to run experiments with both to see which performs better.\nAdditionally, a few rules of thumb are:\n    1. gaussian (normal) distributions work better with standardization\n    2. non-gaussian (non-normal) distributions work better with normalization\n    3. If a column or list of values has extreme values / outliers, use standardization"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.set :as set]))
+  "Normalization and standardization of numeric data.
 
-(declare normalization standardization)
+  Normalization rescales values to [0, 1] via x_norm = (x - x_min)/(x_max - x_min).
+  Standardization (z-score) rescales to mean 0 / sample-standard-deviation 1 via
+  x_std = (x - mu)/sigma.
 
-(defn normalization "Return a normalized list of values.\n\n@params: data, a list of values to normalize\n@returns: a list of normalized values (rounded to ndigits decimal places)\n@examples:\n>>> normalization([2, 7, 10, 20, 30, 50])\n[0.0, 0.104, 0.167, 0.375, 0.583, 1.0]\n>>> normalization([5, 10, 15, 20, 25])\n[0.0, 0.25, 0.5, 0.75, 1.0]"
+  References:
+  https://en.wikipedia.org/wiki/Normalization
+  https://en.wikipedia.org/wiki/Standardization")
+
+(defn- round-to
+  "Round x to ndigits decimal places with round-half-even (matches Python round)."
+  [x ndigits]
+  (let [scale (Math/pow 10.0 (double ndigits))]
+    (/ (Math/rint (* (double x) scale)) scale)))
+
+(defn- mean
+  [xs]
+  (/ (double (reduce + xs)) (count xs)))
+
+(defn- sample-stdev
+  "Sample standard deviation (divides by n - 1, like statistics.stdev)."
+  [xs]
+  (let [mu (mean xs)
+        n (count xs)]
+    (Math/sqrt (/ (reduce + (map #(let [d (- (double %) mu)] (* d d)) xs))
+                  (dec n)))))
+
+(defn normalization
+  "Return data rescaled to [0, 1], rounded to ndigits decimal places.
+
+  >>> (normalization [2 7 10 20 30 50])
+  [0.0 0.104 0.167 0.375 0.583 1.0]"
   ([data] (normalization data 3))
-  ([data ndigits] (let [x-max (atom nil) x-min (atom nil)] (try (reset! x-min (py-min data)) (reset! x-max (py-max data)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [x (py-iter data)] (py-round (py-div (py-sub x @x-min) (py-sub @x-max @x-min)) ndigits)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([data ndigits]
+   (let [x-min (apply min data)
+         x-max (apply max data)]
+     (mapv #(round-to (/ (- (double %) x-min) (- x-max x-min)) ndigits) data))))
 
-(defn standardization "Return a standardized list of values.\n\n@params: data, a list of values to standardize\n@returns: a list of standardized values (rounded to ndigits decimal places)\n@examples:\n>>> standardization([2, 7, 10, 20, 30, 50])\n[-0.999, -0.719, -0.551, 0.009, 0.57, 1.69]\n>>> standardization([5, 10, 15, 20, 25])\n[-1.265, -0.632, 0.0, 0.632, 1.265]"
+(defn standardization
+  "Return z-score standardized data, rounded to ndigits decimal places.
+
+  >>> (standardization [5 10 15 20 25])
+  [-1.265 -0.632 0.0 0.632 1.265]"
   ([data] (standardization data 3))
-  ([data ndigits] (let [mu (atom nil) sigma (atom nil)] (try (reset! mu (py-stat-mean data)) (reset! sigma (py-stat-stdev data)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [x (py-iter data)] (py-round (py-div (py-sub x @mu) @sigma) ndigits)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([data ndigits]
+   (let [mu (mean data)
+         sigma (sample-stdev data)]
+     (mapv #(round-to (/ (- (double %) mu) sigma) ndigits) data))))

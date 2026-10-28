@@ -1,11 +1,37 @@
 (ns clojure-algorithms.maths.special-numbers.carmichael-number
-  "== Carmichael Numbers ==\nA number n is said to be a Carmichael number if it\nsatisfies the following modular arithmetic condition:\n\n    power(b, n-1) MOD n = 1,\n    for all b ranging from 1 to n such that b and\n    n are relatively prime, i.e, gcd(b, n) = 1\n\nExamples of Carmichael Numbers: 561, 1105, ...\nhttps://en.wikipedia.org/wiki/Carmichael_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set] [clojure-algorithms.maths.greatest-common-divisor :as m1]))
+  "== Carmichael Numbers ==
+A number n is said to be a Carmichael number if it
+satisfies the following modular arithmetic condition:
 
-(declare power is-carmichael-number)
+    power(b, n-1) MOD n = 1,
+    for all b ranging from 1 to n such that b and
+    n are relatively prime, i.e, gcd(b, n) = 1
 
-(defn power "Examples:\n>>> power(2, 15, 3)\n2\n>>> power(5, 1, 30)\n5"
-  [x y mod-v] (let [temp (atom nil)] (try (when (py-truthy (py-eq y 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (reset! temp (py-mod (power x (py-floordiv y 2) mod-v) mod-v)) (reset! temp (py-mod (py-mul @temp @temp) mod-v)) (when (py-truthy (py-eq (py-mod y 2) 1)) (reset! temp (py-mod (py-mul @temp x) mod-v))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @temp})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Examples of Carmichael Numbers: 561, 1105, ...
+https://en.wikipedia.org/wiki/Carmichael_number")
 
-(defn is-carmichael-number "Examples:\n>>> is_carmichael_number(4)\nFalse\n>>> is_carmichael_number(561)\nTrue\n>>> is_carmichael_number(562)\nFalse\n>>> is_carmichael_number(900)\nFalse\n>>> is_carmichael_number(1105)\nTrue\n>>> is_carmichael_number(8911)\nTrue\n>>> is_carmichael_number(5.1)\nTraceback (most recent call last):\n     ...\nValueError: Number 5.1 must instead be a positive integer\n\n>>> is_carmichael_number(-7)\nTraceback (most recent call last):\n     ...\nValueError: Number -7 must instead be a positive integer\n\n>>> is_carmichael_number(0)\nTraceback (most recent call last):\n     ...\nValueError: Number 0 must instead be a positive integer"
-  [n] (let [msg (atom nil)] (try (when (py-truthy (let [__b1 (py-le n 0)] (if (py-truthy __b1) __b1 (not (py-truthy (integer? n)))))) (reset! msg (str "Number " (py-str n) " must instead be a positive integer")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (every? py-truthy (doall (for [b (py-iter (range 2 n)) :when (py-truthy (py-eq (m1/greatest-common-divisor b n) 1))] (py-eq (power b (py-sub n 1) n) 1))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- gcd
+  "Greatest common divisor of two integers via Euclid's algorithm."
+  [a b]
+  (if (zero? b) a (recur b (rem a b))))
+
+(defn power
+  "Modular exponentiation: returns (x**y) mod `mod-v`."
+  [x y mod-v]
+  (if (zero? y)
+    1
+    (let [temp (power x (quot y 2) mod-v)
+          temp (rem (*' temp temp) mod-v)]
+      (if (odd? y)
+        (rem (*' temp x) mod-v)
+        temp))))
+
+(defn is-carmichael-number
+  "Returns true if n is a Carmichael number. Throws an ex-info with :type
+:ValueError when n is not a positive integer."
+  [n]
+  (when (or (not (integer? n)) (<= n 0))
+    (throw (ex-info (str "Number " n " must instead be a positive integer")
+                    {:type :ValueError})))
+  (every? #(= 1 (power % (dec n) n))
+          (filter #(= 1 (gcd % n)) (range 2 n))))

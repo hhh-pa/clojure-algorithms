@@ -1,27 +1,102 @@
 (ns clojure-algorithms.maths.ear-clipping-polygon-triangulation
-  "An implementation of the ear clipping method for triangulating a simple polygon.\n\nWikipedia : https://en.wikipedia.org/wiki/Polygon_triangulation"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "An implementation of the ear clipping method for triangulating a simple polygon.
 
-(declare is-ear is-convex cross-product direction is-point-inside-triangle triangulate-polygon)
+Wikipedia : https://en.wikipedia.org/wiki/Polygon_triangulation")
 
-(defn is-ear "This function determines whether three points form an ear.\n\n>>> is_ear([(0, 2), (2, 2), (2,0), (1, 0), (1, 1), (0, 1)], 4,\n... \"counter-clockwise\")\nFalse\n>>> is_ear([(0, 2), (2, 2), (2,0), (1, 0), (1, 1), (0, 1)], 3,\n... \"counter-clockwise\")\nTrue\n>>> is_ear([(0, 3), (2, 2), (3, 0), (3, 3)], 3, \"clockwise\")\nFalse\n>>> is_ear([(0, 0), (1, 0), (1, 1), (0, 1)], 0, \"clockwise\")\nTrue"
-  [polygon point-idx direction] (let [j (atom nil) next-idx (atom nil) next-point (atom nil) point (atom nil) prev-idx (atom nil) prev-point (atom nil)] (try (reset! prev-idx (py-mod (py-sub point-idx 1) (count polygon))) (reset! next-idx (py-mod (py-add point-idx 1) (count polygon))) (reset! prev-point (py-get polygon @prev-idx)) (reset! point (py-get polygon point-idx)) (reset! next-point (py-get polygon @next-idx)) (when (py-truthy (is-convex @prev-point @point @next-point direction)) (doseq [__i1 (py-iter (range (count polygon)))] (reset! j __i1) (when (py-truthy (let [__b2 (not (py-in @j [@prev-idx point-idx @next-idx]))] (if (py-truthy __b2) (is-point-inside-triangle @prev-point @point @next-point (py-get polygon @j)) __b2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn cross-product
+  "Compute the cross product of two vectors given three points.
+  Zero when collinear, positive for counter-clockwise turns, negative for
+  clockwise turns."
+  [p1 p2 p3]
+  (- (* (- (nth p2 0) (nth p1 0)) (- (nth p3 1) (nth p1 1)))
+     (* (- (nth p2 1) (nth p1 1)) (- (nth p3 0) (nth p1 0)))))
 
-(defn is-convex "Determine with the ccw, if 3 points are convex.\n>>> is_convex((1,1), (2, 2), (1, 2), \"clockwise\")\nTrue\n>>> is_convex((1,1), (2, 2), (1, 2), \"counter-clockwise\")\nFalse\n>>> is_convex((1,1), (2, 2), (3, 3), \"clockwise\")\nTrue\n>>> is_convex((1,1), (2, 2), (3, 3), \"counter-clockwise\")\nTrue"
-  [point prev-p next-p direction] (let [cross-product (atom nil)] (try (if (py-truthy (py-eq direction "counter-clockwise")) (do (reset! cross-product (py-sub (py-mul (py-sub (py-get next-p 0) (py-get point 0)) (py-sub (py-get prev-p 1) (py-get point 1))) (py-mul (py-sub (py-get prev-p 0) (py-get point 0)) (py-sub (py-get next-p 1) (py-get point 1)))))) (do (reset! cross-product (py-sub (py-mul (py-sub (py-get prev-p 0) (py-get point 0)) (py-sub (py-get next-p 1) (py-get point 1))) (py-mul (py-sub (py-get next-p 0) (py-get point 0)) (py-sub (py-get prev-p 1) (py-get point 1))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-ge @cross-product 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-convex
+  "Determine whether three points form a convex angle given the polygon
+  orientation (\"clockwise\" or \"counter-clockwise\")."
+  [point prev-p next-p direction]
+  (let [[px py] point
+        [ax ay] prev-p
+        [bx by] next-p]
+    (if (= direction "counter-clockwise")
+      (>= (- (* (- bx px) (- ay py)) (* (- ax px) (- by py))) 0)
+      (>= (- (* (- ax px) (- by py)) (* (- bx px) (- ay py))) 0))))
 
-(defn cross-product "This function computes the product of two vectors, with 3 points.\nIf the vectors are collinear, the output is 0.\nIf the three points rotate counterclockwise, the output is positive.\nIf three points rotate clockwise, the output is negative.\n\n>>> cross_product((0, 0), (1, 0), (1.5, 0.5))\n0.5\n>>> cross_product((1.5, 0.5), (1, 1), (1.5, 1.5))\n-0.5\n>>> cross_product((0, 0), (1, 1), (2, 2))\n0"
-  [p1 p2 p3] (py-sub (py-mul (py-sub (py-get p2 0) (py-get p1 0)) (py-sub (py-get p3 1) (py-get p1 1))) (py-mul (py-sub (py-get p2 1) (py-get p1 1)) (py-sub (py-get p3 0) (py-get p1 0)))))
+(defn- triangle-area
+  "Absolute area of the triangle with vertices a, b, c."
+  [a b c]
+  (Math/abs (* 0.5 (+ (* (nth a 0) (- (nth b 1) (nth c 1)))
+                      (* (nth b 0) (- (nth c 1) (nth a 1)))
+                      (* (nth c 0) (- (nth a 1) (nth b 1)))))))
 
-(defn direction "Determine the orientation (clockwise or counterclockwise) of a polygon defined\nby a list of points.\n>>> direction([(1, 1), (2, 2), (3, 4)])\n'clockwise'\n>>> direction([(1, 1), (2, 2), (3, -1)])\n'counter-clockwise'"
-  [polygon] (let [idx-p0 (atom nil) next-idx (atom nil) next-point (atom nil) point-0 (atom nil) prev-idx (atom nil) prev-point (atom nil)] (try (reset! point-0 (py-min-by (fn [point] [(py-get point 1) (py-get point 0)]) polygon)) (reset! idx-p0 (py-index polygon @point-0)) (reset! prev-idx (py-mod (py-sub @idx-p0 1) (count polygon))) (reset! next-idx (py-mod (py-add @idx-p0 1) (count polygon))) (reset! prev-point (py-get polygon @prev-idx)) (reset! next-point (py-get polygon @next-idx)) (while (py-truthy (py-eq (cross-product @point-0 @next-point @prev-point) 0)) (swap! next-idx py-add 1) (reset! next-point (py-get polygon @next-idx))) (when (py-truthy (py-gt (cross-product @point-0 @next-point @prev-point) 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value "clockwise"}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value "counter-clockwise"})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-point-inside-triangle
+  "Determine whether test-point lies inside (or on the edge of) the triangle
+  formed by p1, p2 and p3, by comparing the triangle area with the sum of
+  the three sub-triangle areas."
+  [p1 p2 p3 test-point]
+  (== (triangle-area p1 p2 p3)
+      (+ (triangle-area test-point p2 p3)
+         (triangle-area p1 test-point p3)
+         (triangle-area p1 p2 test-point))))
 
-(defn is-point-inside-triangle "Determine whether a given point is located inside a triangle\nformed by three other points.\n\nThis function calculates the area of both the triangle formed by\nthe three input points (p1, p2, p3)\nand the sub-triangles formed by replacing one vertex of the main\ntriangle with the test_point.\nIf the sum of the areas of the sub-triangles is equal to the area of\nthe main triangle, the test_point\nis considered to be inside the triangle. Otherwise, it is considered outside.\n\n>>> is_point_inside_triangle((0, 0), (0, 2), (2, 0), (3, 3))\nFalse\n>>> is_point_inside_triangle((0, 0), (0, 2), (2, 0), (1, 1))\nTrue\n>>> is_point_inside_triangle((0, 0), (2, 1), (2, 0), (1, 1))\nFalse\n>>> is_point_inside_triangle((0, 0), (2, 1), (2, 0), (2, 0))\nTrue\n>>> is_point_inside_triangle((0, 0), (1, 1), (2, 0), (1, 0))\nTrue"
-  [p1 p2 p3 test-point] (let [area1 (atom nil) area2 (atom nil) area3 (atom nil) area-triangle (atom nil)] (try (reset! area-triangle (py-abs (py-mul 0.5 (py-add (py-add (py-mul (py-get p1 0) (py-sub (py-get p2 1) (py-get p3 1))) (py-mul (py-get p2 0) (py-sub (py-get p3 1) (py-get p1 1)))) (py-mul (py-get p3 0) (py-sub (py-get p1 1) (py-get p2 1))))))) (reset! area1 (py-abs (py-mul 0.5 (py-add (py-add (py-mul (py-get test-point 0) (py-sub (py-get p2 1) (py-get p3 1))) (py-mul (py-get p2 0) (py-sub (py-get p3 1) (py-get test-point 1)))) (py-mul (py-get p3 0) (py-sub (py-get test-point 1) (py-get p2 1))))))) (reset! area2 (py-abs (py-mul 0.5 (py-add (py-add (py-mul (py-get p1 0) (py-sub (py-get test-point 1) (py-get p3 1))) (py-mul (py-get test-point 0) (py-sub (py-get p3 1) (py-get p1 1)))) (py-mul (py-get p3 0) (py-sub (py-get p1 1) (py-get test-point 1))))))) (reset! area3 (py-abs (py-mul 0.5 (py-add (py-add (py-mul (py-get p1 0) (py-sub (py-get p2 1) (py-get test-point 1))) (py-mul (py-get p2 0) (py-sub (py-get test-point 1) (py-get p1 1)))) (py-mul (py-get test-point 0) (py-sub (py-get p1 1) (py-get p2 1))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @area-triangle (py-add (py-add @area1 @area2) @area3))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-ear
+  "Determine whether the vertex at point-idx forms an ear: it must be
+  convex and the triangle it forms with its neighbours must contain no
+  other polygon vertex."
+  [polygon point-idx direction]
+  (let [n (count polygon)
+        prev-idx (mod (dec point-idx) n)
+        next-idx (mod (inc point-idx) n)
+        prev-point (nth polygon prev-idx)
+        point (nth polygon point-idx)
+        next-point (nth polygon next-idx)]
+    (boolean
+     (and (is-convex prev-point point next-point direction)
+          (not-any? (fn [j]
+                      (and (not (contains? #{prev-idx point-idx next-idx} j))
+                           (is-point-inside-triangle prev-point point next-point
+                                                     (nth polygon j))))
+                    (range n))))))
 
-(defn triangulate-polygon "Triangulate a polygon and provide the points of the resulting triangles.\nThis function takes a list of coordinates that represent the vertices of a polygon.\nIt iteratively finds and removes 'ears' from the polygon to create a list\nof triangles that triangulate the entire polygon.\nThe order of vertices in the coordinates list is assumed to be\nconsistent (either clockwise or counterclockwise).\nThe function uses helper functions 'direction' to determine the polygon's\norientation and 'is_ear' to identify 'ear' vertices.\n\nNote: The function assumes that the input coordinates form a valid simple polygon.\n\n>>> triangulate_polygon([(0, 2), (2, 2), (2, 0), (1, 0), (1, 1), (0, 1)])\n[[(0, 1), (0, 2), (2, 2)], [(2, 2), (2, 0), (1, 0)], [(2, 2), (1, 0), (1, 1)], [(0, 1), (2, 2), (1, 1)]]\n>>> triangulate_polygon([(0, 3), (2, 2), (3, 0), (3, 3)])\n[[(3, 3), (0, 3), (2, 2)], [(3, 3), (2, 2), (3, 0)]]\n>>> triangulate_polygon([(0, 0),(2, 0), (1, 1), (2, 2), (0,2)])\n[[(0, 0), (2, 0), (1, 1)], [(0, 2), (0, 0), (1, 1)], [(0, 2), (1, 1), (2, 2)]]"
-  [& _args]
-  ;; stub: original requires numpy-attr:copy; pure-Clojure port not applicable
-  (throw (ex-info "requires numpy-attr:copy" {:type :UnsupportedOperation})))
+(defn direction
+  "Determine the orientation (\"clockwise\" or \"counter-clockwise\") of a
+  polygon given as a sequential of points."
+  [polygon]
+  (let [polygon (vec polygon)
+        point-0 (reduce (fn [a b]
+                          (if (neg? (compare [(nth b 1) (nth b 0)]
+                                             [(nth a 1) (nth a 0)]))
+                            b
+                            a))
+                        polygon)
+        idx (.indexOf polygon point-0)
+        n (count polygon)
+        prev-point (nth polygon (mod (dec idx) n))
+        next-point (loop [ni (mod (inc idx) n)]
+                     (let [np (nth polygon ni)]
+                       (if (zero? (cross-product point-0 np prev-point))
+                         (recur (inc ni))
+                         np)))]
+    (if (pos? (cross-product point-0 next-point prev-point))
+      "clockwise"
+      "counter-clockwise")))
 
-;; NOTE: triangulate_polygon stubbed (numpy-attr:copy)
+(defn triangulate-polygon
+  "Triangulate a simple polygon given as a sequential of [x y] vertices.
+  Returns a vector of triangles, each a vector of three vertices."
+  [coordinates]
+  (let [orientation (direction coordinates)]
+    (loop [polygon (vec coordinates)
+           triangles []]
+      (if (< (count polygon) 3)
+        triangles
+        (if-let [i (first (filter #(is-ear polygon % orientation)
+                                  (range (count polygon))))]
+          (let [n (count polygon)
+                prev-point (nth polygon (mod (dec i) n))
+                point (nth polygon i)
+                next-point (nth polygon (mod (inc i) n))]
+            (recur (vec (concat (subvec polygon 0 i)
+                                (subvec polygon (inc i))))
+                   (conj triangles [prev-point point next-point])))
+          triangles)))))

@@ -1,7 +1,5 @@
 (ns clojure-algorithms.maths.special-numbers.evil-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.evil-number :as sut]))
 
 (deftest test-fn-is-evil-number-examples
@@ -17,3 +15,15 @@
   (is (= false (boolean (sut/is-evil-number 8))))
   (is (thrown? Exception (sut/is-evil-number -1)))
   (is (thrown? Exception (sut/is-evil-number 5.5))))
+
+(deftest test-error-types
+  (is (= :ValueError
+         (try (sut/is-evil-number -1)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e))))))
+  (is (= :TypeError
+         (try (sut/is-evil-number 5.5)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

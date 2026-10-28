@@ -1,165 +1,323 @@
 (ns clojure-algorithms.machine-learning.sequential-minimum-optimization
-  "Sequential minimal optimization (SMO) for support vector machines (SVM)\n\nSequential minimal optimization (SMO) is an algorithm for solving the quadratic\nprogramming (QP) problem that arises during the training of SVMs. It was invented by\nJohn Platt in 1998.\n\nInput:\n    0: type: numpy.ndarray.\n    1: first column of ndarray must be tags of samples, must be 1 or -1.\n    2: rows of ndarray represent samples.\n\nUsage:\n    Command:\n        python3 sequential_minimum_optimization.py\n    Code:\n        from sequential_minimum_optimization import SmoSVM, Kernel\n\n        kernel = Kernel(kernel='poly', degree=3., coef0=1., gamma=0.5)\n        init_alphas = np.zeros(train.shape[0])\n        SVM = SmoSVM(train=train, alpha_list=init_alphas, kernel_func=kernel, cost=0.4,\n                     b=0.0, tolerance=0.001)\n        SVM.fit()\n        predict = SVM.predict(test_samples)\n\nReference:\n    https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/smo-book.pdf\n    https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-98-14.pdf"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Sequential Minimal Optimization (SMO) for Support Vector Machines.
 
-(declare count-time test-cancer-data test-demonstration test-linear-kernel test-rbf-kernel plot-partition-boundary make-SmoSVM SmoSVM-fit SmoSVM-predict SmoSVM-check-obey-kkt SmoSVM-k SmoSVM-e SmoSVM-calculate-k-matrix SmoSVM-choose-alphas SmoSVM-choose-a1 SmoSVM-choose-a2 SmoSVM-get-new-alpha SmoSVM-norm SmoSVM-is-unbound SmoSVM-is-support SmoSVM-unbound SmoSVM-support SmoSVM-length make-Kernel Kernel-polynomial Kernel-linear Kernel-rbf Kernel-check Kernel-get-kernel Kernel-call Kernel-repr CANCER-DATASET-URL)
+  The Kernel (linear/polynomial/RBF) and the pure SmoSVM helpers (K-matrix
+  lookup, error evaluation, prediction, alpha bounds, norm, support queries)
+  are plain arithmetic and fully ported. The fit loop is driven by
+  bidirectional Python generators (coroutine send protocol) with no
+  stdlib-only equivalent, and the test/demo entry points need sklearn,
+  pandas, network access or matplotlib, so those are honestly stubbed.
 
-(defrecord SmoSVM [-init -auto-norm -c -b -tol tags samples alphas Kernel -eps -all-samples -K-matrix -error -unbound choose-alpha -min -max])
+  References:
+  https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/smo-book.pdf
+  https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-98-14.pdf")
 
-(defrecord Kernel [degree coef0 gamma -kernel-name -kernel])
+(defn- unsupported!
+  [needs]
+  (throw (ex-info (str "requires " needs) {:type :UnsupportedOperation})))
 
-(defn make-SmoSVM "Constructor for SmoSVM."
-  [& _args]
-  ;; stub: original requires np,numpy-attr:shape; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:shape" {:type :UnsupportedOperation})))
+(def CANCER-DATASET-URL
+  "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data")
 
-(defn make-Kernel "Constructor for Kernel."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(declare Kernel-check SmoSVM-is-unbound SmoSVM-length)
 
-(defn SmoSVM-fit
-  [& _args]
-  ;; stub: original requires np,numpy-attr:copy; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:copy" {:type :UnsupportedOperation})))
+;; ---------------------------------------------------------------------------
+;; Kernel
+;; ---------------------------------------------------------------------------
 
-(defn SmoSVM-predict
-  [& _args]
-  ;; stub: original requires np,numpy-attr:shape; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:shape" {:type :UnsupportedOperation})))
+(defn- kernel-fn-for
+  [kernel-name]
+  (case kernel-name
+    "linear" :linear
+    "poly" :poly
+    "rbf" :rbf
+    (throw (ex-info (str "unknown kernel: " kernel-name) {:type :KeyError}))))
 
-(defn SmoSVM-check-obey-kkt
-  [self index] (let [alphas (atom nil) c (atom nil) r (atom nil) tol (atom nil)] (try (reset! alphas (:alphas @self)) (reset! tol (:-tol @self)) (reset! r (py-mul (SmoSVM-e self index) (py-get (:tags @self) index))) (reset! c (:-c @self)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (let [__b3 (let [__b1 (py-lt @r (py-neg @tol))] (if (py-truthy __b1) (py-lt (py-get @alphas index) @c) __b1))] (if (py-truthy __b3) __b3 (let [__b2 (py-gt @r @tol)] (if (py-truthy __b2) (py-gt (py-get @alphas index) 0.0) __b2))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn SmoSVM-k
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-e "Two cases:\n    1: Sample[index] is non-bound, fetch error from list: _error\n    2: sample[index] is bound, use predicted value minus true value: g(xi) - yi"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:dot; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:dot" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-calculate-k-matrix
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-predict
-  [& _args]
-  ;; stub: original requires np,numpy-attr:sum; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:sum" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-choose-alphas
-  [self] (let [__ys (atom []) loci (atom nil)] (try (reset! loci (do (swap! __ys into (vec (SmoSVM-choose-a1 self))) nil)) (when (py-truthy (not (py-truthy @loci))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @loci})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) @__ys))
-
-(defn SmoSVM-choose-a1 "Choose first alpha\nSteps:\n    1: First loop over all samples\n    2: Second loop over all non-bound samples until no non-bound samples violate\n       the KKT condition.\n    3: Repeat these two processes until no samples violate the KKT condition\n       after the first loop."
-  [self] (let [__ys (atom []) all-not-obey (atom nil) i1 (atom nil) not-obey (atom nil)] (try (try (while (py-truthy true) (reset! all-not-obey true) (println (clojure.string/join " " [(py-str "Scanning all samples!")])) (doseq [__i1 (py-iter (vec (for [i (py-iter (:-all-samples @self)) :when (py-truthy (SmoSVM-check-obey-kkt self i))] i)))] (reset! i1 __i1) (reset! all-not-obey false) (do (swap! __ys into (vec (SmoSVM-choose-a2 self @i1))) nil)) (println (clojure.string/join " " [(py-str "Scanning non-bound samples!")])) (try (while (py-truthy true) (reset! not-obey true) (doseq [__i3 (py-iter (vec (for [i (py-iter (:-all-samples @self)) :when (py-truthy (let [__b2 (SmoSVM-check-obey-kkt self i)] (if (py-truthy __b2) (SmoSVM-is-unbound self i) __b2)))] i)))] (reset! i1 __i3) (reset! not-obey false) (do (swap! __ys into (vec (SmoSVM-choose-a2 self @i1))) nil)) (when (py-truthy @not-obey) (println (clojure.string/join " " [(py-str "All non-bound samples satisfy the KKT condition!")])) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (when (py-truthy @all-not-obey) (println (clojure.string/join " " [(py-str "All samples satisfy the KKT condition!")])) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) @__ys))
-
-(defn SmoSVM-choose-a2 "Choose the second alpha using a heuristic algorithm\nSteps:\n    1: Choose alpha2 that maximizes the step size (|E1 - E2|).\n    2: Start in a random point, loop over all non-bound samples till alpha1 and\n       alpha2 are optimized.\n    3: Start in a random point, loop over all samples till alpha1 and alpha2 are\n       optimized."
-  [& _args]
-  ;; stub: original requires np,numpy-attr:copy,numpy-attr:tolist; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:copy,numpy-attr:tolist" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-get-new-alpha
-  [self i1 i2 a1 a2 e1 e2 y1 y2] (let [a1-new (atom nil) a2-new (atom nil) a2-new-unc (atom nil) b (atom nil) eta (atom nil) f1 (atom nil) f2 (atom nil) h (atom nil) h1 (atom nil) k (atom nil) k11 (atom nil) k12 (atom nil) k22 (atom nil) l (atom nil) l1 (atom nil) oh (atom nil) ol (atom nil) s (atom nil)] (try (reset! k (partial SmoSVM-k self)) (when (py-truthy (py-eq i1 i2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [nil nil]}))) (reset! s (py-mul y1 y2)) (if (py-truthy (py-eq @s (py-neg 1))) (do (let [__d1 (vec [(py-max [0.0 (py-sub a2 a1)]) (py-min [(:-c @self) (py-sub (py-add (:-c @self) a2) a1)])])] (reset! l (nth __d1 0)) (reset! h (nth __d1 1)))) (do (let [__d2 (vec [(py-max [0.0 (py-sub (py-add a2 a1) (:-c @self))]) (py-min [(:-c @self) (py-add a2 a1)])])] (reset! l (nth __d2 0)) (reset! h (nth __d2 1))))) (when (py-truthy (py-eq @l @h)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [nil nil]}))) (reset! k11 (@k i1 i1)) (reset! k22 (@k i2 i2)) (reset! k12 (@k i1 i2)) (if (py-truthy (py-gt (do (reset! eta (py-sub (py-add @k11 @k22) (py-mul 2.0 @k12))) @eta) 0.0)) (do (reset! a2-new-unc (py-add a2 (py-div (py-mul y2 (py-sub e1 e2)) @eta))) (if (py-truthy (py-ge @a2-new-unc @h)) (do (reset! a2-new @h)) (do (if (py-truthy (py-le @a2-new-unc @l)) (do (reset! a2-new @l)) (do (reset! a2-new @a2-new-unc)))))) (do (reset! b (:-b @self)) (reset! l1 (py-add a1 (py-mul @s (py-sub a2 @l)))) (reset! h1 (py-add a1 (py-mul @s (py-sub a2 @h)))) (reset! f1 (py-sub (py-sub (py-mul y1 (py-add e1 @b)) (py-mul a1 (@k i1 i1))) (py-mul (py-mul @s a2) (@k i1 i2)))) (reset! f2 (py-sub (py-sub (py-mul y2 (py-add e2 @b)) (py-mul a2 (@k i2 i2))) (py-mul (py-mul @s a1) (@k i1 i2)))) (reset! ol (py-add (py-add (py-add (py-add (py-mul @l1 @f1) (py-mul @l @f2)) (py-mul (py-mul (py-div 1 2) (py-pow @l1 2)) (@k i1 i1))) (py-mul (py-mul (py-div 1 2) (py-pow @l 2)) (@k i2 i2))) (py-mul (py-mul (py-mul @s @l) @l1) (@k i1 i2)))) (reset! oh (py-add (py-add (py-add (py-add (py-mul @h1 @f1) (py-mul @h @f2)) (py-mul (py-mul (py-div 1 2) (py-pow @h1 2)) (@k i1 i1))) (py-mul (py-mul (py-div 1 2) (py-pow @h 2)) (@k i2 i2))) (py-mul (py-mul (py-mul @s @h) @h1) (@k i1 i2)))) (if (py-truthy (py-lt @ol (py-sub @oh (:-eps @self)))) (do (reset! a2-new @l)) (do (if (py-truthy (py-gt @ol (py-add @oh (:-eps @self)))) (do (reset! a2-new @h)) (do (reset! a2-new a2))))))) (reset! a1-new (py-add a1 (py-mul @s (py-sub a2 @a2-new)))) (when (py-truthy (py-lt @a1-new 0)) (swap! a2-new py-add (py-mul @s @a1-new)) (reset! a1-new 0)) (when (py-truthy (py-gt @a1-new (:-c @self))) (swap! a2-new py-add (py-mul @s (py-sub @a1-new (:-c @self)))) (reset! a1-new (:-c @self))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@a1-new @a2-new]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn SmoSVM-norm
-  [& _args]
-  ;; stub: original requires np,numpy-attr:max,numpy-attr:min; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:max,numpy-attr:min" {:type :UnsupportedOperation})))
-
-(defn SmoSVM-is-unbound
-  [self index] (boolean (py-truthy (let [__c1 0.0 __c2 (py-get (:alphas @self) index) __c3 (:-c @self)] (and (py-lt __c1 __c2) (py-lt __c2 __c3))))))
-
-(defn SmoSVM-is-support
-  [self index] (boolean (py-truthy (py-gt (py-get (:alphas @self) index) 0))))
-
-(defn SmoSVM-unbound
-  [self] (:-unbound @self))
-
-(defn SmoSVM-support
-  [self] (vec (for [i (py-iter (range (SmoSVM-length self))) :when (py-truthy (SmoSVM-is-support self i))] i)))
-
-(defn SmoSVM-length
-  [& _args]
-  ;; stub: original requires numpy-attr:shape; pure-Clojure port not applicable
-  (throw (ex-info "requires numpy-attr:shape" {:type :UnsupportedOperation})))
+(defn make-Kernel
+  "Kernel of the given name (\"linear\", \"poly\" or \"rbf\").
+  Throws :KeyError for unknown names, :ValueError for a negative RBF gamma."
+  ([kernel-name] (make-Kernel kernel-name 1.0 0.0 1.0))
+  ([kernel-name degree] (make-Kernel kernel-name degree 0.0 1.0))
+  ([kernel-name degree coef0] (make-Kernel kernel-name degree coef0 1.0))
+  ([kernel-name degree coef0 gamma]
+   (let [kernel {:degree (double degree) :coef0 (double coef0)
+                 :gamma (double gamma) :-kernel-name kernel-name
+                 :-kernel (kernel-fn-for kernel-name)}]
+     (Kernel-check kernel)
+     kernel)))
 
 (defn Kernel-polynomial
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  "(gamma * <v1,v2> + coef0)^degree."
+  [self v1 v2]
+  (Math/pow (+ (* (:gamma self) (reduce + (map * v1 v2))) (:coef0 self))
+            (:degree self)))
 
 (defn Kernel-linear
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  "<v1,v2> + coef0."
+  [self v1 v2]
+  (+ (reduce + (map * v1 v2)) (:coef0 self)))
 
 (defn Kernel-rbf
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  "exp(-gamma * ||v1 - v2||^2)."
+  [self v1 v2]
+  (Math/exp (* -1.0 (:gamma self)
+               (reduce + (map #(let [d (- (double %1) (double %2))] (* d d))
+                              v1 v2)))))
 
 (defn Kernel-check
-  [self] (when (py-truthy (let [__b1 (py-eq (:-kernel @self) (partial Kernel-rbf self))] (if (py-truthy __b1) (py-lt (:gamma @self) 0) __b1))) (throw (ex-info (py-str "gamma value must be non-negative") {:type :ValueError}))) nil)
+  "Validate the kernel: RBF needs a non-negative gamma. Returns nil."
+  [self]
+  (when (and (= :rbf (:-kernel self)) (< (:gamma self) 0))
+    (throw (ex-info "gamma value must be non-negative" {:type :ValueError})))
+  nil)
 
 (defn Kernel-get-kernel
-  [self kernel-name] (let [maps (atom nil)] (try (reset! maps {"linear" (partial Kernel-linear self) "poly" (partial Kernel-polynomial self) "rbf" (partial Kernel-rbf self)}) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @maps kernel-name)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Resolve a kernel name to its keyword. Throws :KeyError when unknown."
+  [_self kernel-name]
+  (kernel-fn-for kernel-name))
 
 (defn Kernel-call
-  [& _args]
-  ;; stub: original requires method ._kernel; pure-Clojure port not applicable
-  (throw (ex-info "requires method ._kernel" {:type :UnsupportedOperation})))
+  "Apply the kernel to two vectors."
+  [self v1 v2]
+  (case (:-kernel self)
+    :linear (Kernel-linear self v1 v2)
+    :poly (Kernel-polynomial self v1 v2)
+    :rbf (Kernel-rbf self v1 v2)))
 
 (defn Kernel-repr
-  [self] (:-kernel-name @self))
+  "The kernel name."
+  [self]
+  (:-kernel-name self))
+
+;; ---------------------------------------------------------------------------
+;; SmoSVM
+;; ---------------------------------------------------------------------------
+
+(defn- normalize-with
+  [samples col-min col-max]
+  (mapv (fn [row]
+          (mapv (fn [x lo hi] (/ (- (double x) lo) (- hi lo)))
+                row col-min col-max))
+        samples))
+
+(defn make-SmoSVM
+  "SmoSVM over train rows (first column tags, rest sample features).
+  Precomputes normalization, the kernel matrix and the error vector.
+  NOTE: :choose-alpha is nil because the generator-driven chooser has no
+  stdlib-only equivalent (SmoSVM-fit is stubbed for the same reason)."
+  ([train kernel-func] (make-SmoSVM train kernel-func nil 0.4 0.0 0.001 true))
+  ([train kernel-func alpha-list cost b tolerance auto-norm]
+   (let [tags (mapv first train)
+         raw (mapv #(vec (rest %)) train)
+         col-min (when auto-norm
+                   (mapv #(apply min %) (apply mapv vector raw)))
+         col-max (when auto-norm
+                   (mapv #(apply max %) (apply mapv vector raw)))
+         samples (if auto-norm (normalize-with raw col-min col-max) raw)
+         n (count train)
+         self {:init false :auto-norm auto-norm
+               :c (double cost) :b (double b)
+               :tol (if (> tolerance 0.0001) (double tolerance) 0.001)
+               :tags tags :samples samples
+               :alphas (vec (or alpha-list (repeat n 0.0)))
+               :Kernel kernel-func :eps 0.001
+               :all-samples (vec (range n))
+               :error (vec (repeat n 0.0))
+               :unbound [] :min col-min :max col-max
+               :choose-alpha nil}
+         k-matrix (vec (for [i (range n)]
+                         (vec (for [j (range n)]
+                                (Kernel-call kernel-func (nth samples i)
+                                             (nth samples j))))))]
+     (assoc self :-K-matrix k-matrix))))
+
+(defn SmoSVM-fit
+  "STUB: the fit loop drives bidirectional Python generators (send protocol)."
+  [& _args]
+  (unsupported! "generator send protocol"))
+
+(defn SmoSVM-k
+  "Kernel value: K-matrix lookup for training index pairs, direct kernel
+  evaluation when i2 is a sample vector."
+  [self i1 i2]
+  (if (sequential? i2)
+    (Kernel-call (:Kernel self) (nth (:samples self) i1) i2)
+    (get-in self [:-K-matrix i1 i2])))
+
+(defn SmoSVM-e
+  "Error for a sample: cached value when unbound, else g(xi) - yi."
+  [self index]
+  (if (SmoSVM-is-unbound self index)
+    (nth (:error self) index)
+    (let [col (mapv #(nth % index) (:-K-matrix self))
+          gx (+ (reduce + (map * (:alphas self) (:tags self) col))
+                (:b self))]
+      (- gx (nth (:tags self) index)))))
+
+(defn SmoSVM-calculate-k-matrix
+  "Full kernel matrix over the training samples."
+  [self]
+  (let [n (count (:all-samples self))]
+    (vec (for [i (range n)]
+           (vec (for [j (range n)]
+                  (Kernel-call (:Kernel self)
+                               (nth (:samples self) i)
+                               (nth (:samples self) j))))))))
+
+(defn- smo-predict-one
+  [self sample]
+  (+ (reduce + (map (fn [i1]
+                      (* (nth (:alphas self) i1)
+                         (nth (:tags self) i1)
+                         (SmoSVM-k self i1 sample)))
+                    (:all-samples self)))
+     (:b self)))
+
+(defn SmoSVM-predict
+  "Classify (:classify true) or score each test sample.
+  Throws :ValueError when test features outnumber train features."
+  ([self test-samples] (SmoSVM-predict self test-samples true))
+  ([self test-samples classify]
+   (when (> (count (first test-samples)) (count (first (:samples self))))
+     (throw (ex-info (str "Test samples' feature length does not equal to "
+                          "that of train samples")
+                     {:type :ValueError})))
+   (let [test-samples (if (:auto-norm self)
+                        (normalize-with test-samples (:min self) (:max self))
+                        test-samples)]
+     (mapv (fn [sample]
+             (let [result (smo-predict-one self sample)]
+               (if classify (if (> result 0) 1 -1) result)))
+           test-samples))))
+
+(defn SmoSVM-check-obey-kkt
+  "True when alpha[index] violates the KKT conditions."
+  [self index]
+  (let [r (* (SmoSVM-e self index) (nth (:tags self) index))
+        c (:c self)
+        a (nth (:alphas self) index)
+        tol (:tol self)]
+    (boolean (or (and (< r (- tol)) (< a c))
+                 (and (> r tol) (> a 0.0))))))
+
+(defn SmoSVM-choose-alphas
+  "STUB: bidirectional generator over violating alpha pairs."
+  [& _args]
+  (unsupported! "generator send protocol"))
+
+(defn SmoSVM-choose-a1
+  "STUB: bidirectional generator over first-alpha candidates."
+  [& _args]
+  (unsupported! "generator send protocol"))
+
+(defn SmoSVM-choose-a2
+  "STUB: bidirectional generator over second-alpha candidates."
+  [& _args]
+  (unsupported! "generator send protocol"))
+
+(defn SmoSVM-get-new-alpha
+  "Constrained two-alpha update; [nil nil] when no step applies."
+  [self i1 i2 a1 a2 e1 e2 y1 y2]
+  (if (= i1 i2)
+    [nil nil]
+    (let [c (:c self)
+          s (* y1 y2)
+          [l h] (if (= s -1)
+                  [(max 0.0 (- a2 a1)) (min c (- (+ c a2) a1))]
+                  [(max 0.0 (- (+ a2 a1) c)) (min c (+ a2 a1))])]
+      (if (= l h)
+        [nil nil]
+        (let [k11 (SmoSVM-k self i1 i1)
+              k22 (SmoSVM-k self i2 i2)
+              k12 (SmoSVM-k self i1 i2)
+              eta (- (+ k11 k22) (* 2.0 k12))
+              a2-new (if (> eta 0.0)
+                       (let [unc (+ a2 (/ (* y2 (- e1 e2)) eta))]
+                         (cond (>= unc h) h (<= unc l) l :else unc))
+                       (let [b (:b self)
+                             l1 (+ a1 (* s (- a2 l)))
+                             h1 (+ a1 (* s (- a2 h)))
+                             f1 (- (- (* y1 (+ e1 b)) (* a1 k11))
+                                   (* (* s a2) k12))
+                             f2 (- (- (* y2 (+ e2 b)) (* a2 k22))
+                                   (* (* s a1) k12))
+                             obj (fn [a1v a2v]
+                                   (+ (* a1v f1) (* a2v f2)
+                                      (* (* 0.5 a1v a1v) k11)
+                                      (* (* 0.5 a2v a2v) k22)
+                                      (* (* (* s a2v) a1v) k12)))
+                             ol (obj l1 l)
+                             oh (obj h1 h)
+                             eps (:eps self)]
+                         (cond (< ol (- oh eps)) l (> ol (+ oh eps)) h :else a2)))
+              a1-new (+ a1 (* s (- a2 a2-new)))
+              [a1-new a2-new]
+              (cond (< a1-new 0) [0 (+ a2-new (* s a1-new))]
+                    (> a1-new c) [c (+ a2-new (* s (- a1-new c)))]
+                    :else [a1-new a2-new])]
+          [a1-new a2-new])))))
+
+(defn SmoSVM-norm
+  "Min-max normalize rows: stored bounds apply once fitted, otherwise the
+  data's own bounds are used (purely, without persisting them)."
+  [self data]
+  (let [[col-min col-max] (if (:init self)
+                            [(mapv #(apply min %) (apply mapv vector data))
+                             (mapv #(apply max %) (apply mapv vector data))]
+                            [(:min self) (:max self)])]
+    (normalize-with data col-min col-max)))
+
+(defn SmoSVM-is-unbound
+  [self index]
+  (boolean (< 0.0 (nth (:alphas self) index) (:c self))))
+
+(defn SmoSVM-is-support
+  [self index]
+  (boolean (> (nth (:alphas self) index) 0)))
+
+(defn SmoSVM-unbound
+  [self]
+  (:unbound self))
+
+(defn SmoSVM-support
+  [self]
+  (vec (filter #(SmoSVM-is-support self %) (range (SmoSVM-length self)))))
+
+(defn SmoSVM-length
+  [self]
+  (count (:samples self)))
 
 (defn count-time
-  [& _args]
-  ;; stub: original requires kwargs for func; pure-Clojure port not applicable
-  (throw (ex-info "requires kwargs for func" {:type :UnsupportedOperation})))
+  "Wrap f to print its wall-clock cost. Returns f's value."
+  [f]
+  (fn [& args]
+    (let [start (System/nanoTime)
+          result (apply f args)
+          elapsed (/ (- (System/nanoTime) start) 1e9)]
+      (println (str "SMO algorithm cost " elapsed " seconds"))
+      result)))
 
 (defn test-cancer-data
+  "STUB: downloads the cancer dataset (needs urllib/pandas)."
   [& _args]
-  ;; stub: original requires np,numpy-attr:shape,numpy-attr:tolist,pd,urllib; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:shape,numpy-attr:tolist,pd,urllib" {:type :UnsupportedOperation})))
+  (unsupported! "urllib,pd"))
 
 (defn test-demonstration
+  "STUB: needs matplotlib."
   [& _args]
-  ;; stub: original requires plt; pure-Clojure port not applicable
-  (throw (ex-info "requires plt" {:type :UnsupportedOperation})))
+  (unsupported! "plt"))
 
 (defn test-linear-kernel
+  "STUB: needs sklearn (make_blobs, StandardScaler)."
   [& _args]
-  ;; stub: original requires StandardScaler,make_blobs,np,numpy-attr:reshape; pure-Clojure port not applicable
-  (throw (ex-info "requires StandardScaler,make_blobs,np,numpy-attr:reshape" {:type :UnsupportedOperation})))
+  (unsupported! "make_blobs"))
 
 (defn test-rbf-kernel
+  "STUB: needs sklearn (make_circles, StandardScaler)."
   [& _args]
-  ;; stub: original requires StandardScaler,make_circles,np,numpy-attr:reshape; pure-Clojure port not applicable
-  (throw (ex-info "requires StandardScaler,make_circles,np,numpy-attr:reshape" {:type :UnsupportedOperation})))
+  (unsupported! "make_circles"))
 
-(defn plot-partition-boundary "We cannot get the optimal w of our kernel SVM model, which is different from a\nlinear SVM.  For this reason, we generate randomly distributed points with high\ndensity, and predicted values of these points are calculated using our trained\nmodel. Then we could use this predicted values to draw contour map, and this contour\nmap represents the SVM's partition boundary."
+(defn plot-partition-boundary
+  "STUB: needs matplotlib (contour of the partition boundary)."
   [& _args]
-  ;; stub: original requires np,numpy-attr:T,numpy-attr:max,numpy-attr:min,numpy-attr:reshape,plt; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:T,numpy-attr:max,numpy-attr:min,numpy-attr:reshape,plt" {:type :UnsupportedOperation})))
-
-(def CANCER-DATASET-URL "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data")
-
-(defmethod print-method Kernel [o w] (.write w (Kernel-repr (atom o))))
-
-;; NOTE: SmoSVM __init__ stubbed (np,numpy-attr:shape)
-;; NOTE: SmoSVM.fit stubbed (np,numpy-attr:copy)
-;; NOTE: SmoSVM.predict stubbed (np,numpy-attr:shape)
-;; NOTE: SmoSVM._k stubbed (np)
-;; NOTE: SmoSVM._e stubbed (np,numpy-attr:dot)
-;; NOTE: SmoSVM._calculate_k_matrix stubbed (np)
-;; NOTE: SmoSVM._predict stubbed (np,numpy-attr:sum)
-;; NOTE: SmoSVM._choose_a2 stubbed (np,numpy-attr:copy,numpy-attr:tolist)
-;; NOTE: SmoSVM._norm stubbed (np,numpy-attr:max,numpy-attr:min)
-;; NOTE: SmoSVM.length stubbed (numpy-attr:shape)
-;; NOTE: Kernel __init__ stubbed (np)
-;; NOTE: Kernel._polynomial stubbed (np)
-;; NOTE: ... and 9 more
+  (unsupported! "plt"))

@@ -1,21 +1,68 @@
 (ns clojure-algorithms.maths.monte-carlo
-  "@author: MatteoRaso"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Monte Carlo method estimations.")
 
-(declare pi-estimator area-under-curve-estimator area-under-line-estimator-check pi-estimator-using-area-under-curve)
+(defn- uniform
+  [low high]
+  (+ low (* (rand) (- high low))))
 
-(defn pi-estimator "An implementation of the Monte Carlo method used to find pi.\n1. Draw a 2x2 square centred at (0,0).\n2. Inscribe a circle within the square.\n3. For each iteration, place a dot anywhere in the square.\n   a. Record the number of dots within the circle.\n4. After all the dots are placed, divide the dots in the circle by the total.\n5. Multiply this value by 4 to get your estimate of pi.\n6. Print the estimated and numpy value of pi"
-  [iterations] (let [pi-estimate (atom nil) proportion (atom nil)] (letfn [(is-in-circle [x y] (let [distance-from-centre (atom nil)] (try (reset! distance-from-centre (Math/sqrt (py-add (py-pow x 2) (py-pow y 2)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-le @distance-from-centre 1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))] (reset! proportion (py-stat-mean (doall (for [--v (py-iter (range iterations))] (py-int (is-in-circle (py-uniform (py-neg 1.0) 1.0) (py-uniform (py-neg 1.0) 1.0)) nil))))) (reset! pi-estimate (py-mul @proportion 4)) (println (clojure.string/join " " [(py-str (str "The estimated value of pi is " (py-str @pi-estimate)))])) (println (clojure.string/join " " [(py-str (str "The numpy value of pi is " (py-str Math/PI)))])) (println (clojure.string/join " " [(py-str (str "The total error is " (py-str (py-abs (py-sub Math/PI @pi-estimate)))))]))) nil))
+(defn- mean
+  [xs]
+  (/ (reduce + xs) (double (count xs))))
 
-(defn area-under-curve-estimator "An implementation of the Monte Carlo method to find area under\n   a single variable non-negative real-valued continuous function,\n   say f(x), where x lies within a continuous bounded interval,\n   say [min_value, max_value], where min_value and max_value are\n   finite numbers\n1. Let x be a uniformly distributed random variable between min_value to\n   max_value\n2. Expected value of f(x) =\n   (integrate f(x) from min_value to max_value)/(max_value - min_value)\n3. Finding expected value of f(x):\n    a. Repeatedly draw x from uniform distribution\n    b. Evaluate f(x) at each of the drawn x values\n    c. Expected value = average of the function evaluations\n4. Estimated value of integral = Expected value * (max_value - min_value)\n5. Returns estimated value"
-  ([iterations function-to-integrate] (area-under-curve-estimator iterations function-to-integrate 0.0 1.0))
-  ([iterations function-to-integrate min-value] (area-under-curve-estimator iterations function-to-integrate min-value 1.0))
-  ([iterations function-to-integrate min-value max-value] (py-mul (py-stat-mean (doall (for [--v (py-iter (range iterations))] (function-to-integrate (py-uniform min-value max-value))))) (py-sub max-value min-value))))
+(defn pi-estimator
+  "Estimate pi by sampling dots in a 2x2 square; prints the estimate."
+  [iterations]
+  (let [in-circle? (fn [x y]
+                     (<= (Math/sqrt (+ (* x x) (* y y))) 1))
+        proportion (mean (repeatedly iterations
+                                     #(if (in-circle? (uniform -1.0 1.0)
+                                                      (uniform -1.0 1.0))
+                                        1 0)))
+        pi-estimate (* proportion 4)]
+    (println (str "The estimated value of pi is " pi-estimate))
+    (println (str "The numpy value of pi is " Math/PI))
+    (println (str "The total error is " (abs (- Math/PI pi-estimate)))))
+  nil)
 
-(defn area-under-line-estimator-check "Checks estimation error for area_under_curve_estimator function\nfor f(x) = x where x lies within min_value to max_value\n1. Calls \"area_under_curve_estimator\" function\n2. Compares with the expected value\n3. Prints estimated, expected and error value"
+(defn area-under-curve-estimator
+  "Estimate the integral of function-to-integrate over [min-value, max-value]."
+  ([iterations function-to-integrate]
+   (area-under-curve-estimator iterations function-to-integrate 0.0 1.0))
+  ([iterations function-to-integrate min-value]
+   (area-under-curve-estimator iterations function-to-integrate min-value 1.0))
+  ([iterations function-to-integrate min-value max-value]
+   (* (mean (repeatedly iterations
+                        #(function-to-integrate (uniform min-value max-value))))
+      (- max-value min-value))))
+
+(defn area-under-line-estimator-check
+  "Check the estimation error for f(x) = x; prints estimated/expected/error."
   ([iterations] (area-under-line-estimator-check iterations 0.0 1.0))
   ([iterations min-value] (area-under-line-estimator-check iterations min-value 1.0))
-  ([iterations min-value max-value] (let [estimated-value (atom nil) expected-value (atom nil)] (letfn [(identity-function [x] x)] (reset! estimated-value (area-under-curve-estimator iterations identity-function min-value max-value)) (reset! expected-value (py-div (py-sub (py-mul max-value max-value) (py-mul min-value min-value)) 2)) (println (clojure.string/join " " [(py-str "******************")])) (println (clojure.string/join " " [(py-str (str "Estimating area under y=x where x varies from " (py-str min-value) " to " (py-str max-value)))])) (println (clojure.string/join " " [(py-str (str "Estimated value is " (py-str @estimated-value)))])) (println (clojure.string/join " " [(py-str (str "Expected value is " (py-str @expected-value)))])) (println (clojure.string/join " " [(py-str (str "Total error is " (py-str (py-abs (py-sub @estimated-value @expected-value)))))])) (println (clojure.string/join " " [(py-str "******************")]))) nil)))
+  ([iterations min-value max-value]
+   (let [estimated-value (area-under-curve-estimator iterations identity
+                                                     min-value max-value)
+         expected-value (/ (- (* max-value max-value) (* min-value min-value)) 2)]
+     (println "******************")
+     (println (str "Estimating area under y=x where x varies from "
+                   min-value " to " max-value))
+     (println (str "Estimated value is " estimated-value))
+     (println (str "Expected value is " expected-value))
+     (println (str "Total error is " (abs (- estimated-value expected-value))))
+     (println "******************"))
+   nil))
 
-(defn pi-estimator-using-area-under-curve "Area under curve y = sqrt(4 - x^2) where x lies in 0 to 2 is equal to pi"
-  [iterations] (let [estimated-value (atom nil)] (letfn [(function-to-integrate [x] (Math/sqrt (py-sub 4.0 (py-mul x x))))] (reset! estimated-value (area-under-curve-estimator iterations function-to-integrate 0.0 2.0)) (println (clojure.string/join " " [(py-str "******************")])) (println (clojure.string/join " " [(py-str "Estimating pi using area_under_curve_estimator")])) (println (clojure.string/join " " [(py-str (str "Estimated value is " (py-str @estimated-value)))])) (println (clojure.string/join " " [(py-str (str "Expected value is " (py-str Math/PI)))])) (println (clojure.string/join " " [(py-str (str "Total error is " (py-str (py-abs (py-sub @estimated-value Math/PI)))))])) (println (clojure.string/join " " [(py-str "******************")]))) nil))
+(defn pi-estimator-using-area-under-curve
+  "Estimate pi as the area under y = sqrt(4 - x^2) over [0, 2]; prints it."
+  [iterations]
+  (let [estimated-value (area-under-curve-estimator
+                         iterations
+                         (fn [x] (Math/sqrt (- 4.0 (* x x))))
+                         0.0 2.0)]
+    (println "******************")
+    (println "Estimating pi using area_under_curve_estimator")
+    (println (str "Estimated value is " estimated-value))
+    (println (str "Expected value is " Math/PI))
+    (println (str "Total error is " (abs (- estimated-value Math/PI))))
+    (println "******************"))
+  nil)

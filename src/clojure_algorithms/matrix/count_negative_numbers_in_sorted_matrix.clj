@@ -1,34 +1,81 @@
 (ns clojure-algorithms.matrix.count-negative-numbers-in-sorted-matrix
-  "Given an matrix of numbers in which all rows and all columns are sorted in decreasing\norder, return the number of negative numbers in grid.\n\nReference: https://leetcode.com/problems/count-negative-numbers-in-a-sorted-matrix"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Counts the negative numbers in a matrix whose rows and columns are
+  sorted in decreasing order.
+  Reference: https://leetcode.com/problems/count-negative-numbers-in-a-sorted-matrix")
 
-(declare generate-large-matrix validate-grid find-negative-index count-negatives-binary-search count-negatives-brute-force count-negatives-brute-force-with-break benchmark grid test-grids)
+(defn generate-large-matrix
+  "Builds the 1000x2000 benchmark matrix."
+  []
+  (vec (for [i (range 1000)]
+         (vec (range (- 1000 i) (- -1000 i) -1)))))
 
-(defn generate-large-matrix ">>> generate_large_matrix() # doctest: +ELLIPSIS\n[[1000, ..., -999], [999, ..., -1001], ..., [2, ..., -1998]]"
-  [] (vec (for [i (py-iter (range 1000))] (py-list (range (py-sub 1000 i) (py-sub (py-neg 1000) i) (py-neg 1))))))
+(def grid
+  "Large benchmark matrix shared by the doctests."
+  (generate-large-matrix))
 
-(defn validate-grid "Validate that the rows and columns of the grid is sorted in decreasing order.\n>>> for grid in test_grids:\n...     validate_grid(grid)"
-  [grid] (assert (py-truthy (every? py-truthy (doall (for [row (py-iter grid)] (py-eq row (if (py-truthy true) (vec (reverse (py-sorted row))) (py-sorted row)))))))) (assert (py-truthy (every? py-truthy (doall (for [col (py-iter (apply map vector grid))] (py-eq (py-list col) (if (py-truthy true) (vec (reverse (py-sorted col))) (py-sorted col)))))))) nil)
+(def test-grids
+  "Grids used by the doctests, from small to large."
+  [[[4 3 2 -1] [3 2 1 -1] [1 1 -1 -2] [-1 -1 -2 -3]]
+   [[3 2] [1 0]]
+   [[7 7 6]]
+   [[7 7 6] [-1 -2 -3]]
+   grid])
 
-(defn find-negative-index "Find the smallest negative index\n\n>>> find_negative_index([0,0,0,0])\n4\n>>> find_negative_index([4,3,2,-1])\n3\n>>> find_negative_index([1,0,-1,-10])\n2\n>>> find_negative_index([0,0,0,-1])\n3\n>>> find_negative_index([11,8,7,-3,-5,-9])\n3\n>>> find_negative_index([-1,-1,-2,-3])\n0\n>>> find_negative_index([5,1,0])\n3\n>>> find_negative_index([-5,-5,-5])\n0\n>>> find_negative_index([0])\n1\n>>> find_negative_index([])\n0"
-  [array] (let [left (atom nil) mid (atom nil) num (atom nil) right (atom nil)] (try (reset! left 0) (reset! right (py-sub (count array) 1)) (when (py-truthy (let [__b1 (not (py-truthy array))] (if (py-truthy __b1) __b1 (py-lt (py-get array 0) 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (while (py-truthy (py-gt (py-add @right 1) @left)) (reset! mid (py-floordiv (py-add @left @right) 2)) (reset! num (py-get array @mid)) (when (py-truthy (let [__b2 (py-lt @num 0)] (if (py-truthy __b2) (py-ge (py-get array (py-sub @mid 1)) 0) __b2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @mid}))) (if (py-truthy (py-ge @num 0)) (do (reset! left (py-add @mid 1))) (do (reset! right (py-sub @mid 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (count array)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn validate-grid
+  "Asserts that every row and column of grid is sorted in decreasing order."
+  [grid]
+  (assert (every? (fn [row] (= (vec row) (vec (reverse (sort row))))) grid))
+  (assert (every? (fn [col] (= (vec col) (vec (reverse (sort col)))))
+                  (apply map vector grid))))
 
-(defn count-negatives-binary-search "An O(m logn) solution that uses binary search in order to find the boundary between\npositive and negative numbers\n\n>>> [count_negatives_binary_search(grid) for grid in test_grids]\n[8, 0, 0, 3, 1498500]"
-  [grid] (let [bound (atom nil) i (atom nil) total (atom nil)] (try (reset! total 0) (reset! bound (count (py-get grid 0))) (doseq [__i1 (py-iter (range (count grid)))] (reset! i __i1) (reset! bound (find-negative-index (py-slice (py-get grid @i) nil @bound nil))) (swap! total py-add @bound)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-sub (py-mul (count grid) (count (py-get grid 0))) @total)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn find-negative-index
+  "Returns the index of the first negative number in the decreasing
+  array, or the length of the array when there is none."
+  [array]
+  (let [v (vec array)]
+    (if (or (empty? v) (neg? (nth v 0)))
+      0
+      (loop [left 0 right (dec (count v))]
+        (if (> (inc right) left)
+          (let [mid (quot (+ left right) 2)
+                num (nth v mid)]
+            (cond (and (neg? num) (>= (nth v (dec mid)) 0))
+                  mid
+                  (>= num 0)
+                  (recur (inc mid) right)
+                  :else
+                  (recur left (dec mid))))
+          (count v))))))
 
-(defn count-negatives-brute-force "This solution is O(n^2) because it iterates through every column and row.\n\n>>> [count_negatives_brute_force(grid) for grid in test_grids]\n[8, 0, 0, 3, 1498500]"
-  [grid] (count (vec (for [row (py-iter grid) number (py-iter row) :when (py-truthy (py-lt number 0))] number))))
+(defn count-negatives-binary-search
+  "O(m log n) count using binary search on each row."
+  [grid]
+  (let [rows (count grid)
+        cols (count (first grid))
+        total (loop [i 0 bound cols total 0]
+                (if (>= i rows)
+                  total
+                  (let [bound (find-negative-index
+                               (subvec (vec (nth grid i)) 0 bound))]
+                    (recur (inc i) bound (+ total bound)))))]
+    (- (* rows cols) total)))
 
-(defn count-negatives-brute-force-with-break "Similar to the brute force solution above but uses break in order to reduce the\nnumber of iterations.\n\n>>> [count_negatives_brute_force_with_break(grid) for grid in test_grids]\n[8, 0, 0, 3, 1498500]"
-  [grid] (let [i (atom nil) number (atom nil) row (atom nil) total (atom nil)] (try (reset! total 0) (doseq [__i1 (py-iter grid)] (reset! row __i1) (try (doseq [[__i2 __i3] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) @row))] (reset! i __i2) (reset! number __i3) (when (py-truthy (py-lt @number 0)) (swap! total py-add (py-sub (count @row) @i)) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @total})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn count-negatives-brute-force
+  "O(n^2) count iterating over every element."
+  [grid]
+  (count (for [row grid number row :when (neg? number)] number)))
 
-(defn benchmark "Benchmark our functions next to each other"
+(defn count-negatives-brute-force-with-break
+  "Brute-force count stopping at the first negative of each row."
+  [grid]
+  (reduce +
+          0
+          (for [row grid]
+            (let [v (vec row)
+                  idx (first (keep-indexed (fn [i n] (when (neg? n) i)) v))]
+              (if (nil? idx) 0 (- (count v) idx))))))
+
+(defn benchmark
   [& _args]
   ;; stub: original requires timeit; pure-Clojure port not applicable
   (throw (ex-info "requires timeit" {:type :UnsupportedOperation})))
-
-(def grid (generate-large-matrix))
-
-(def test-grids [[[4 3 2 (py-neg 1)] [3 2 1 (py-neg 1)] [1 1 (py-neg 1) (py-neg 2)] [(py-neg 1) (py-neg 1) (py-neg 2) (py-neg 3)]] [[3 2] [1 0]] [[7 7 6]] [[7 7 6] [(py-neg 1) (py-neg 2) (py-neg 3)]] grid])
-
-;; NOTE: benchmark stubbed (timeit)

@@ -1,8 +1,18 @@
 (ns clojure-algorithms.maths.minkowski-distance
-  "Port of maths/minkowski_distance.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Minkowski distance between n-dimensional points.
+  https://en.wikipedia.org/wiki/Minkowski_distance")
 
-(declare minkowski-distance)
-
-(defn minkowski-distance "This function calculates the Minkowski distance for a given order between\ntwo n-dimensional points represented as lists. For the case of order = 1,\nthe Minkowski distance degenerates to the Manhattan distance. For\norder = 2, the usual Euclidean distance is obtained.\n\nhttps://en.wikipedia.org/wiki/Minkowski_distance\n\nNote: due to floating point calculation errors the output of this\nfunction may be inaccurate.\n\n>>> minkowski_distance([1.0, 1.0], [2.0, 2.0], 1)\n2.0\n>>> minkowski_distance([1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], 2)\n8.0\n>>> import numpy as np\n>>> bool(np.isclose(5.0, minkowski_distance([5.0], [0.0], 3)))\nTrue\n>>> minkowski_distance([1.0], [2.0], -1)\nTraceback (most recent call last):\n    ...\nValueError: The order must be greater than or equal to 1.\n>>> minkowski_distance([1.0], [1.0, 2.0], 1)\nTraceback (most recent call last):\n    ...\nValueError: Both points must have the same dimension."
-  [point-a point-b order] (try (when (py-truthy (py-lt order 1)) (throw (ex-info (py-str "The order must be greater than or equal to 1.") {:type :ValueError}))) (when (py-truthy (not (py-eq (count point-a) (count point-b)))) (throw (ex-info (py-str "Both points must have the same dimension.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-pow (reduce +' 0 (doall (for [[a b] (py-iter (map vector point-a point-b))] (py-pow (py-abs (py-sub a b)) order)))) (py-div 1 order))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn minkowski-distance
+  "Returns the Minkowski distance of the given `order` between the
+  n-dimensional points `point-a` and `point-b`. Order 1 is the Manhattan
+  distance; order 2 is the Euclidean distance."
+  [point-a point-b order]
+  (when (< order 1)
+    (throw (ex-info "The order must be greater than or equal to 1." {:type :ValueError})))
+  (when (not= (count point-a) (count point-b))
+    (throw (ex-info "Both points must have the same dimension." {:type :ValueError})))
+  (Math/pow (double (reduce + (map (fn [a b]
+                                     (Math/pow (Math/abs (double (- a b)))
+                                               (double order)))
+                                   point-a point-b)))
+            (/ 1.0 order)))

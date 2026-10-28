@@ -1,133 +1,242 @@
 (ns clojure-algorithms.machine-learning.mab
-  "Multi-Armed Bandit (MAB) is a problem in reinforcement learning where an agent must\nlearn to choose the best action from a set of actions to maximize its reward.\n\nlearn more here: https://en.wikipedia.org/wiki/Multi-armed_bandit\n\n\nThe MAB problem can be described as follows:\n- There are N arms, each with a different probability of giving a reward.\n- The agent must learn to choose the best arm to pull in order to maximize its reward.\n\nHere 3 optimising strategies have been implemented:\n- Epsilon-Greedy\n- Upper Confidence Bound (UCB)\n- Thompson Sampling\n\nThere are two other strategies implemented to show the performance of\nthe optimising strategies:\n- Random strategy (full exploration)\n- Greedy strategy (full exploitation)\n\nThe performance of the strategies is evaluated by the cumulative reward\nover a number of rounds."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Multi-Armed Bandit strategies.
 
-(declare test-mab-strategies demo-mab-strategies make-Bandit Bandit-pull make-Strategy poly-select-arm Strategy-select-arm poly-update Strategy-update make-EpsilonGreedy EpsilonGreedy-select-arm EpsilonGreedy-update make-UCB UCB-select-arm UCB-update make-ThompsonSampling ThompsonSampling-select-arm ThompsonSampling-update make-RandomStrategy RandomStrategy-select-arm RandomStrategy-update make-GreedyStrategy GreedyStrategy-select-arm GreedyStrategy-update)
+  Strategies are immutable maps; update returns a new strategy. Selection
+  draws from the strategy's embedded RNG (seedable via the makers for
+  deterministic tests).
 
-(defrecord Bandit [probabilities num-arms])
+  Only the plotting demo needs matplotlib and is honestly stubbed.
 
-(defrecord Strategy [])
+  Reference: https://en.wikipedia.org/wiki/Multi-armed_bandit")
 
-(defrecord EpsilonGreedy [epsilon num-arms counts values])
+(defn- unsupported!
+  [needs]
+  (throw (ex-info (str "requires " needs) {:type :UnsupportedOperation})))
 
-(defrecord UCB [num-arms counts values total-counts])
+(defn- make-rng
+  [seed]
+  (if (some? seed) (java.util.Random. (long seed)) (java.util.Random.)))
 
-(defrecord ThompsonSampling [num-arms successes failures])
+(defn- argmax-first
+  [xs]
+  (first (keep-indexed (fn [i v] (when (= v (apply max xs)) i)) xs)))
 
-(defrecord RandomStrategy [num-arms])
+(defn- gamma-sample
+  "Gamma(shape, 1) sample for shape >= 1 (Marsaglia-Tsang)."
+  [rng shape]
+  (let [d (- shape (/ 1.0 3.0))
+        c (/ 1.0 (Math/sqrt (* 9.0 d)))]
+    (loop []
+      (let [x (.nextGaussian rng)
+            v (Math/pow (+ 1.0 (* c x)) 3)]
+        (if (<= v 0)
+          (recur)
+          (let [u (.nextDouble rng)]
+            (if (< (Math/log u)
+                   (+ (/ (* x x) 2.0) d (- (* d v)) (* d (Math/log v))))
+              (* d v)
+              (recur))))))))
 
-(defrecord GreedyStrategy [num-arms counts values])
+(defn- beta-sample
+  "Beta(a, b) sample via two Gamma variates (a, b >= 1 here)."
+  [rng a b]
+  (let [g1 (gamma-sample rng a)
+        g2 (gamma-sample rng b)]
+    (/ g1 (+ g1 g2))))
 
-(defn make-Bandit "Constructor for Bandit. A class to represent a multi-armed bandit."
-  [probabilities] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:probabilities] probabilities))) (swap! self (fn [__c] (py-assoc-in __c [:num-arms] (count probabilities)))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->Bandit @self)))
+(defn make-Bandit
+  "Bandit with per-arm reward probabilities."
+  ([probabilities] (make-Bandit probabilities nil))
+  ([probabilities seed]
+   {:kind :bandit
+    :probabilities (vec probabilities)
+    :num-arms (count probabilities)
+    :rng (make-rng seed)}))
+
+(defn Bandit-pull
+  "Pull arm-index: 1 with that arm's probability, else 0."
+  [bandit arm-index]
+  (if (< (.nextDouble ^java.util.Random (:rng bandit))
+         (nth (:probabilities bandit) arm-index))
+    1
+    0))
 
 (defn make-Strategy
-  "Constructor for Strategy."
-  ([] (map->Strategy {})))
+  "Base strategy (selects nothing; update is a no-op)."
+  []
+  {:kind :strategy})
 
-(defn make-EpsilonGreedy "Constructor for EpsilonGreedy. A class for a simple implementation of the Epsilon-Greedy strategy.\nFollow this link to learn more:\nhttps://medium.com/analytics-vidhya/the-epsilon-greedy-algorithm-for-reinforcement-learning-5fe6f96dc870"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-EpsilonGreedy
+  "Epsilon-greedy strategy over num-arms arms."
+  ([epsilon num-arms] (make-EpsilonGreedy epsilon num-arms nil))
+  ([epsilon num-arms seed]
+   {:kind :epsilon-greedy
+    :epsilon epsilon
+    :num-arms num-arms
+    :counts (vec (repeat num-arms 0.0))
+    :values (vec (repeat num-arms 0.0))
+    :rng (make-rng seed)}))
 
-(defn make-UCB "Constructor for UCB. A class for the Upper Confidence Bound (UCB) strategy.\nFollow this link to learn more:\nhttps://people.maths.bris.ac.uk/~maajg/teaching/stochopt/ucb.pdf"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-UCB
+  "Upper-confidence-bound strategy over num-arms arms."
+  [num-arms]
+  {:kind :ucb
+   :num-arms num-arms
+   :counts (vec (repeat num-arms 0.0))
+   :values (vec (repeat num-arms 0.0))
+   :total-counts 0})
 
-(defn make-ThompsonSampling "Constructor for ThompsonSampling. A class for the Thompson Sampling strategy.\nFollow this link to learn more:\nhttps://en.wikipedia.org/wiki/Thompson_sampling"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-ThompsonSampling
+  "Thompson-sampling strategy over num-arms arms."
+  ([num-arms] (make-ThompsonSampling num-arms nil))
+  ([num-arms seed]
+   {:kind :thompson-sampling
+    :num-arms num-arms
+    :successes (vec (repeat num-arms 0.0))
+    :failures (vec (repeat num-arms 0.0))
+    :rng (make-rng seed)}))
 
-(defn make-RandomStrategy "Constructor for RandomStrategy. A class for choosing an arm uniformly at random at each round to give\na better comparison with the other optimised strategies."
-  [num-arms] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:num-arms] num-arms))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->RandomStrategy @self)))
+(defn make-RandomStrategy
+  "Uniformly random strategy over num-arms arms."
+  ([num-arms] (make-RandomStrategy num-arms nil))
+  ([num-arms seed]
+   {:kind :random-strategy
+    :num-arms num-arms
+    :rng (make-rng seed)}))
 
-(defn make-GreedyStrategy "Constructor for GreedyStrategy. A class for the Greedy strategy to show how full exploitation can be\ndetrimental to the performance of the strategy."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-GreedyStrategy
+  "Purely greedy strategy over num-arms arms."
+  [num-arms]
+  {:kind :greedy-strategy
+   :num-arms num-arms
+   :counts (vec (repeat num-arms 0.0))
+   :values (vec (repeat num-arms 0.0))})
 
-(defmulti poly-select-arm (fn [s & _] (class (if (instance? clojure.lang.Atom s) @s s))))
+(defmulti poly-select-arm
+  "Select an arm index for the strategy."
+  (fn [strategy] (:kind strategy)))
 
-(defmulti poly-update (fn [s & _] (class (if (instance? clojure.lang.Atom s) @s s))))
+(defmulti poly-update
+  "Return the strategy updated with arm-index's reward."
+  (fn [strategy _arm-index _reward] (:kind strategy)))
 
-(defn Bandit-pull "Pull an arm of the bandit.\n\nArgs:\n    arm_index: The arm to pull.\n\nReturns:\n    The reward for the arm.\n\nExample:\n    >>> bandit = Bandit([0.1, 0.5, 0.9])\n    >>> isinstance(bandit.pull(0), int)\n    True"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defmethod poly-select-arm :strategy [_] nil)
+(defmethod poly-update :strategy [s _ _] s)
 
-(defmethod poly-select-arm Strategy
-  ([self] nil nil))
+(defmethod poly-select-arm :epsilon-greedy
+  [{:keys [epsilon num-arms values rng]}]
+  (if (< (.nextDouble ^java.util.Random rng) epsilon)
+    (.nextInt ^java.util.Random rng num-arms)
+    (argmax-first values)))
 
-(defmethod poly-update Strategy
-  ([self arm-index reward] nil nil))
+(defmethod poly-update :epsilon-greedy
+  [s arm-index reward]
+  (let [n (inc (nth (:counts s) arm-index))
+        v (+ (nth (:values s) arm-index)
+             (/ (- reward (nth (:values s) arm-index)) n))]
+    (assoc s :counts (assoc (:counts s) arm-index n)
+           :values (assoc (:values s) arm-index v))))
 
-(defmethod poly-select-arm EpsilonGreedy [& _] (throw (ex-info "requires np,numpy-attr:argmax" {:type :UnsupportedOperation})))
+(defmethod poly-select-arm :ucb
+  [{:keys [num-arms counts values total-counts]}]
+  (if (< total-counts num-arms)
+    total-counts
+    (argmax-first (mapv (fn [v c]
+                          (+ v (Math/sqrt (/ (* 2 (Math/log total-counts)) c))))
+                        values counts))))
 
-(defmethod poly-update EpsilonGreedy
-  ([self arm-index reward] (let [n (atom nil)] (swap! self (fn [__c] (py-assoc-in __c [:counts arm-index] (py-add (py-get-in __c [:counts arm-index]) 1)))) (reset! n (py-get (:counts @self) arm-index)) (swap! self (fn [__c] (py-assoc-in __c [:values arm-index] (py-add (py-get-in __c [:values arm-index]) (py-div (py-sub reward (py-get (:values @self) arm-index)) @n))))) nil)))
+(defmethod poly-update :ucb
+  [s arm-index reward]
+  (let [n (inc (nth (:counts s) arm-index))
+        v (+ (nth (:values s) arm-index)
+             (/ (- reward (nth (:values s) arm-index)) n))]
+    (assoc s :counts (assoc (:counts s) arm-index n)
+           :values (assoc (:values s) arm-index v)
+           :total-counts (inc (:total-counts s)))))
 
-(defmethod poly-select-arm UCB [& _] (throw (ex-info "requires np,numpy-attr:argmax" {:type :UnsupportedOperation})))
+(defmethod poly-select-arm :thompson-sampling
+  [{:keys [num-arms successes failures rng]}]
+  (argmax-first (mapv #(beta-sample rng (inc (nth successes %))
+                                    (inc (nth failures %)))
+                      (range num-arms))))
 
-(defmethod poly-update UCB
-  ([self arm-index reward] (let [n (atom nil)] (swap! self (fn [__c] (py-assoc-in __c [:counts arm-index] (py-add (py-get-in __c [:counts arm-index]) 1)))) (swap! self (fn [__c] (py-assoc-in __c [:total-counts] (py-add (py-get-in __c [:total-counts]) 1)))) (reset! n (py-get (:counts @self) arm-index)) (swap! self (fn [__c] (py-assoc-in __c [:values arm-index] (py-add (py-get-in __c [:values arm-index]) (py-div (py-sub reward (py-get (:values @self) arm-index)) @n))))) nil)))
+(defmethod poly-update :thompson-sampling
+  [s arm-index reward]
+  (if (= reward 1)
+    (assoc s :successes (assoc (:successes s) arm-index
+                               (inc (nth (:successes s) arm-index))))
+    (assoc s :failures (assoc (:failures s) arm-index
+                              (inc (nth (:failures s) arm-index))))))
 
-(defmethod poly-select-arm ThompsonSampling [& _] (throw (ex-info "requires np,numpy-attr:argmax" {:type :UnsupportedOperation})))
+(defmethod poly-select-arm :random-strategy
+  [{:keys [num-arms rng]}]
+  (.nextInt ^java.util.Random rng num-arms))
 
-(defmethod poly-update ThompsonSampling
-  ([self arm-index reward] (if (py-truthy (py-eq reward 1)) (do (swap! self (fn [__c] (py-assoc-in __c [:successes arm-index] (py-add (py-get-in __c [:successes arm-index]) 1))))) (do (swap! self (fn [__c] (py-assoc-in __c [:failures arm-index] (py-add (py-get-in __c [:failures arm-index]) 1)))))) nil))
+(defmethod poly-update :random-strategy [s _ _] s)
 
-(defmethod poly-select-arm RandomStrategy [& _] (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defmethod poly-select-arm :greedy-strategy
+  [{:keys [values]}]
+  (argmax-first values))
 
-(defmethod poly-update RandomStrategy
-  ([self arm-index reward] nil nil))
-
-(defmethod poly-select-arm GreedyStrategy [& _] (throw (ex-info "requires np,numpy-attr:argmax" {:type :UnsupportedOperation})))
-
-(defmethod poly-update GreedyStrategy
-  ([self arm-index reward] (let [n (atom nil)] (swap! self (fn [__c] (py-assoc-in __c [:counts arm-index] (py-add (py-get-in __c [:counts arm-index]) 1)))) (reset! n (py-get (:counts @self) arm-index)) (swap! self (fn [__c] (py-assoc-in __c [:values arm-index] (py-add (py-get-in __c [:values arm-index]) (py-div (py-sub reward (py-get (:values @self) arm-index)) @n))))) nil)))
+(defmethod poly-update :greedy-strategy
+  [s arm-index reward]
+  (let [n (inc (nth (:counts s) arm-index))
+        v (+ (nth (:values s) arm-index)
+             (/ (- reward (nth (:values s) arm-index)) n))]
+    (assoc s :counts (assoc (:counts s) arm-index n)
+           :values (assoc (:values s) arm-index v))))
 
 (def Strategy-select-arm poly-select-arm)
-
 (def EpsilonGreedy-select-arm poly-select-arm)
-
 (def UCB-select-arm poly-select-arm)
-
 (def ThompsonSampling-select-arm poly-select-arm)
-
 (def RandomStrategy-select-arm poly-select-arm)
-
 (def GreedyStrategy-select-arm poly-select-arm)
 
 (def Strategy-update poly-update)
-
 (def EpsilonGreedy-update poly-update)
-
 (def UCB-update poly-update)
-
 (def ThompsonSampling-update poly-update)
-
 (def RandomStrategy-update poly-update)
-
 (def GreedyStrategy-update poly-update)
 
-(defn test-mab-strategies "Deterministic behavioural tests for the MAB strategies.\n\nThese checks feed each strategy a fixed sequence of rewards and assert\non the resulting internal state and arm selection, so a regression in\nthe update/select logic will fail the suite instead of only being\nvisible in the (stochastic) plotted demo."
-  [] (let [--v (atom nil) arm (atom nil) epsilon-greedy (atom nil) first-round-arms (atom nil) greedy (atom nil) num-arms (atom nil) random-strategy (atom nil) selections (atom nil) thompson (atom nil) ucb (atom nil)] (reset! num-arms 3) (reset! greedy (make-GreedyStrategy nil)) (doseq [__i1 (py-iter (range 10))] (reset! --v __i1) (swap! greedy py-update 2)) (swap! greedy py-update 0) (swap! greedy py-update 1) (assert (py-truthy (py-eq (poly-select-arm greedy) 2))) (reset! epsilon-greedy (make-EpsilonGreedy nil nil)) (doseq [__i2 (py-iter (range 10))] (reset! --v __i2) (swap! epsilon-greedy py-update 1)) (swap! epsilon-greedy py-update 0) (swap! epsilon-greedy py-update 2) (assert (py-truthy (py-eq (poly-select-arm epsilon-greedy) 1))) (reset! ucb (make-UCB nil)) (reset! first-round-arms (py-set [])) (doseq [__i3 (py-iter (range @num-arms))] (reset! --v __i3) (reset! arm (poly-select-arm ucb)) (swap! first-round-arms (fn [__c] (conj (set __c) @arm))) (swap! ucb py-update @arm)) (assert (py-truthy (py-eq @first-round-arms (py-set (range @num-arms))))) (reset! thompson (make-ThompsonSampling nil)) (doseq [__i4 (py-iter (range 20))] (reset! --v __i4) (swap! thompson py-update 0) (swap! thompson py-update 1) (swap! thompson py-update 2)) (reset! selections (vec (for [--v (py-iter (range 50))] (poly-select-arm thompson)))) (assert (py-truthy (py-gt (py-count @selections 0) (py-floordiv (count @selections) 2)))) (reset! random-strategy (make-RandomStrategy nil)) (swap! random-strategy py-update 0) (assert (py-truthy (let [__c5 0 __c6 (poly-select-arm random-strategy) __c7 @num-arms] (and (py-le __c5 __c6) (py-lt __c6 __c7))))) nil))
+(defn test-mab-strategies
+  "Behavioural checks for the strategies (mirrors the upstream self-test):
+  greedy settles on the rewarded arm, epsilon-0 matches greedy, UCB tries
+  every arm first, Thompson favours the successful arm, random stays valid."
+  []
+  (let [num-arms 3
+        greedy (reduce (fn [s _] (poly-update s 2 1))
+                       (make-GreedyStrategy num-arms) (range 10))
+        greedy (-> greedy (poly-update 0 0) (poly-update 1 0))]
+    (assert (= 2 (poly-select-arm greedy))))
+  (let [num-arms 3
+        eps (reduce (fn [s _] (poly-update s 1 1))
+                    (make-EpsilonGreedy 0.0 num-arms 7) (range 10))
+        eps (-> eps (poly-update 0 0) (poly-update 2 0))]
+    (assert (= 1 (poly-select-arm eps))))
+  (let [num-arms 3
+        [seen _] (reduce (fn [[seen ucb] _]
+                           (let [arm (poly-select-arm ucb)]
+                             [(conj seen arm) (poly-update ucb arm 1)]))
+                         [#{} (make-UCB num-arms)] (range num-arms))]
+    (assert (= seen (set (range num-arms)))))
+  (let [num-arms 3
+        thompson (reduce (fn [s _]
+                           (-> s
+                               (poly-update 0 1)
+                               (poly-update 1 0)
+                               (poly-update 2 0)))
+                         (make-ThompsonSampling num-arms 11) (range 20))
+        selections (vec (repeatedly 50 #(poly-select-arm thompson)))]
+    (assert (> (count (filter zero? selections)) (quot (count selections) 2))))
+  (let [random-strategy (make-RandomStrategy 3 13)
+        _ (poly-update random-strategy 0 1)
+        arm (poly-select-arm random-strategy)]
+    (assert (and (<= 0 arm) (< arm 3))))
+  nil)
 
-(defn demo-mab-strategies "Run a stochastic simulation of the MAB strategies and plot their\ncumulative reward over time for visual comparison."
+(defn demo-mab-strategies
+  "STUB: stochastic simulation with a matplotlib comparison plot."
   [& _args]
-  ;; stub: original requires plt; pure-Clojure port not applicable
-  (throw (ex-info "requires plt" {:type :UnsupportedOperation})))
-
-;; NOTE: Bandit.pull stubbed (np)
-;; NOTE: EpsilonGreedy __init__ stubbed (np)
-;; NOTE: EpsilonGreedy.select_arm stubbed (np,numpy-attr:argmax)
-;; NOTE: UCB __init__ stubbed (np)
-;; NOTE: UCB.select_arm stubbed (np,numpy-attr:argmax)
-;; NOTE: ThompsonSampling __init__ stubbed (np)
-;; NOTE: ThompsonSampling.select_arm stubbed (np,numpy-attr:argmax)
-;; NOTE: RandomStrategy.select_arm stubbed (np)
-;; NOTE: GreedyStrategy __init__ stubbed (np)
-;; NOTE: GreedyStrategy.select_arm stubbed (np,numpy-attr:argmax)
-;; NOTE: demo_mab_strategies stubbed (plt)
+  (unsupported! "plt"))

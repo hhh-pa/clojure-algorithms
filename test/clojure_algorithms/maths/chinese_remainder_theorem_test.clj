@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.chinese-remainder-theorem-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.chinese-remainder-theorem :as sut]))
 
 (deftest test-fn-extended-euclid-examples

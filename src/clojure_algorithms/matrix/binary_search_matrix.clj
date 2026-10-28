@@ -1,11 +1,30 @@
 (ns clojure-algorithms.matrix.binary-search-matrix
-  "Port of matrix/binary_search_matrix.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Binary search over a sorted 1D array, applied row by row to a 2D matrix.")
 
-(declare binary-search mat-bin-search)
+(defn binary-search
+  "Returns the index of value in the sorted array between lower-bound and
+  upper-bound (inclusive), or -1 when value is absent."
+  [array lower-bound upper-bound value]
+  (let [r (quot (+ lower-bound upper-bound) 2)]
+    (cond (= (nth array r) value) r
+          (>= lower-bound upper-bound) -1
+          (< (nth array r) value)
+          (recur array (inc r) upper-bound value)
+          :else
+          (recur array lower-bound (dec r) value))))
 
-(defn binary-search "This function carries out Binary search on a 1d array and\nreturn -1 if it do not exist\narray: A 1d sorted array\nvalue : the value meant to be searched\n>>> matrix = [1, 4, 7, 11, 15]\n>>> binary_search(matrix, 0, len(matrix) - 1, 1)\n0\n>>> binary_search(matrix, 0, len(matrix) - 1, 23)\n-1"
-  [array lower-bound upper-bound value] (let [r (atom nil)] (try (reset! r (py-int (py-floordiv (py-add lower-bound upper-bound) 2) nil)) (when (py-truthy (py-eq (py-get array @r) value)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @r}))) (when (py-truthy (py-ge lower-bound upper-bound)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-neg 1)}))) (if (py-truthy (py-lt (py-get array @r) value)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (binary-search array (py-add @r 1) upper-bound value)}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (binary-search array lower-bound (py-sub @r 1) value)})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn mat-bin-search "This function loops over a 2d matrix and calls binarySearch on\nthe selected 1d array and returns [-1, -1] is it do not exist\nvalue : value meant to be searched\nmatrix = a sorted 2d matrix\n>>> matrix = [[1, 4, 7, 11, 15],\n...           [2, 5, 8, 12, 19],\n...           [3, 6, 9, 16, 22],\n...           [10, 13, 14, 17, 24],\n...           [18, 21, 23, 26, 30]]\n>>> target = 1\n>>> mat_bin_search(target, matrix)\n[0, 0]\n>>> target = 34\n>>> mat_bin_search(target, matrix)\n[-1, -1]"
-  [value matrix] (let [index (atom nil) r (atom nil)] (try (reset! index 0) (when (py-truthy (py-eq (py-get (py-get matrix @index) 0) value)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@index 0]}))) (while (py-truthy (let [__b1 (py-lt @index (count matrix))] (if (py-truthy __b1) (py-lt (py-get (py-get matrix @index) 0) value) __b1))) (reset! r (binary-search (py-get matrix @index) 0 (py-sub (count (py-get matrix @index)) 1) value)) (when (py-truthy (not (py-eq @r (py-neg 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@index @r]}))) (swap! index py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-neg 1) (py-neg 1)]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn mat-bin-search
+  "Searches each row of matrix for value with binary-search.
+  Returns [row col], or [-1 -1] when value is absent."
+  [value matrix]
+  (if (= (get-in matrix [0 0]) value)
+    [0 0]
+    (loop [index 0]
+      (if (and (< index (count matrix))
+               (< (get-in matrix [index 0]) value))
+        (let [row (nth matrix index)
+              r (binary-search row 0 (dec (count row)) value)]
+          (if (not= r -1)
+            [index r]
+            (recur (inc index))))
+        [-1 -1]))))

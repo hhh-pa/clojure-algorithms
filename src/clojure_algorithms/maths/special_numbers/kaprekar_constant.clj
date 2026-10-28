@@ -1,18 +1,117 @@
 (ns clojure-algorithms.maths.special-numbers.kaprekar-constant
-  "Kaprekar's Constant (6174) - also known as Kaprekar's Routine\n\nKaprekar's constant is a special number discovered by Indian mathematician\nD. R. Kaprekar in 1949. It is notable for the following property:\n\n1. Take any four-digit number with at least two different digits (leading zeros allowed)\n2. Arrange the digits in descending order to form the largest possible number\n3. Arrange the digits in ascending order to form the smallest possible number\n4. Subtract the smaller number from the larger number\n5. Repeat the process with the result\n\nThis process will always reach 6174 in at most 7 iterations, and once 6174 is\nreached, the process will continue to yield 6174.\n\nExample:\n    3524 -> 5432 - 2345 = 3087\n    3087 -> 8730 - 0378 = 8352\n    8352 -> 8532 - 2358 = 6174\n    6174 -> 7641 - 1467 = 6174 (repeats)\n\nReference: https://en.wikipedia.org/wiki/6174_(number)\nOEIS: https://oeis.org/A099009"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Kaprekar's Constant (6174) - also known as Kaprekar's Routine
 
-(declare kaprekar-routine kaprekar-constant is-kaprekar-valid main)
+Kaprekar's constant is a special number discovered by Indian mathematician
+D. R. Kaprekar in 1949. It is notable for the following property:
 
-(defn kaprekar-routine "Perform one iteration of Kaprekar's routine.\n\nArgs:\n    number: A 4-digit number (0-9999)\n\nReturns:\n    The result of one Kaprekar iteration\n\n>>> kaprekar_routine(3524)\n3087\n>>> kaprekar_routine(3087)\n8352\n>>> kaprekar_routine(8352)\n6174\n>>> kaprekar_routine(6174)\n6174\n>>> kaprekar_routine(1)\n999\n>>> kaprekar_routine(1111)\n0"
-  [number] (let [ascending (atom nil) descending (atom nil) digits (atom nil) msg (atom nil)] (try (when (py-truthy (let [__b2 (not (py-truthy (integer? number)))] (if (py-truthy __b2) __b2 (let [__b1 (py-lt number 0)] (if (py-truthy __b1) __b1 (py-gt number 9999)))))) (reset! msg (str "Input must be a non-negative integer between 0 and 9999, got " (py-str number))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! digits (py-zfill (py-str number) 4)) (when (py-truthy (py-eq (count (py-set @digits)) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (reset! descending (py-int (clojure.string/join "" (map py-str (if (py-truthy true) (vec (reverse (py-sorted @digits))) (py-sorted @digits)))) nil)) (reset! ascending (py-int (clojure.string/join "" (map py-str (py-sorted @digits))) nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-sub @descending @ascending)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+1. Take any four-digit number with at least two different digits (leading zeros allowed)
+2. Arrange the digits in descending order to form the largest possible number
+3. Arrange the digits in ascending order to form the smallest possible number
+4. Subtract the smaller number from the larger number
+5. Repeat the process with the result
 
-(defn kaprekar-constant "Apply Kaprekar's routine until reaching the constant 6174 or max iterations.\n\nArgs:\n    number: A 4-digit number (0-9999)\n    max_iterations: Maximum number of iterations to perform (default: 7)\n\nReturns:\n    A tuple containing:\n    - The number of iterations taken to reach 6174 (or -1 if not reached)\n    - A list of all intermediate results\n\n>>> kaprekar_constant(3524)\n(3, [3524, 3087, 8352, 6174])\n>>> kaprekar_constant(6174)\n(0, [6174])\n>>> kaprekar_constant(1234)\n(3, [1234, 3087, 8352, 6174])\n>>> kaprekar_constant(1111)\n(-1, [1111, 0])\n>>> kaprekar_constant(495)\n(4, [495, 9081, 9621, 8352, 6174])\n>>> kaprekar_constant(9998)\n(5, [9998, 999, 8991, 8082, 8532, 6174])"
+This process will always reach 6174 in at most 7 iterations, and once 6174 is
+reached, the process will continue to yield 6174.
+
+Example:
+    3524 -> 5432 - 2345 = 3087
+    3087 -> 8730 - 0378 = 8352
+    8352 -> 8532 - 2358 = 6174
+    6174 -> 7641 - 1467 = 6174 (repeats)
+
+Reference: https://en.wikipedia.org/wiki/6174_(number)
+OEIS: https://oeis.org/A099009"
+  (:require [clojure.string :as str]))
+
+(defn- check-number!
+  "Throws an ex-info with :type :ValueError unless v is an integer in 0..9999."
+  [v]
+  (when (or (not (integer? v)) (neg? v) (> v 9999))
+    (throw (ex-info (str "Input must be a non-negative integer between 0 and "
+                         "9999, got " v)
+                    {:type :ValueError}))))
+
+(defn- four-digits
+  "The 4-digit zero-padded string form of `number`."
+  [number]
+  (format "%04d" number))
+
+(defn kaprekar-routine
+  "Performs one iteration of Kaprekar's routine on `number` (0-9999) and
+returns the result."
+  [number]
+  (check-number! number)
+  (let [digits (four-digits number)]
+    (if (= 1 (count (set digits)))
+      0
+      (let [descending (Integer/parseInt (apply str (reverse (sort digits))))
+            ascending (Integer/parseInt (apply str (sort digits)))]
+        (- descending ascending)))))
+
+(defn kaprekar-constant
+  "Applies Kaprekar's routine until reaching the constant 6174 or running out
+of `max-iterations` (default 7). Returns a vector of the iteration count (or
+-1 when 6174 was not reached) and the vector of intermediate results."
   ([number] (kaprekar-constant number 7))
-  ([number max-iterations] (let [current (atom nil) iteration (atom nil) msg (atom nil) sequence (atom nil)] (try (when (py-truthy (let [__b2 (not (py-truthy (integer? number)))] (if (py-truthy __b2) __b2 (let [__b1 (py-lt number 0)] (if (py-truthy __b1) __b1 (py-gt number 9999)))))) (reset! msg (str "Input must be a non-negative integer between 0 and 9999, got " (py-str number))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (let [__b3 (not (py-truthy (integer? max-iterations)))] (if (py-truthy __b3) __b3 (py-lt max-iterations 1)))) (reset! msg (str "max_iterations must be a positive integer, got " (py-str max-iterations))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! sequence [number]) (reset! current number) (when (py-truthy (py-eq @current 6174)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [0 @sequence]}))) (doseq [__i4 (py-iter (range max-iterations))] (reset! iteration __i4) (reset! current (kaprekar-routine @current)) (swap! sequence conj @current) (when (py-truthy (py-eq @current 6174)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-add @iteration 1) @sequence]}))) (when (py-truthy (py-eq @current 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-neg 1) @sequence]})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-neg 1) @sequence]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([number max-iterations]
+   (check-number! number)
+   (when (or (not (integer? max-iterations)) (< max-iterations 1))
+     (throw (ex-info (str "max_iterations must be a positive integer, got "
+                          max-iterations)
+                     {:type :ValueError})))
+   (if (= number 6174)
+     [0 [number]]
+     (loop [current number, sequence [number], iteration 0]
+       (if (>= iteration max-iterations)
+         [-1 sequence]
+         (let [next (kaprekar-routine current)
+               sequence (conj sequence next)]
+           (cond
+             (= next 6174) [(inc iteration) sequence]
+             (zero? next) [-1 sequence]
+             :else (recur next sequence (inc iteration)))))))))
 
-(defn is-kaprekar-valid "Check if a number is valid for Kaprekar's routine.\nA number is valid if it has at least two different digits.\n\nArgs:\n    number: A 4-digit number (0-9999)\n\nReturns:\n    True if the number is valid for Kaprekar's routine, False otherwise\n\n>>> is_kaprekar_valid(3524)\nTrue\n>>> is_kaprekar_valid(1111)\nFalse\n>>> is_kaprekar_valid(1000)\nTrue\n>>> is_kaprekar_valid(1)\nTrue\n>>> is_kaprekar_valid(6174)\nTrue"
-  [number] (let [digits (atom nil) msg (atom nil)] (try (when (py-truthy (let [__b2 (not (py-truthy (integer? number)))] (if (py-truthy __b2) __b2 (let [__b1 (py-lt number 0)] (if (py-truthy __b1) __b1 (py-gt number 9999)))))) (reset! msg (str "Input must be a non-negative integer between 0 and 9999, got " (py-str number))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! digits (py-zfill (py-str number) 4)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-gt (count (py-set @digits)) 1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-kaprekar-valid
+  "Returns true if `number` (0-9999) is valid for Kaprekar's routine, i.e. it
+has at least two different digits."
+  [number]
+  (check-number! number)
+  (> (count (set (four-digits number))) 1))
 
-(defn main "Demonstrate Kaprekar's constant with user input and examples."
-  [] (let [examples (atom nil) iterations (atom nil) num (atom nil) sequence (atom nil) user-input (atom nil)] (println (clojure.string/join " " [(py-str "Kaprekar's Constant (6174) - Demonstration\n")])) (println (clojure.string/join " " [(py-str (py-mul "=" 50))])) (reset! examples [3524 1234 6174 9998 1111 5]) (doseq [__i1 (py-iter @examples)] (try (reset! num __i1) (println (clojure.string/join " " [(py-str (str "\nStarting number: " (py-fmt "04d" @num)))])) (when (py-truthy (not (py-truthy (is-kaprekar-valid @num)))) (println (clojure.string/join " " [(py-str "  ❌ Invalid: All digits are the same (repdigit)")])) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (let [__d2 (vec (kaprekar-constant @num))] (reset! iterations (nth __d2 0)) (reset! sequence (nth __d2 1))) (if (py-truthy (py-eq @iterations (py-neg 1))) (do (println (clojure.string/join " " [(py-str (str "  ❌ Did not reach 6174. Sequence: " (py-str @sequence)))]))) (do (if (py-truthy (py-eq @iterations 0)) (do (println (clojure.string/join " " [(py-str "  ✓ Already at Kaprekar's constant!")]))) (do (println (clojure.string/join " " [(py-str (str "  ✓ Reached 6174 in " (py-str @iterations) " iteration(s)"))])) (println (clojure.string/join " " [(py-str (str "  Sequence: " (py-str (clojure.string/join " -> " (map py-str (doall (for [n (py-iter @sequence)] (py-str n))))))))])))))) (catch clojure.lang.ExceptionInfo __e (if (:__continue__ (ex-data __e)) nil (throw __e))))) (println (clojure.string/join " " [(py-str (py-add "\n" (py-mul "=" 50)))])) (println (clojure.string/join " " [(py-str "\nTry your own number (0-9999):")])) (try (reset! user-input (py-int (do (print "Enter a 4-digit number: ") (flush) (read-line)) nil)) (if (py-truthy (let [__c3 0 __c4 @user-input __c5 9999] (and (py-le __c3 __c4) (py-le __c4 __c5)))) (do (if (py-truthy (not (py-truthy (is-kaprekar-valid @user-input)))) (do (println (clojure.string/join " " [(py-str "Invalid: All digits are the same!")]))) (do (let [__d6 (vec (kaprekar-constant @user-input))] (reset! iterations (nth __d6 0)) (reset! sequence (nth __d6 1))) (println (clojure.string/join " " [(py-str (str "\nSequence: " (py-str (clojure.string/join " -> " (map py-str (doall (for [n (py-iter @sequence)] (py-str n))))))))])) (when (py-truthy (not (py-eq @iterations (py-neg 1)))) (println (clojure.string/join " " [(py-str (str "Reached 6174 in " (py-str @iterations) " iteration(s)!"))])))))) (do (println (clojure.string/join " " [(py-str "Number must be between 0 and 9999")])))) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond (contains? #{:EOFError :ValueError} __t) (do (println (clojure.string/join " " [(py-str "Invalid input or no input provided")]))) :else (throw __eh)))))) nil))
+(defn main
+  "Demonstrate Kaprekar's constant with user input and examples."
+  []
+  (println "Kaprekar's Constant (6174) - Demonstration\n")
+  (println (apply str (repeat 50 "=")))
+  (doseq [num [3524 1234 6174 9998 1111 5]]
+    (println (str "\nStarting number: " (format "%04d" num)))
+    (if-not (is-kaprekar-valid num)
+      (println "  Invalid: All digits are the same (repdigit)")
+      (let [[iterations sequence] (kaprekar-constant num)]
+        (cond
+          (= iterations -1)
+          (println (str "  Did not reach 6174. Sequence: " sequence))
+          (zero? iterations)
+          (println "  Already at Kaprekar's constant!")
+          :else
+          (do
+            (println (str "  Reached 6174 in " iterations " iteration(s)"))
+            (println (str "  Sequence: " (str/join " -> " sequence))))))))
+  (println (str "\n" (apply str (repeat 50 "="))))
+  (println "\nTry your own number (0-9999):")
+  (print "Enter a 4-digit number: ")
+  (flush)
+  (try
+    (let [user-input (Integer/parseInt (str/trim (read-line)))]
+      (cond
+        (or (neg? user-input) (> user-input 9999))
+        (println "Number must be between 0 and 9999")
+        (not (is-kaprekar-valid user-input))
+        (println "Invalid: All digits are the same!")
+        :else
+        (let [[iterations sequence] (kaprekar-constant user-input)]
+          (println (str "\nSequence: " (str/join " -> " sequence)))
+          (when-not (= iterations -1)
+            (println (str "Reached 6174 in " iterations " iteration(s)!"))))))
+    (catch NumberFormatException _
+      (println "Invalid input or no input provided"))))

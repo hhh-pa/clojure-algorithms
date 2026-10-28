@@ -1,8 +1,25 @@
 (ns clojure-algorithms.maths.juggler-sequence
-  "== Juggler Sequence ==\nJuggler sequence start with any positive integer n. The next term is\nobtained as follows:\n    If n term is even, the next term is floor value of square root of n .\n    If n is odd, the next term is floor value of 3 time the square root of n.\n\nhttps://en.wikipedia.org/wiki/Juggler_sequence"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Juggler Sequence.
+A Juggler sequence starts with any positive integer n. The next term is
+the floor of the square root of n when n is even, and the floor of n
+times the square root of n when n is odd.
+https://en.wikipedia.org/wiki/Juggler_sequence")
 
-(declare juggler-sequence)
-
-(defn juggler-sequence ">>> juggler_sequence(0)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=0] must be a positive integer\n>>> juggler_sequence(1)\n[1]\n>>> juggler_sequence(2)\n[2, 1]\n>>> juggler_sequence(3)\n[3, 5, 11, 36, 6, 2, 1]\n>>> juggler_sequence(5)\n[5, 11, 36, 6, 2, 1]\n>>> juggler_sequence(10)\n[10, 3, 5, 11, 36, 6, 2, 1]\n>>> juggler_sequence(25)\n[25, 125, 1397, 52214, 228, 15, 58, 7, 18, 4, 2, 1]\n>>> juggler_sequence(6.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=6.0] must be an integer\n>>> juggler_sequence(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=-1] must be a positive integer"
-  [number] (let [number (atom number)] (let [msg (atom nil) sequence (atom nil)] (try (when (py-truthy (not (py-truthy (integer? @number)))) (reset! msg (str "Input value of [number=" (py-str @number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt @number 1)) (reset! msg (str "Input value of [number=" (py-str @number) "] must be a positive integer")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! sequence [@number]) (while (py-truthy (not (py-eq @number 1))) (if (py-truthy (py-eq (py-mod @number 2) 0)) (do (reset! number (py-floor (Math/sqrt @number)))) (do (reset! number (py-floor (py-mul (py-mul (Math/sqrt @number) (Math/sqrt @number)) (Math/sqrt @number)))))) (swap! sequence conj @number)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @sequence})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn juggler-sequence
+  "Returns the Juggler sequence starting at number, ending at 1."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (when (< number 1)
+    (throw (ex-info (str "Input value of [number=" number
+                         "] must be a positive integer")
+                    {:type :ValueError})))
+  (loop [n number, seq [number]]
+    (if (= n 1)
+      seq
+      (let [next-n (if (even? n)
+                     (long (Math/floor (Math/sqrt (double n))))
+                     (let [s (Math/sqrt (double n))]
+                       (long (Math/floor (* s s s)))))]
+        (recur next-n (conj seq next-n))))))

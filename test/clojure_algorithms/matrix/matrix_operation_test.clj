@@ -1,7 +1,6 @@
 (ns clojure-algorithms.matrix.matrix-operation-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.matrix.matrix-operation :as sut]))
 
 (deftest test-fn-add-examples
@@ -28,6 +27,8 @@
   (is (approx [[1 0 0] [0 1 0] [0 0 1]] (sut/identity 3))))
 
 (deftest test-fn-transpose-examples
+  (is (approx [[1 3] [2 4]] (mapv vec (sut/transpose [[1 2] [3 4]]))))
+  (is (approx [[1 3] [2 4]] (sut/transpose [[1 2] [3 4]] false)))
   (is (thrown? Exception (sut/transpose [1 [2 3]]))))
 
 (deftest test-fn-minor-examples
@@ -44,3 +45,7 @@
 (deftest test-fn-inverse-examples
   (is (approx [[-2.0 1.0] [1.5 -0.5]] (sut/inverse [[1 2] [3 4]])))
   (is (nil? (sut/inverse [[1 1] [1 1]]))))
+
+(deftest test-fn-shape-mismatch-examples
+  (is (thrown? Exception (sut/add [[1 2]] [[1]])))
+  (is (thrown? Exception (sut/multiply [[1 2]] [[1 2]]))))

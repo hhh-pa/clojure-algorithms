@@ -1,8 +1,46 @@
 (ns clojure-algorithms.maths.segmented-sieve
-  "Segmented Sieve."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Segmented Sieve.")
 
-(declare sieve)
-
-(defn sieve "Segmented Sieve.\n\nExamples:\n>>> sieve(8)\n[2, 3, 5, 7]\n\n>>> sieve(27)\n[2, 3, 5, 7, 11, 13, 17, 19, 23]\n\n>>> sieve(0)\nTraceback (most recent call last):\n    ...\nValueError: Number 0 must instead be a positive integer\n\n>>> sieve(-1)\nTraceback (most recent call last):\n    ...\nValueError: Number -1 must instead be a positive integer\n\n>>> sieve(22.2)\nTraceback (most recent call last):\n    ...\nValueError: Number 22.2 must instead be a positive integer"
-  [n] (let [each (atom nil) end (atom nil) high (atom nil) i (atom nil) in-prime (atom nil) j (atom nil) low (atom nil) msg (atom nil) prime (atom nil) start (atom nil) t (atom nil) temp (atom nil)] (try (when (py-truthy (let [__b1 (py-le n 0)] (if (py-truthy __b1) __b1 (number? n)))) (reset! msg (str "Number " (py-str n) " must instead be a positive integer")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! in-prime []) (reset! start 2) (reset! end (py-int (Math/sqrt n) nil)) (reset! temp (py-mul [true] (py-add @end 1))) (reset! prime []) (while (py-truthy (py-le @start @end)) (when (py-truthy (identical? (py-get @temp @start) true)) (swap! in-prime conj @start) (doseq [__i2 (py-iter (range (py-mul @start @start) (py-add @end 1) @start))] (reset! i __i2) (swap! temp (fn [__c] (py-assoc-in __c [@i] false))))) (swap! start py-add 1)) (swap! prime py-add @in-prime) (reset! low (py-add @end 1)) (reset! high (py-min [(py-mul 2 @end) n])) (while (py-truthy (py-le @low n)) (reset! temp (py-mul [true] (py-add (py-sub @high @low) 1))) (doseq [__i3 (py-iter @in-prime)] (reset! each __i3) (reset! t (py-mul (py-floor (py-div @low @each)) @each)) (when (py-truthy (py-lt @t @low)) (swap! t py-add @each)) (doseq [__i4 (py-iter (range @t (py-add @high 1) @each))] (reset! j __i4) (swap! temp (fn [__c] (py-assoc-in __c [(py-sub @j @low)] false))))) (doseq [__i5 (py-iter (range (count @temp)))] (reset! j __i5) (when (py-truthy (identical? (py-get @temp @j) true)) (swap! prime conj (py-add @j @low)))) (reset! low (py-add @high 1)) (reset! high (py-min [(py-add @high @end) n]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @prime})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn sieve
+  "Return the primes up to n (inclusive) using the segmented sieve.
+  Throws :ValueError when n is not a positive integer."
+  [n]
+  (when-not (number? n)
+    (throw (ex-info (str "Number " n " must instead be a positive integer")
+                    {:type :TypeError})))
+  (when (or (not (integer? n)) (<= n 0))
+    (throw (ex-info (str "Number " n " must instead be a positive integer")
+                    {:type :ValueError})))
+  (let [end (long (Math/sqrt (double n)))
+        in-prime (loop [start 2
+                        temp (vec (repeat (inc end) true))
+                        acc []]
+                   (if (> start end)
+                     acc
+                     (if (nth temp start)
+                       (recur (inc start)
+                              (reduce (fn [t i] (assoc t i false))
+                                      temp
+                                      (range (* start start) (inc end) start))
+                              (conj acc start))
+                       (recur (inc start) temp acc))))]
+    (loop [low (inc end)
+           high (min (* 2 end) n)
+           primes (vec in-prime)]
+      (if (> low n)
+        primes
+        (let [temp (reduce (fn [t each]
+                             (let [t0 (* (long (Math/floor (/ (double low) each)))
+                                         each)
+                                   t0 (if (< t0 low) (+ t0 each) t0)]
+                               (reduce (fn [t2 j] (assoc t2 (- j low) false))
+                                       t
+                                       (range t0 (inc high) each))))
+                           (vec (repeat (inc (- high low)) true))
+                           in-prime)
+              primes (into primes
+                           (comp (map-indexed vector)
+                                 (filter (fn [[_ marked]] (true? marked)))
+                                 (map (fn [[j _]] (+ j low))))
+                           temp)]
+          (recur (inc high) (min (+ high end) n) primes))))))

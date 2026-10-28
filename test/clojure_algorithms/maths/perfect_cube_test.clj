@@ -1,7 +1,5 @@
 (ns clojure-algorithms.maths.perfect-cube-test
   (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
             [clojure-algorithms.maths.perfect-cube :as sut]))
 
 (deftest test-fn-perfect-cube-examples
@@ -14,3 +12,10 @@
   (is (= false (boolean (sut/perfect-cube-binary-search 4))))
   (is (thrown? Exception (sut/perfect-cube-binary-search "a")))
   (is (thrown? Exception (sut/perfect-cube-binary-search 0.1))))
+
+(deftest test-fn-perfect-cube-extra
+  (is (= true (boolean (sut/perfect-cube 1))))
+  (is (= true (boolean (sut/perfect-cube-binary-search -27))))
+  (is (= true (boolean (sut/perfect-cube-binary-search 0))))
+  (is (= :TypeError (try (sut/perfect-cube-binary-search "a") nil
+                         (catch clojure.lang.ExceptionInfo e (:type (ex-data e)))))))

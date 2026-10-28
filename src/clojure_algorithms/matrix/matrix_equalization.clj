@@ -1,8 +1,24 @@
 (ns clojure-algorithms.matrix.matrix-equalization
-  "Port of matrix/matrix_equalization.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Equalizes all elements of a vector to a common value with the minimal
+  number of updates under a step-size constraint.")
 
-(declare array-equalization)
-
-(defn array-equalization "This algorithm equalizes all elements of the input vector\nto a common value, by making the minimal number of\n\"updates\" under the constraint of a step size (step_size).\n\n>>> array_equalization([1, 1, 6, 2, 4, 6, 5, 1, 7, 2, 2, 1, 7, 2, 2], 4)\n4\n>>> array_equalization([22, 81, 88, 71, 22, 81, 632, 81, 81, 22, 92], 2)\n5\n>>> array_equalization([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 5)\n0\n>>> array_equalization([22, 22, 22, 33, 33, 33], 2)\n2\n>>> array_equalization([1, 2, 3], 0)\nTraceback (most recent call last):\nValueError: Step size must be positive and non-zero.\n>>> array_equalization([1, 2, 3], -1)\nTraceback (most recent call last):\nValueError: Step size must be positive and non-zero.\n>>> array_equalization([1, 2, 3], 0.5)\nTraceback (most recent call last):\nValueError: Step size must be an integer.\n>>> array_equalization([1, 2, 3], maxsize)\n1"
-  [vector-v step-size] (let [elem-index (atom nil) element (atom nil) min-updates (atom nil) unique-elements (atom nil) updates (atom nil)] (try (when (py-truthy (py-le step-size 0)) (throw (ex-info (py-str "Step size must be positive and non-zero.") {:type :ValueError}))) (when (py-truthy (not (py-truthy (integer? step-size)))) (throw (ex-info (py-str "Step size must be an integer.") {:type :ValueError}))) (reset! unique-elements (py-set vector-v)) (reset! min-updates 9223372036854775807) (doseq [__i1 (py-iter @unique-elements)] (reset! element __i1) (reset! elem-index 0) (reset! updates 0) (while (py-truthy (py-lt @elem-index (count vector-v))) (if (py-truthy (not (py-eq (py-get vector-v @elem-index) @element))) (do (swap! updates py-add 1) (swap! elem-index py-add step-size)) (do (swap! elem-index py-add 1)))) (reset! min-updates (py-min [@min-updates @updates]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @min-updates})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn array-equalization
+  "Returns the minimal number of updates needed to equalize every element
+  of vector, where one update fixes a position and skips step-size ahead."
+  [vector step-size]
+  (when (<= step-size 0)
+    (throw (ex-info "Step size must be positive and non-zero."
+                    {:type :ValueError})))
+  (when-not (integer? step-size)
+    (throw (ex-info "Step size must be an integer." {:type :ValueError})))
+  (let [v (vec vector)
+        n (count v)]
+    (reduce min
+            Long/MAX_VALUE
+            (for [element (distinct v)]
+              (loop [idx 0 updates 0]
+                (if (>= idx n)
+                  updates
+                  (if (= (nth v idx) element)
+                    (recur (inc idx) updates)
+                    (recur (+' idx step-size) (inc updates)))))))))

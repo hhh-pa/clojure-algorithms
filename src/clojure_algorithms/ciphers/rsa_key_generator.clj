@@ -10,7 +10,13 @@
   "Generates an RSA [[n e] [n d]] pair with key-size-bit primes."
   [key-size]
   (let [p (rabin-miller/generate-large-prime key-size)
-        q (rabin-miller/generate-large-prime key-size)
+        ;; NOTE: upstream omits this guard, but p == q yields n = p^2,
+        ;; which is trivially factorable and breaks decryption (it flaked
+        ;; the roundtrip test ~4% of the time at 8-bit keys).
+        q (loop [q (rabin-miller/generate-large-prime key-size)]
+            (if (= p q)
+              (recur (rabin-miller/generate-large-prime key-size))
+              q))
         n (* p q)
         phi (* (dec p) (dec q))
         e (loop []

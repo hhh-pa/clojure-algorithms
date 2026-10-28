@@ -1,12 +1,45 @@
 (ns clojure-algorithms.maths.chudnovsky-algorithm
-  "Port of maths/chudnovsky_algorithm.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/chudnovsky_algorithm.py")
 
-(declare pi)
+(defn- factorial
+  "Exact factorial of a non-negative integer."
+  [n]
+  (reduce *' 1 (range 1 (inc n))))
 
-(defn pi "The Chudnovsky algorithm is a fast method for calculating the digits of PI,\nbased on Ramanujan's PI formulae.\n\nhttps://en.wikipedia.org/wiki/Chudnovsky_algorithm\n\nPI = constant_term / ((multinomial_term * linear_term) / exponential_term)\n    where constant_term = 426880 * sqrt(10005)\n\nThe linear_term and the exponential_term can be defined iteratively as follows:\n    L_k+1 = L_k + 545140134            where L_0 = 13591409\n    X_k+1 = X_k * -262537412640768000  where X_0 = 1\n\nThe multinomial_term is defined as follows:\n    6k! / ((3k)! * (k!) ^ 3)\n        where k is the k_th iteration.\n\nThis algorithm correctly calculates around 14 digits of PI per iteration\n\n>>> pi(10)\n'3.14159265'\n>>> pi(100)\n'3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706'\n>>> pi('hello')\nTraceback (most recent call last):\n    ...\nTypeError: Undefined for non-integers\n>>> pi(-1)\nTraceback (most recent call last):\n    ...\nValueError: Undefined for non-natural numbers"
-  [& _args]
-  ;; stub: original requires store target; pure-Clojure port not applicable
-  (throw (ex-info "requires store target" {:type :UnsupportedOperation})))
-
-;; NOTE: pi stubbed (store target)
+(defn pi
+  "Compute pi to `precision` significant digits with the Chudnovsky algorithm,
+  a fast method based on Ramanujan's pi formulae (about 14 digits per
+  iteration). Returns the digits as a string.
+  https://en.wikipedia.org/wiki/Chudnovsky_algorithm"
+  [precision]
+  (let [precision (if (boolean? precision) (if precision 1 0) precision)]
+    (when-not (integer? precision)
+      (throw (ex-info "Undefined for non-integers" {:type :TypeError})))
+    (when (< precision 1)
+      (throw (ex-info "Undefined for non-natural numbers" {:type :ValueError})))
+    (let [mc (java.math.MathContext. (int precision)
+                                     java.math.RoundingMode/HALF_EVEN)
+          num-iterations (long (Math/ceil (/ (double precision) 14.0)))
+          constant-term (.multiply (BigDecimal. "426880")
+                                   (.sqrt (BigDecimal. "10005") mc)
+                                   mc)]
+      (loop [k 1
+             linear-term (bigint 13591409)
+             exponential-term (bigint 1)
+             partial-sum (BigDecimal. "13591409")]
+        (if (>= k num-iterations)
+          (let [s (.toPlainString (.divide constant-term partial-sum mc))]
+            (subs s 0 (dec (count s))))
+          (let [fact-k (factorial k)
+                multinomial-term (quot (factorial (* 6 k))
+                                       (*' (factorial (* 3 k)) fact-k fact-k fact-k))
+                linear-term' (+ linear-term 545140134)
+                exponential-term' (* exponential-term -262537412640768000)
+                term (.divide (BigDecimal. (biginteger (* multinomial-term
+                                                          linear-term')))
+                              (BigDecimal. (biginteger exponential-term'))
+                              mc)]
+            (recur (inc k)
+                   linear-term'
+                   exponential-term'
+                   (.add partial-sum term mc))))))))

@@ -1,11 +1,27 @@
 (ns clojure-algorithms.maths.find-min
-  "Port of maths/find_min.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Find the minimum number in a list.")
 
-(declare find-min-iterative find-min-recursive)
+(defn find-min-iterative
+  "Find minimum number in a list."
+  [nums]
+  (when (empty? nums)
+    (throw (ex-info "find_min_iterative() arg is an empty sequence"
+                    {:type :ValueError})))
+  (reduce min nums))
 
-(defn find-min-iterative "Find Minimum Number in a List\n:param nums: contains elements\n:return: min number in list\n\n>>> for nums in ([3, 2, 1], [-3, -2, -1], [3, -3, 0], [3.0, 3.1, 2.9]):\n...     find_min_iterative(nums) == min(nums)\nTrue\nTrue\nTrue\nTrue\n>>> find_min_iterative([0, 1, 2, 3, 4, 5, -3, 24, -56])\n-56\n>>> find_min_iterative([])\nTraceback (most recent call last):\n    ...\nValueError: find_min_iterative() arg is an empty sequence"
-  [nums] (let [min-num (atom nil) num (atom nil)] (try (when (py-truthy (py-eq (count nums) 0)) (throw (ex-info (py-str "find_min_iterative() arg is an empty sequence") {:type :ValueError}))) (reset! min-num (py-get nums 0)) (doseq [__i1 (py-iter nums)] (reset! num __i1) (reset! min-num (py-min [@min-num @num]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @min-num})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn find-min-recursive "find min value in list\n:param nums: contains elements\n:param left: index of first element\n:param right: index of last element\n:return: min in nums\n\n>>> for nums in ([3, 2, 1], [-3, -2, -1], [3, -3, 0], [3.0, 3.1, 2.9]):\n...     find_min_recursive(nums, 0, len(nums) - 1) == min(nums)\nTrue\nTrue\nTrue\nTrue\n>>> nums = [1, 3, 5, 7, 9, 2, 4, 6, 8, 10]\n>>> find_min_recursive(nums, 0, len(nums) - 1) == min(nums)\nTrue\n>>> find_min_recursive([], 0, 0)\nTraceback (most recent call last):\n    ...\nValueError: find_min_recursive() arg is an empty sequence\n>>> find_min_recursive(nums, 0, len(nums)) == min(nums)\nTraceback (most recent call last):\n    ...\nIndexError: list index out of range\n>>> find_min_recursive(nums, -len(nums), -1) == min(nums)\nTrue\n>>> find_min_recursive(nums, -len(nums) - 1, -1) == min(nums)\nTraceback (most recent call last):\n    ...\nIndexError: list index out of range"
-  [nums left right] (let [left-min (atom nil) mid (atom nil) right-min (atom nil)] (try (when (py-truthy (py-eq (count nums) 0)) (throw (ex-info (py-str "find_min_recursive() arg is an empty sequence") {:type :ValueError}))) (when (py-truthy (let [__b3 (py-ge left (count nums))] (if (py-truthy __b3) __b3 (let [__b2 (py-lt left (py-neg (count nums)))] (if (py-truthy __b2) __b2 (let [__b1 (py-ge right (count nums))] (if (py-truthy __b1) __b1 (py-lt right (py-neg (count nums)))))))))) (throw (ex-info (py-str "list index out of range") {:type :IndexError}))) (when (py-truthy (py-eq left right)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get nums left)}))) (reset! mid (.shiftRight (.toBigInteger (bigint (py-add left right))) (int 1))) (reset! left-min (find-min-recursive nums left @mid)) (reset! right-min (find-min-recursive nums (py-add @mid 1) right)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-le @left-min @right-min)) @left-min @right-min)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn find-min-recursive
+  "Find min value in nums between indices left and right (inclusive,
+  Python-style negative indices allowed) via divide and conquer."
+  [nums left right]
+  (when (empty? nums)
+    (throw (ex-info "find_min_recursive() arg is an empty sequence"
+                    {:type :ValueError})))
+  (let [n (count nums)]
+    (when (or (>= left n) (< left (- n)) (>= right n) (< right (- n)))
+      (throw (ex-info "list index out of range" {:type :IndexError})))
+    (if (= left right)
+      (nth nums (mod left n))
+      (let [mid (bit-shift-right (+ left right) 1)
+            left-min (find-min-recursive nums left mid)
+            right-min (find-min-recursive nums (inc mid) right)]
+        (if (<= left-min right-min) left-min right-min)))))

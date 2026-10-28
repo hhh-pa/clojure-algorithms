@@ -1,11 +1,34 @@
 (ns clojure-algorithms.maths.find-max
-  "Port of maths/find_max.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/find_max.py")
 
-(declare find-max-iterative find-max-recursive)
+(defn find-max-iterative
+  "Find the maximum value in a list by scanning it once."
+  [nums]
+  (when (empty? nums)
+    (throw (ex-info "find_max_iterative() arg is an empty sequence"
+                    {:type :ValueError})))
+  (reduce (fn [m x] (if (> x m) x m)) (first nums) (rest nums)))
 
-(defn find-max-iterative ">>> for nums in ([3, 2, 1], [-3, -2, -1], [3, -3, 0], [3.0, 3.1, 2.9]):\n...     find_max_iterative(nums) == max(nums)\nTrue\nTrue\nTrue\nTrue\n>>> find_max_iterative([2, 4, 9, 7, 19, 94, 5])\n94\n>>> find_max_iterative([])\nTraceback (most recent call last):\n    ...\nValueError: find_max_iterative() arg is an empty sequence"
-  [nums] (let [max-num (atom nil) x (atom nil)] (try (when (py-truthy (py-eq (count nums) 0)) (throw (ex-info (py-str "find_max_iterative() arg is an empty sequence") {:type :ValueError}))) (reset! max-num (py-get nums 0)) (doseq [__i1 (py-iter nums)] (reset! x __i1) (when (py-truthy (py-gt @x @max-num)) (reset! max-num @x))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @max-num})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- resolve-index
+  "Resolve a possibly negative index against a list of length n,
+matching Python's negative indexing."
+  [nums n i]
+  (nth nums (if (neg? i) (+ i n) i)))
 
-(defn find-max-recursive "Find the maximum value in a list using Divide and Conquer approach\n:param nums: list of numbers to search through\n:param left: starting index of the current subarray (inclusive)\n:param right: ending index of the current subarray (inclusive)\n:return: maximum value found in the subarray nums[left:right+1]\n\n>>> for nums in ([3, 2, 1], [-3, -2, -1], [3, -3, 0], [3.0, 3.1, 2.9]):\n...     find_max_recursive(nums, 0, len(nums) - 1) == max(nums)\nTrue\nTrue\nTrue\nTrue\n>>> nums = [1, 3, 5, 7, 9, 2, 4, 6, 8, 10]\n>>> find_max_recursive(nums, 0, len(nums) - 1) == max(nums)\nTrue\n>>> find_max_recursive([], 0, 0)\nTraceback (most recent call last):\n    ...\nValueError: find_max_recursive() arg is an empty sequence\n>>> find_max_recursive(nums, 0, len(nums)) == max(nums)\nTraceback (most recent call last):\n    ...\nIndexError: list index out of range\n>>> find_max_recursive(nums, -len(nums), -1) == max(nums)\nTrue\n>>> find_max_recursive(nums, -len(nums) - 1, -1) == max(nums)\nTraceback (most recent call last):\n    ...\nIndexError: list index out of range"
-  [nums left right] (let [left-max (atom nil) mid (atom nil) right-max (atom nil)] (try (when (py-truthy (py-eq (count nums) 0)) (throw (ex-info (py-str "find_max_recursive() arg is an empty sequence") {:type :ValueError}))) (when (py-truthy (let [__b3 (py-ge left (count nums))] (if (py-truthy __b3) __b3 (let [__b2 (py-lt left (py-neg (count nums)))] (if (py-truthy __b2) __b2 (let [__b1 (py-ge right (count nums))] (if (py-truthy __b1) __b1 (py-lt right (py-neg (count nums)))))))))) (throw (ex-info (py-str "list index out of range") {:type :IndexError}))) (when (py-truthy (py-eq left right)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get nums left)}))) (reset! mid (.shiftRight (.toBigInteger (bigint (py-add left right))) (int 1))) (reset! left-max (find-max-recursive nums left @mid)) (reset! right-max (find-max-recursive nums (py-add @mid 1) right)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-ge @left-max @right-max)) @left-max @right-max)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn find-max-recursive
+  "Find the maximum value in a list using a Divide and Conquer approach.
+Searches the subarray nums[left..right] (both inclusive); negative indices
+count from the end as in Python."
+  [nums left right]
+  (let [n (count nums)]
+    (when (zero? n)
+      (throw (ex-info "find_max_recursive() arg is an empty sequence"
+                      {:type :ValueError})))
+    (when (or (>= left n) (< left (- n)) (>= right n) (< right (- n)))
+      (throw (ex-info "list index out of range" {:type :IndexError})))
+    (if (= left right)
+      (resolve-index nums n left)
+      (let [mid (bit-shift-right (+ left right) 1)
+            left-max (find-max-recursive nums left mid)
+            right-max (find-max-recursive nums (inc mid) right)]
+        (if (>= left-max right-max) left-max right-max)))))

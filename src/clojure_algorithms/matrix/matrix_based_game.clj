@@ -1,35 +1,134 @@
 (ns clojure-algorithms.matrix.matrix-based-game
-  "Matrix-Based Game Script\n=========================\nThis script implements a matrix-based game where players interact with a grid of\nelements. The primary goals are to:\n- Identify connected elements of the same type from a selected position.\n- Remove those elements, adjust the matrix by simulating gravity, and reorganize empty\n  columns.\n- Calculate and display the score based on the number of elements removed in each move.\n\nFunctions:\n-----------\n1. `find_repeat`: Finds all connected elements of the same type.\n2. `increment_score`: Calculates the score for a given move.\n3. `move_x`: Simulates gravity in a column.\n4. `move_y`: Reorganizes the matrix by shifting columns leftward when a column becomes\n    empty.\n5. `play`: Executes a single move, updating the matrix and returning the score.\n\nInput Format:\n--------------\n1. Matrix size (`lines`): Integer specifying the size of the matrix (N x N).\n2. Matrix content (`matrix`): Rows of the matrix, each consisting of characters.\n3. Number of moves (`movs`): Integer indicating the number of moves.\n4. List of moves (`movements`): A comma-separated string of coordinates for each move.\n\n(0,0) position starts from first left column to last right, and below row to up row\n\n\nExample Input:\n---------------\n4\nRRBG\nRBBG\nYYGG\nXYGG\n2\n0 1,1 1\n\nExample (0,0) = X\n\nOutput:\n--------\nThe script outputs the total score after processing all moves.\n\nUsage:\n-------\nRun the script and provide the required inputs as prompted."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Matrix-based game: remove connected groups of equal elements, apply
+  gravity, shift columns left and score each move."
+  (:require [clojure.string :as str]))
 
-(declare validate-matrix-size validate-matrix-content validate-moves parse-moves find-repeat increment-score move-x move-y play process-game)
+(defn validate-matrix-size
+  "Throws unless size is a positive integer."
+  [size]
+  (when (or (not (integer? size)) (<= size 0))
+    (throw (ex-info "Matrix size must be a positive integer."
+                    {:type :ValueError}))))
 
-(defn validate-matrix-size ">>> validate_matrix_size(-1)\nTraceback (most recent call last):\n    ...\nValueError: Matrix size must be a positive integer."
-  [size] (when (py-truthy (let [__b1 (not (py-truthy (integer? size)))] (if (py-truthy __b1) __b1 (py-le size 0)))) (throw (ex-info (py-str "Matrix size must be a positive integer.") {:type :ValueError}))) nil)
+(defn validate-matrix-content
+  "Throws unless matrix has size rows of size alphanumeric characters."
+  [matrix size]
+  (println matrix)
+  (when (not= (count matrix) size)
+    (throw (ex-info "The matrix dont match with size." {:type :ValueError})))
+  (doseq [row matrix]
+    (when (not= (count row) size)
+      (throw (ex-info (str "Each row in the matrix must have exactly "
+                           size " characters.")
+                      {:type :ValueError})))
+    (when-not (every? #(Character/isLetterOrDigit ^char %) row)
+      (throw (ex-info "Matrix rows can only contain letters and numbers."
+                      {:type :ValueError})))))
 
-(defn validate-matrix-content "Validates that the number of elements in the matrix matches the given size.\n\n>>> validate_matrix_content(['aaaa', 'aaaa', 'aaaa', 'aaaa'], 3)\nTraceback (most recent call last):\n    ...\nValueError: The matrix dont match with size.\n>>> validate_matrix_content(['aa%', 'aaa', 'aaa'], 3)\nTraceback (most recent call last):\n    ...\nValueError: Matrix rows can only contain letters and numbers.\n>>> validate_matrix_content(['aaa', 'aaa', 'aaaa'], 3)\nTraceback (most recent call last):\n    ...\nValueError: Each row in the matrix must have exactly 3 characters."
-  [matrix size] (let [msg (atom nil) row (atom nil)] (println (clojure.string/join " " [(py-str matrix)])) (when (py-truthy (not (py-eq (count matrix) size))) (throw (ex-info (py-str "The matrix dont match with size.") {:type :ValueError}))) (doseq [__i1 (py-iter matrix)] (reset! row __i1) (when (py-truthy (not (py-eq (count @row) size))) (reset! msg (str "Each row in the matrix must have exactly " (py-str size) " characters.")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (not (py-truthy (every? py-truthy (doall (for [char (py-iter @row)] (boolean (re-matches #"[\p{L}\p{N}]+" char)))))))) (throw (ex-info (py-str "Matrix rows can only contain letters and numbers.") {:type :ValueError})))) nil))
+(defn validate-moves
+  "Throws when any move falls outside the size x size board."
+  [moves size]
+  (doseq [[x y] moves]
+    (when-not (and (<= 0 x (dec size)) (<= 0 y (dec size)))
+      (throw (ex-info "Move is out of bounds for a matrix."
+                      {:type :ValueError})))))
 
-(defn validate-moves ">>> validate_moves([(1, 2), (-1, 0)], 3)\nTraceback (most recent call last):\n    ...\nValueError: Move is out of bounds for a matrix."
-  [moves size] (let [move (atom nil) x (atom nil) y (atom nil)] (doseq [__i1 (py-iter moves)] (reset! move __i1) (let [__d2 (vec @move)] (reset! x (nth __d2 0)) (reset! y (nth __d2 1))) (when (py-truthy (not (py-truthy (let [__b9 (let [__c3 0 __c4 @x __c5 size] (and (py-le __c3 __c4) (py-lt __c4 __c5)))] (if (py-truthy __b9) (let [__c6 0 __c7 @y __c8 size] (and (py-le __c6 __c7) (py-lt __c7 __c8))) __b9))))) (throw (ex-info (py-str "Move is out of bounds for a matrix.") {:type :ValueError})))) nil))
+(defn parse-moves
+  "Parses a comma-separated string of \"x y\" pairs into move vectors."
+  [input-str]
+  (mapv (fn [pair]
+          (let [parts (str/split (str/trim pair) #"\s+")]
+            (when (not= 2 (count parts))
+              (throw (ex-info "Each move must have exactly two numbers."
+                              {:type :ValueError})))
+            (mapv (fn [part]
+                    (try
+                      (Long/parseLong part)
+                      (catch NumberFormatException _
+                        (throw (ex-info (str "invalid literal for int() with base 10: '"
+                                             part "'")
+                                        {:type :ValueError})))))
+                  parts)))
+        (str/split input-str #",")))
 
-(defn parse-moves ">>> parse_moves(\"0 1, 1 1\")\n[(0, 1), (1, 1)]\n>>> parse_moves(\"0 1, 1 1, 2\")\nTraceback (most recent call last):\n    ...\nValueError: Each move must have exactly two numbers.\n>>> parse_moves(\"0 1, 1 1, 2 4 5 6\")\nTraceback (most recent call last):\n    ...\nValueError: Each move must have exactly two numbers."
-  [input-str] (let [moves (atom nil) pair (atom nil) parts (atom nil) x (atom nil) y (atom nil)] (try (reset! moves []) (doseq [__i1 (py-iter (py-split input-str "," -1))] (reset! pair __i1) (reset! parts (py-split (py-strip @pair nil :both))) (when (py-truthy (not (py-eq (count @parts) 2))) (throw (ex-info (py-str "Each move must have exactly two numbers.") {:type :ValueError}))) (let [__d2 (vec (map (fn [x] (py-int x nil)) @parts))] (reset! x (nth __d2 0)) (reset! y (nth __d2 1))) (swap! moves conj [@x @y])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @moves})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn find-repeat
+  "Returns the set of [row col] positions connected to (row, column)
+  holding the same element. The y coordinate counts up from the bottom."
+  [matrix-g row column size]
+  (let [column (- (dec size) column)
+        color (get-in matrix-g [column row])]
+    (if (= "-" color)
+      #{}
+      (letfn [(dfs [rn cn visited repeated]
+                (if (or (neg? rn) (>= rn size)
+                        (neg? cn) (>= cn size)
+                        (contains? visited [rn cn]))
+                  [visited repeated]
+                  (let [visited (conj visited [rn cn])]
+                    (if (= (get-in matrix-g [rn cn]) color)
+                      (let [[v1 r1] (dfs (dec rn) cn visited (conj repeated [rn cn]))
+                            [v2 r2] (dfs (inc rn) cn v1 r1)
+                            [v3 r3] (dfs rn (dec cn) v2 r2)]
+                        (dfs rn (inc cn) v3 r3))
+                      [visited repeated]))))]
+        (second (dfs column row #{} #{}))))))
 
-(defn find-repeat "Finds all connected elements of the same type from a given position.\n\n>>> find_repeat([['A', 'B', 'A'], ['A', 'B', 'A'], ['A', 'A', 'A']], 0, 0, 3)\n{(1, 2), (2, 1), (0, 0), (2, 0), (0, 2), (2, 2), (1, 0)}\n>>> find_repeat([['-', '-', '-'], ['-', '-', '-'], ['-', '-', '-']], 1, 1, 3)\nset()"
-  [matrix-g row column size] (let [column (atom column)] (let [color (atom nil) repeated (atom nil) visited (atom nil)] (try (reset! column (py-sub (py-sub size 1) @column)) (reset! visited (py-set [])) (reset! repeated (py-set [])) (when (py-truthy (not (py-eq (do (reset! color (py-get (py-get matrix-g @column) row)) @color) "-"))) (letfn [(dfs [row-n column-n] (let [repeated (atom nil) visited (atom nil)] (try (when (py-truthy (let [__b3 (py-lt row-n 0)] (if (py-truthy __b3) __b3 (let [__b2 (py-ge row-n size)] (if (py-truthy __b2) __b2 (let [__b1 (py-lt column-n 0)] (if (py-truthy __b1) __b1 (py-ge column-n size)))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (when (py-truthy (py-in [row-n column-n] @visited)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (swap! visited (fn [__c] (conj (set __c) [row-n column-n]))) (when (py-truthy (py-eq (py-get (py-get matrix-g row-n) column-n) @color)) (swap! repeated (fn [__c] (conj (set __c) [row-n column-n]))) (dfs (py-sub row-n 1) column-n) (dfs (py-add row-n 1) column-n) (dfs row-n (py-sub column-n 1)) (dfs row-n (py-add column-n 1))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))] (dfs @column row))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @repeated})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn increment-score
+  "Scores a move removing count elements: 1 + 2 + ... + count."
+  [count-v]
+  (quot (* count-v (inc count-v)) 2))
 
-(defn increment-score "Calculates the score for a move based on the number of elements removed.\n\n>>> increment_score(3)\n6\n>>> increment_score(0)\n0"
-  [count-v] (py-int (py-div (py-mul count-v (py-add count-v 1)) 2) nil))
+(defn move-x
+  "Lets the elements of column fall down, keeping their order.
+  Returns the updated matrix."
+  [matrix-g column size]
+  (let [m (mapv vec matrix-g)
+        fallen (reduce (fn [acc r]
+                         (let [v (get-in m [r column])]
+                           (if (= "-" v)
+                             (vec (cons v acc))
+                             (conj acc v))))
+                       []
+                       (range size))]
+    (reduce (fn [m r] (assoc-in m [r column] (nth fallen r)))
+            m
+            (range size))))
 
-(defn move-x "Simulates gravity in a specific column.\n\n>>> move_x([['-', 'A'], ['-', '-'], ['-', 'C']], 1, 2)\n[['-', '-'], ['-', 'A'], ['-', 'C']]"
-  [matrix-g column size] (let [matrix-g (atom matrix-g)] (let [new-list (atom nil) row (atom nil)] (try (reset! new-list []) (doseq [__i1 (py-iter (range size))] (reset! row __i1) (if (py-truthy (not (py-eq (py-get (py-get @matrix-g @row) column) "-"))) (do (swap! new-list conj (py-get (py-get @matrix-g @row) column))) (do (swap! new-list py-insert 0 (py-get (py-get @matrix-g @row) column))))) (doseq [__i2 (py-iter (range size))] (reset! row __i2) (swap! matrix-g (fn [__c] (py-assoc-in __c [@row column] (py-get @new-list @row))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @matrix-g})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn move-y
+  "Shifts columns left over entirely empty ones, padding with \"-\".
+  Returns the updated matrix."
+  [matrix-g size]
+  (let [m (mapv vec matrix-g)
+        kept (filterv (fn [c]
+                        (not (every? #(= "-" (get-in m [% c]))
+                                     (range size))))
+                      (range size))
+        padding (vec (repeat (- size (count kept)) "-"))]
+    (mapv (fn [r row]
+            (if (< r size)
+              (vec (concat (mapv #(nth row %) kept) padding))
+              row))
+          (range)
+          m)))
 
-(defn move-y "Shifts all columns leftward when an entire column becomes empty.\n\n>>> move_y([['-', 'A'], ['-', '-'], ['-', 'C']], 2)\n[['A', '-'], ['-', '-'], ['-', 'C']]"
-  [matrix-g size] (let [matrix-g (atom matrix-g)] (let [col (atom nil) column (atom nil) empty-columns (atom nil) row (atom nil)] (try (reset! empty-columns []) (doseq [__i1 (py-iter (range (py-sub size 1) (py-neg 1) (py-neg 1)))] (reset! column __i1) (when (py-truthy (every? py-truthy (doall (for [row (py-iter (range size))] (py-eq (py-get (py-get @matrix-g row) @column) "-"))))) (swap! empty-columns conj @column))) (doseq [__i2 (py-iter @empty-columns)] (reset! column __i2) (doseq [__i3 (py-iter (range (py-add @column 1) size))] (reset! col __i3) (doseq [__i4 (py-iter (range size))] (reset! row __i4) (swap! matrix-g (fn [__c] (py-assoc-in __c [@row (py-sub @col 1)] (py-get (py-get @matrix-g @row) @col)))))) (doseq [__i5 (py-iter (range size))] (reset! row __i5) (swap! matrix-g (fn [__c] (py-assoc-in __c [@row (py-neg 1)] "-"))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @matrix-g})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn play
+  "Removes the group at (pos-x, pos-y), applies gravity and returns
+  [updated-matrix score]."
+  [matrix-g pos-x pos-y size]
+  (let [m (mapv vec matrix-g)
+        same (find-repeat m pos-x pos-y size)]
+    (if (empty? same)
+      [m (increment-score 0)]
+      (let [cleared (reduce (fn [m [r c]] (assoc-in m [r c] "-")) m same)
+            fallen (reduce (fn [m c] (move-x m c size)) cleared (range size))]
+        [(move-y fallen size) (increment-score (count same))]))))
 
-(defn play "Processes a single move, updating the matrix and calculating the score.\n\n>>> play([['R', 'G'], ['R', 'G']], 0, 0, 2)\n([['G', '-'], ['G', '-']], 3)"
-  [matrix-g pos-x pos-y size] (let [matrix-g (atom matrix-g)] (let [column (atom nil) pos (atom nil) same-colors (atom nil)] (try (reset! same-colors (find-repeat @matrix-g pos-x pos-y size)) (when (py-truthy (not (py-eq (count @same-colors) 0))) (doseq [__i1 (py-iter @same-colors)] (reset! pos __i1) (swap! matrix-g (fn [__c] (py-assoc-in __c [(py-get @pos 0) (py-get @pos 1)] "-")))) (doseq [__i2 (py-iter (range size))] (reset! column __i2) (reset! matrix-g (move-x @matrix-g @column size))) (reset! matrix-g (move-y @matrix-g size))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@matrix-g (increment-score (count @same-colors))]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
-
-(defn process-game "Processes the game logic for the given matrix and moves.\n\nArgs:\n    size (int): Size of the game board.\n    matrix (List[str]): Initial game matrix.\n    moves (List[Tuple[int, int]]): List of moves as (x, y) coordinates.\n\nReturns:\n    int: The total score obtained.\n>>> process_game(3, ['aaa', 'bbb', 'ccc'], [(0, 0)])\n6"
-  [size matrix moves] (let [game-matrix (atom nil) move (atom nil) pos-x (atom nil) pos-y (atom nil) score (atom nil) total-score (atom nil)] (try (reset! game-matrix (vec (for [row (py-iter matrix)] (py-list row)))) (reset! total-score 0) (doseq [__i1 (py-iter moves)] (reset! move __i1) (let [__d2 (vec @move)] (reset! pos-x (nth __d2 0)) (reset! pos-y (nth __d2 1))) (let [__d3 (vec (play @game-matrix @pos-x @pos-y size))] (reset! game-matrix (nth __d3 0)) (reset! score (nth __d3 1))) (swap! total-score py-add @score)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @total-score})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn process-game
+  "Plays every move in moves on matrix and returns the total score."
+  [size matrix moves]
+  (second
+   (reduce (fn [[game total] [pos-x pos-y]]
+             (let [[game score] (play game pos-x pos-y size)]
+               [game (+ total score)]))
+           [(mapv #(mapv str %) matrix) 0]
+           moves)))

@@ -1,14 +1,69 @@
 (ns clojure-algorithms.matrix.spiral-print
-  "This program print the matrix in spiral form.\nThis problem has been solved through recursive way.\n      Matrix must satisfy below conditions\n        i) matrix should be only one or two dimensional\n        ii) number of column of all rows should be equal"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Prints and traverses a matrix in clockwise spiral order.")
 
-(declare check-matrix spiral-print-clockwise spiral-traversal)
+(defn- row-like?
+  [row]
+  (or (sequential? row) (string? row)))
 
 (defn check-matrix
-  [matrix] (let [matrix (atom matrix)] (let [prev-len (atom nil) result (atom nil) row (atom nil)] (try (reset! matrix (vec (for [row (py-iter @matrix)] (py-list row)))) (if (py-truthy (let [__b1 @matrix] (if (py-truthy __b1) (sequential? @matrix) __b1))) (do (if (py-truthy (sequential? (py-get @matrix 0))) (do (reset! prev-len 0) (doseq [__i2 (py-iter @matrix)] (reset! row __i2) (if (py-truthy (py-eq @prev-len 0)) (do (reset! prev-len (count @row)) (reset! result true)) (do (reset! result (py-eq @prev-len (count @row))))))) (do (reset! result true)))) (do (reset! result false))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  "True when matrix is a non-empty 2D grid whose rows all have equal
+  length. Throws a TypeError for non-matrix inputs, mirroring upstream."
+  [matrix]
+  (when-not (sequential? matrix)
+    (throw (ex-info "Not a valid matrix" {:type :TypeError})))
+  (if (empty? matrix)
+    false
+    (do
+      (doseq [row matrix]
+        (when-not (row-like? row)
+          (throw (ex-info "Not a valid matrix" {:type :TypeError}))))
+      (apply = (map count matrix)))))
 
-(defn spiral-print-clockwise ">>> spiral_print_clockwise([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])\n1\n2\n3\n4\n8\n12\n11\n10\n9\n5\n6\n7"
-  [a] (let [a (atom a)] (let [dat (atom nil) i (atom nil) mat-col (atom nil) mat-row (atom nil) remain-mat (atom nil)] (try (if (py-truthy (let [__b1 (check-matrix @a)] (if (py-truthy __b1) (py-gt (count @a) 0) __b1))) (do (reset! a (vec (for [row (py-iter @a)] (py-list row)))) (reset! mat-row (count @a)) (if (py-truthy (sequential? (py-get @a 0))) (do (reset! mat-col (count (py-get @a 0)))) (do (doseq [__i2 (py-iter @a)] (reset! dat __i2) (println (clojure.string/join " " [(py-str @dat)]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil})))) (doseq [__i3 (py-iter (range @mat-col))] (reset! i __i3) (println (clojure.string/join " " [(py-str (py-get (py-get @a 0) @i))]))) (doseq [__i4 (py-iter (range 1 @mat-row))] (reset! i __i4) (println (clojure.string/join " " [(py-str (py-get (py-get @a @i) (py-sub @mat-col 1)))]))) (when (py-truthy (py-gt @mat-row 1)) (doseq [__i5 (py-iter (range (py-sub @mat-col 2) (py-neg 1) (py-neg 1)))] (reset! i __i5) (println (clojure.string/join " " [(py-str (py-get (py-get @a (py-sub @mat-row 1)) @i))])))) (doseq [__i6 (py-iter (range (py-sub @mat-row 2) 0 (py-neg 1)))] (reset! i __i6) (println (clojure.string/join " " [(py-str (py-get (py-get @a @i) 0))]))) (reset! remain-mat (vec (for [row (py-iter (py-slice @a 1 (py-sub @mat-row 1) nil))] (py-slice row 1 (py-sub @mat-col 1) nil)))) (if (py-truthy (py-gt (count @remain-mat) 0)) (do (spiral-print-clockwise @remain-mat)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))))) (do (println (clojure.string/join " " [(py-str "Not a valid matrix")])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- slice-clamp
+  "Slice of v from from (inclusive) to to (exclusive), clamped like
+  Python slicing."
+  [v from to]
+  (let [n (count v)
+        from (min (max from 0) n)
+        to (min (max to 0) n)]
+    (if (<= to from)
+      []
+      (subvec (vec v) from to))))
 
-(defn spiral-traversal ">>> spiral_traversal([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])\n[1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]\n\nExample:\nmatrix = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]\nAlgorithm:\n    Step 1. first pop the 0 index list. (which is [1,2,3,4] and concatenate the\n            output of [step 2])\n    Step 2. Now perform matrix's Transpose operation (Change rows to column\n            and vice versa) and reverse the resultant matrix.\n    Step 3. Pass the output of [2nd step], to same recursive function till\n            base case hits.\nDry Run:\nStage 1.\n[1, 2, 3, 4] +   spiral_traversal([\n    [8, 12], [7, 11], [6, 10], [5, 9]]\n ])\nStage 2.\n[1, 2, 3, 4, 8, 12] + spiral_traversal([\n    [11, 10, 9], [7, 6, 5]\n])\nStage 3.\n[1, 2, 3, 4, 8, 12, 11, 10, 9] + spiral_traversal([\n    [5], [6], [7]\n])\nStage 4.\n[1, 2, 3, 4, 8, 12, 11, 10, 9, 5] + spiral_traversal([\n    [5], [6], [7]\n])\nStage 5.\n[1, 2, 3, 4, 8, 12, 11, 10, 9, 5] + spiral_traversal([[6, 7]])\nStage 6.\n[1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7] + spiral_traversal([])"
-  [matrix] (let [matrix (atom matrix)] (try (if (py-truthy @matrix) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-add (py-list (py-pop @matrix 0)) (spiral-traversal (py-slice (vec (for [row (py-iter (apply map vector @matrix))] (py-list row))) nil nil (py-neg 1))))}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value []})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn spiral-print-clockwise
+  "Prints the elements of the matrix in clockwise spiral order,
+  peeling one layer per recursive call."
+  [a]
+  (if (and (check-matrix a) (pos? (count a)))
+    (let [m (mapv vec a)
+          rows (count m)]
+      (if (sequential? (first m))
+        (let [cols (count (first m))]
+          (doseq [i (range cols)]
+            (println (get-in m [0 i])))
+          (doseq [i (range 1 rows)]
+            (println (get-in m [i (dec cols)])))
+          (when (> rows 1)
+            (doseq [i (range (- cols 2) -1 -1)]
+              (println (get-in m [(dec rows) i]))))
+          (doseq [i (range (- rows 2) 0 -1)]
+            (println (get-in m [i 0])))
+          (let [remain (mapv #(slice-clamp % 1 (dec cols))
+                             (slice-clamp m 1 (dec rows)))]
+            (when (pos? (count remain))
+              (spiral-print-clockwise remain))))
+        (doseq [datum m]
+          (println datum))))
+    (println "Not a valid matrix")))
+
+(defn spiral-traversal
+  "Returns the elements of the matrix in clockwise spiral order by
+  taking the first row, then recursing on the reversed transpose."
+  [matrix]
+  (if (seq matrix)
+    (let [tail (rest matrix)]
+      (vec (concat (first matrix)
+                   (spiral-traversal (if (seq tail)
+                                       (vec (reverse (apply mapv vector tail)))
+                                       [])))))
+    []))

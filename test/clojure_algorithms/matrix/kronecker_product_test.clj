@@ -1,7 +1,6 @@
 (ns clojure-algorithms.matrix.kronecker-product-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.matrix.kronecker-product :as sut]))
 
 (deftest test-fn-is-2d-examples

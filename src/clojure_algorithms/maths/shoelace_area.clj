@@ -1,8 +1,47 @@
 (ns clojure-algorithms.maths.shoelace-area
-  "Shoelace formula (Gauss's area formula) for polygon area.\n\nThe function accepts an iterable of (x, y) pairs and returns the polygon area\nas a non-negative float.\n\nReferences:\n- https://en.wikipedia.org/wiki/Shoelace_formula"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Shoelace formula (Gauss's area formula) for polygon area.
 
-(declare shoelace-area)
+  The function accepts an iterable of (x, y) pairs and returns the polygon area
+  as a non-negative float.
 
-(defn shoelace-area "Compute the area of a simple polygon using the shoelace formula.\n\nParameters\n----------\npoints:\n    Iterable of (x, y) coordinate pairs. Points may be ints or floats.\n    The polygon is assumed closed (the function will wrap the last point\n    to the first).\n\nReturns\n-------\nfloat\n    Non-negative area of the polygon.\n\nRaises\n------\nValueError\n    If fewer than 3 points are provided.\nTypeError\n    If points are not pairs of numbers.\n\nExamples\n>>> shoelace_area([(0, 0), (4, 0), (0, 3)])\n6.0\n>>> shoelace_area([(0, 0), (1, 0), (1, 1), (0, 1)])\n1.0\n>>> shoelace_area(list(reversed([(0, 0), (2, 0), (2, 2), (0, 2)])))\n4.0\n>>> shoelace_area([(0, 0), (2, 0), (2, 2), (0, 2)])\n4.0"
-  [points] (let [coords (atom nil) i (atom nil) n (atom nil) pts (atom nil) s (atom nil) x1 (atom nil) x2 (atom nil) y1 (atom nil) y2 (atom nil)] (try (reset! pts (py-list points)) (reset! n (count @pts)) (when (py-truthy (py-lt @n 3)) (throw (ex-info (py-str "At least 3 points are required to form a polygon") {:type :ValueError}))) (try (reset! coords (vec (for [[x y] (py-iter @pts)] [(py-float x) (py-float y)]))) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond true (do (let [exc __eh] (throw (ex-info (py-str "points must be an iterable of (x, y) numeric pairs") {:type :TypeError})))) :else (throw __eh)))))) (reset! s 0.0) (doseq [__i1 (py-iter (range @n))] (reset! i __i1) (let [__d2 (vec (py-get @coords @i))] (reset! x1 (nth __d2 0)) (reset! y1 (nth __d2 1))) (let [__d3 (vec (py-get @coords (py-mod (py-add @i 1) @n)))] (reset! x2 (nth __d3 0)) (reset! y2 (nth __d3 1))) (swap! s py-add (py-sub (py-mul @x1 @y2) (py-mul @x2 @y1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-abs @s) 2.0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  References:
+  - https://en.wikipedia.org/wiki/Shoelace_formula")
+
+(defn- as-double
+  "Coerces a coordinate to double, like Python's float()."
+  [x]
+  (cond
+    (number? x) (double x)
+    (string? x) (Double/parseDouble x)
+    :else (throw (IllegalArgumentException. "not a number"))))
+
+(defn- parse-point
+  "Parses one (x, y) pair into a pair of doubles."
+  [p]
+  (if (and (sequential? p) (= 2 (count p)))
+    (let [[x y] p] [(as-double x) (as-double y)])
+    (throw (IllegalArgumentException. "not a pair"))))
+
+(defn shoelace-area
+  "Computes the area of a simple polygon using the shoelace formula.
+  `points` is an iterable of (x, y) coordinate pairs; the polygon is
+  assumed closed (the last point wraps to the first). Returns a
+  non-negative float."
+  [points]
+  (let [pts (vec points)]
+    (when (< (count pts) 3)
+      (throw (ex-info "At least 3 points are required to form a polygon"
+                      {:type :ValueError})))
+    (let [coords (try
+                   (mapv parse-point pts)
+                   (catch Exception _
+                     (throw (ex-info "points must be an iterable of (x, y) numeric pairs"
+                                     {:type :TypeError}))))
+          n (count coords)]
+      (/ (Math/abs (double (reduce + (map (fn [i]
+                                            (let [[[x1 y1] [x2 y2]]
+                                                  [(nth coords i)
+                                                   (nth coords (mod (inc i) n))]]
+                                              (- (* x1 y2) (* x2 y1))))
+                                          (range n)))))
+         2.0))))

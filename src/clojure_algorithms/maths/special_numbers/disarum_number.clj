@@ -1,8 +1,30 @@
 (ns clojure-algorithms.maths.special-numbers.disarum-number
-  "A number n is said to be a Disarium number if the sum of its digits raised to\ntheir respective positions equals the number itself.\n\nExamples of Disarium Numbers: 1, 2, 3, 4, 5, 6, 7, 8, 9, 89, 135, 175, 518, 598, ...\n\nhttps://rosettacode.org/wiki/Disarium_numbers"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A number n is said to be a Disarium number if the sum of its digits raised to
+their respective positions equals the number itself.
 
-(declare is-disarium-number)
+Examples of Disarium Numbers: 1, 2, 3, 4, 5, 6, 7, 8, 9, 89, 135, 175, 518, 598, ...
 
-(defn is-disarium-number "This function takes an integer number as input.\nReturns True if the number is a Disarium number.\n\n>>> is_disarium_number(-1)\nFalse\n>>> is_disarium_number(0)\nFalse\n>>> is_disarium_number(1)\nTrue\n>>> is_disarium_number(89)\nTrue\n>>> is_disarium_number(135)\nTrue\n>>> is_disarium_number(175)\nTrue\n>>> is_disarium_number(518)\nTrue\n>>> is_disarium_number(598)\nTrue\n>>> is_disarium_number(123)\nFalse\n>>> is_disarium_number(89.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=89.0] must be an integer"
-  [number] (let [digits (atom nil) msg (atom nil) total (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! digits (py-str number)) (reset! total (reduce +' 0 (doall (for [[idx digit] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) @digits))] (py-pow (py-int digit nil) (py-add idx 1)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @total number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+https://rosettacode.org/wiki/Disarium_numbers")
+
+(defn- pow-int
+  "Integer power: base**exp computed with exact integer arithmetic."
+  [base exp]
+  (reduce *' 1 (repeat exp base)))
+
+(defn is-disarium-number
+  "Returns true if `number` is a Disarium number: the sum of its digits raised
+to their (1-based) positions equals the number itself. Returns false for
+integers below 1. Throws an ex-info with :type :TypeError when `number` is
+not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (if (< number 1)
+    false
+    (let [total (reduce +' 0
+                        (map-indexed (fn [idx ch]
+                                       (pow-int (Character/digit ^char ch 10)
+                                                (inc idx)))
+                                     (str number)))]
+      (= total number))))

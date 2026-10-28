@@ -1,17 +1,80 @@
 (ns clojure-algorithms.matrix.largest-square-area-in-matrix
-  "Question:\nGiven a binary matrix mat of size n * m, find out the maximum size square\nsub-matrix with all 1s.\n\n---\nExample 1:\n\nInput:\nn = 2, m = 2\nmat = [[1, 1],\n       [1, 1]]\n\nOutput:\n2\n\nExplanation: The maximum size of the square\nsub-matrix is 2. The matrix itself is the\nmaximum sized sub-matrix in this case.\n---\nExample 2\n\nInput:\nn = 2, m = 2\nmat = [[0, 0],\n       [0, 0]]\nOutput: 0\n\nExplanation: There is no 1 in the matrix.\n\n\nApproach:\nWe initialize another matrix (dp) with the same dimensions\nas the original one initialized with all 0's.\n\ndp_array(i,j) represents the side length of the maximum square whose\nbottom right corner is the cell with index (i,j) in the original matrix.\n\nStarting from index (0,0), for every 1 found in the original matrix,\nwe update the value of the current element as\n\ndp_array(i,j)=dp_array(dp(i-1,j),dp_array(i-1,j-1),dp_array(i,j-1)) + 1."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Finds the largest square sub-matrix of 1s in a binary matrix.
+  Each function returns the side length of that square.")
 
-(declare largest-square-area-in-matrix-top-down-approch largest-square-area-in-matrix-top-down-approch-with-dp largest-square-area-in-matrix-bottom-up largest-square-area-in-matrix-bottom-up-space-optimization)
+(defn- cell-set?
+  "Mimics Python truthiness of a grid cell: numbers count when non-zero."
+  [cell]
+  (if (number? cell) (not (zero? cell)) (boolean cell)))
 
-(defn largest-square-area-in-matrix-top-down-approch "Function updates the largest_square_area[0], if recursive call found\nsquare with maximum area.\n\nWe aren't using dp_array here, so the time complexity would be exponential.\n\n>>> largest_square_area_in_matrix_top_down_approch(2, 2, [[1,1], [1,1]])\n2\n>>> largest_square_area_in_matrix_top_down_approch(2, 2, [[0,0], [0,0]])\n0"
-  [rows cols mat] (let [largest-square-area (atom nil)] (try (letfn [(update-area-of-max-square [row col] (let [diagonal (atom nil) down (atom nil) largest-square-area (atom nil) right (atom nil) sub-problem-sol (atom nil)] (try (when (py-truthy (let [__b1 (py-ge row rows)] (if (py-truthy __b1) __b1 (py-ge col cols)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (reset! right (update-area-of-max-square row (py-add col 1))) (reset! diagonal (update-area-of-max-square (py-add row 1) (py-add col 1))) (reset! down (update-area-of-max-square (py-add row 1) col)) (if (py-truthy (py-get (py-get mat row) col)) (do (reset! sub-problem-sol (py-add 1 (py-min [@right @diagonal @down]))) (swap! largest-square-area (fn [__c] (py-assoc-in __c [0] (py-max [(py-get @largest-square-area 0) @sub-problem-sol])))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @sub-problem-sol}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))] (reset! largest-square-area [0]) (update-area-of-max-square 0 0) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @largest-square-area 0)}))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn largest-square-area-in-matrix-top-down-approch
+  "Naive top-down recursion (exponential time)."
+  [rows cols mat]
+  (letfn [(solve [r c]
+            (if (or (>= r rows) (>= c cols))
+              [0 0]
+              (let [[right b1] (solve r (inc c))
+                    [diagonal b2] (solve (inc r) (inc c))
+                    [down b3] (solve (inc r) c)
+                    best (max b1 b2 b3)]
+                (if (cell-set? (get-in mat [r c]))
+                  (let [s (inc (min right diagonal down))]
+                    [s (max best s)])
+                  [0 best]))))]
+    (second (solve 0 0))))
 
-(defn largest-square-area-in-matrix-top-down-approch-with-dp "Function updates the largest_square_area[0], if recursive call found\nsquare with maximum area.\n\nWe are using dp_array here, so the time complexity would be O(N^2).\n\n>>> largest_square_area_in_matrix_top_down_approch_with_dp(2, 2, [[1,1], [1,1]])\n2\n>>> largest_square_area_in_matrix_top_down_approch_with_dp(2, 2, [[0,0], [0,0]])\n0"
-  [rows cols mat] (let [dp-array (atom nil) largest-square-area (atom nil)] (try (letfn [(update-area-of-max-square-using-dp-array [row col dp-array] (let [dp-array (atom dp-array)] (let [diagonal (atom nil) down (atom nil) largest-square-area (atom nil) right (atom nil) sub-problem-sol (atom nil)] (try (when (py-truthy (let [__b1 (py-ge row rows)] (if (py-truthy __b1) __b1 (py-ge col cols)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (when (py-truthy (not (py-eq (py-get (py-get @dp-array row) col) (py-neg 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get (py-get @dp-array row) col)}))) (reset! right (update-area-of-max-square-using-dp-array row (py-add col 1) @dp-array)) (reset! diagonal (update-area-of-max-square-using-dp-array (py-add row 1) (py-add col 1) @dp-array)) (reset! down (update-area-of-max-square-using-dp-array (py-add row 1) col @dp-array)) (if (py-truthy (py-get (py-get mat row) col)) (do (reset! sub-problem-sol (py-add 1 (py-min [@right @diagonal @down]))) (swap! largest-square-area (fn [__c] (py-assoc-in __c [0] (py-max [(py-get @largest-square-area 0) @sub-problem-sol])))) (swap! dp-array (fn [__c] (py-assoc-in __c [row col] @sub-problem-sol))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @sub-problem-sol}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))] (reset! largest-square-area [0]) (reset! dp-array (vec (for [--v (py-iter (range rows))] (py-mul [(py-neg 1)] cols)))) (update-area-of-max-square-using-dp-array 0 0 @dp-array) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @largest-square-area 0)}))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn largest-square-area-in-matrix-top-down-approch-with-dp
+  "Top-down recursion memoized over a dp table (O(rows*cols) time)."
+  [rows cols mat]
+  (letfn [(solve [r c state]
+            (if (or (>= r rows) (>= c cols))
+              [0 state]
+              (let [{:keys [dp]} state]
+                (if (contains? dp [r c])
+                  [(dp [r c]) state]
+                  (let [[right s1] (solve r (inc c) state)
+                        [diagonal s2] (solve (inc r) (inc c) s1)
+                        [down s3] (solve (inc r) c s2)]
+                    (if (cell-set? (get-in mat [r c]))
+                      (let [s (inc (min right diagonal down))]
+                        [s (-> s3
+                               (assoc-in [:dp [r c]] s)
+                               (update :best max s))])
+                      [0 s3]))))))]
+    (:best (second (solve 0 0 {:dp {} :best 0})))))
 
-(defn largest-square-area-in-matrix-bottom-up "Function updates the largest_square_area, using bottom up approach.\n\n>>> largest_square_area_in_matrix_bottom_up(2, 2, [[1,1], [1,1]])\n2\n>>> largest_square_area_in_matrix_bottom_up(2, 2, [[0,0], [0,0]])\n0"
-  [rows cols mat] (let [bottom (atom nil) col (atom nil) diagonal (atom nil) dp-array (atom nil) largest-square-area (atom nil) right (atom nil) row (atom nil)] (try (reset! dp-array (vec (for [--v (py-iter (range (py-add rows 1)))] (py-mul [0] (py-add cols 1))))) (reset! largest-square-area 0) (doseq [__i1 (py-iter (range (py-sub rows 1) (py-neg 1) (py-neg 1)))] (reset! row __i1) (doseq [__i2 (py-iter (range (py-sub cols 1) (py-neg 1) (py-neg 1)))] (reset! col __i2) (reset! right (py-get (py-get @dp-array @row) (py-add @col 1))) (reset! diagonal (py-get (py-get @dp-array (py-add @row 1)) (py-add @col 1))) (reset! bottom (py-get (py-get @dp-array (py-add @row 1)) @col)) (if (py-truthy (py-eq (py-get (py-get mat @row) @col) 1)) (do (swap! dp-array (fn [__c] (py-assoc-in __c [@row @col] (py-add 1 (py-min [@right @diagonal @bottom]))))) (reset! largest-square-area (py-max [(py-get (py-get @dp-array @row) @col) @largest-square-area]))) (do (swap! dp-array (fn [__c] (py-assoc-in __c [@row @col] 0))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @largest-square-area})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn largest-square-area-in-matrix-bottom-up
+  "Bottom-up dynamic programming over a full dp table."
+  [rows cols mat]
+  (second
+   (reduce (fn [[dp best] r]
+             (reduce (fn [[dp best] c]
+                       (if (= 1 (get-in mat [r c]))
+                         (let [s (inc (min (get-in dp [r (inc c)])
+                                           (get-in dp [(inc r) (inc c)])
+                                           (get-in dp [(inc r) c])))]
+                           [(assoc-in dp [r c] s) (max best s)])
+                         [(assoc-in dp [r c] 0) best]))
+                     [dp best]
+                     (range (dec cols) -1 -1)))
+           [(vec (repeat (inc rows) (vec (repeat (inc cols) 0)))) 0]
+           (range (dec rows) -1 -1))))
 
-(defn largest-square-area-in-matrix-bottom-up-space-optimization "Function updates the largest_square_area, using bottom up\napproach. with space optimization.\n\n>>> largest_square_area_in_matrix_bottom_up_space_optimization(2, 2, [[1,1], [1,1]])\n2\n>>> largest_square_area_in_matrix_bottom_up_space_optimization(2, 2, [[0,0], [0,0]])\n0"
-  [rows cols mat] (let [bottom (atom nil) col (atom nil) current-row (atom nil) diagonal (atom nil) largest-square-area (atom nil) next-row (atom nil) right (atom nil) row (atom nil)] (try (reset! current-row (py-mul [0] (py-add cols 1))) (reset! next-row (py-mul [0] (py-add cols 1))) (reset! largest-square-area 0) (doseq [__i1 (py-iter (range (py-sub rows 1) (py-neg 1) (py-neg 1)))] (reset! row __i1) (doseq [__i2 (py-iter (range (py-sub cols 1) (py-neg 1) (py-neg 1)))] (reset! col __i2) (reset! right (py-get @current-row (py-add @col 1))) (reset! diagonal (py-get @next-row (py-add @col 1))) (reset! bottom (py-get @next-row @col)) (if (py-truthy (py-eq (py-get (py-get mat @row) @col) 1)) (do (swap! current-row (fn [__c] (py-assoc-in __c [@col] (py-add 1 (py-min [@right @diagonal @bottom]))))) (reset! largest-square-area (py-max [(py-get @current-row @col) @largest-square-area]))) (do (swap! current-row (fn [__c] (py-assoc-in __c [@col] 0)))))) (reset! next-row @current-row)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @largest-square-area})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn largest-square-area-in-matrix-bottom-up-space-optimization
+  "Bottom-up dynamic programming keeping only two rows."
+  [rows cols mat]
+  (second
+   (reduce (fn [[next-row best] r]
+             (let [[current best]
+                   (reduce (fn [[current best] c]
+                             (if (= 1 (get-in mat [r c]))
+                               (let [s (inc (min (nth current (inc c))
+                                                 (nth next-row (inc c))
+                                                 (nth next-row c)))]
+                                 [(assoc current c s) (max best s)])
+                               [(assoc current c 0) best]))
+                           [(vec (repeat (inc cols) 0)) best]
+                           (range (dec cols) -1 -1))]
+               [current best]))
+           [(vec (repeat (inc cols) 0)) 0]
+           (range (dec rows) -1 -1))))

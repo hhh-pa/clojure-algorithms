@@ -1,8 +1,19 @@
 (ns clojure-algorithms.maths.prime-check
-  "Prime Check."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Prime Check.")
 
-(declare is-prime)
-
-(defn is-prime "Checks to see if a number is a prime in O(sqrt(n)).\n\nA number is prime if it has exactly two factors: 1 and itself.\n\n>>> is_prime(0)\nFalse\n>>> is_prime(1)\nFalse\n>>> is_prime(2)\nTrue\n>>> is_prime(3)\nTrue\n>>> is_prime(27)\nFalse\n>>> is_prime(87)\nFalse\n>>> is_prime(563)\nTrue\n>>> is_prime(2999)\nTrue\n>>> is_prime(67483)\nFalse\n>>> is_prime(16.1)\nTraceback (most recent call last):\n    ...\nValueError: is_prime() only accepts positive integers\n>>> is_prime(-4)\nTraceback (most recent call last):\n    ...\nValueError: is_prime() only accepts positive integers"
-  [number] (let [i (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? number)))] (if (py-truthy __b1) __b1 (not (py-truthy (py-ge number 0)))))) (throw (ex-info (py-str "is_prime() only accepts positive integers") {:type :ValueError}))) (if (py-truthy (let [__c2 1 __c3 number __c4 4] (and (py-lt __c2 __c3) (py-lt __c3 __c4)))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (do (when (py-truthy (let [__b6 (py-lt number 2)] (if (py-truthy __b6) __b6 (let [__b5 (py-eq (py-mod number 2) 0)] (if (py-truthy __b5) __b5 (py-eq (py-mod number 3) 0)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))))) (doseq [__i7 (py-iter (range 5 (py-int (py-add (Math/sqrt number) 1) nil) 6))] (reset! i __i7) (when (py-truthy (let [__b8 (py-eq (py-mod number @i) 0)] (if (py-truthy __b8) __b8 (py-eq (py-mod number (py-add @i 2)) 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-prime
+  "Checks to see if a number is a prime in O(sqrt(n))."
+  [number]
+  (when (or (not (integer? number)) (neg? number))
+    (throw (ex-info "is_prime() only accepts positive integers"
+                    {:type :ValueError})))
+  (cond (and (< 1 number) (< number 4)) true
+        (or (< number 2)
+            (zero? (mod number 2))
+            (zero? (mod number 3))) false
+        :else (let [limit (int (inc (Math/sqrt number)))]
+                (loop [i 5]
+                  (cond (>= i limit) true
+                        (or (zero? (mod number i))
+                            (zero? (mod number (+ i 2)))) false
+                        :else (recur (+ i 6)))))))

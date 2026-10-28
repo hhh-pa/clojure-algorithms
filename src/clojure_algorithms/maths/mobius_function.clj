@@ -1,8 +1,47 @@
 (ns clojure-algorithms.maths.mobius-function
-  "References: https://en.wikipedia.org/wiki/M%C3%B6bius_function\nReferences: wikipedia:square free number\npsf/black : True\nruff : True"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure-algorithms.maths.is-square-free :as m2] [clojure-algorithms.maths.prime-factors :as m1]))
+  "Mobius function.
+References: https://en.wikipedia.org/wiki/M%C3%B6bius_function
+References: wikipedia:square free number")
 
-(declare mobius)
+(defn- python-type-name
+  "Python type name used in comparison TypeError messages."
+  [v]
+  (cond
+    (nil? v) "NoneType"
+    (string? v) "str"
+    (boolean? v) "bool"
+    (or (sequential? v) (map? v) (set? v)) "list"
+    :else "object"))
 
-(defn mobius "Mobius function\n>>> mobius(24)\n0\n>>> mobius(-1)\n1\n>>> mobius('asd')\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'str'\n>>> mobius(10**400)\n0\n>>> mobius(10**-400)\n1\n>>> mobius(-1424)\n1\n>>> mobius([1, '2', 2.0])\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'list'"
-  [n] (let [factors (atom nil)] (try (reset! factors (m1/prime-factors n)) (when (py-truthy (m2/is-square-free @factors)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-mod (count @factors) 2)) (py-neg 1) 1)}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- prime-factors
+  "Prime factors of n as a vector, mirroring maths/prime_factors.py:
+trial division while i*i <= n, then n itself if > 1."
+  [n]
+  (when-not (number? n)
+    (throw (ex-info (str "'<=' not supported between instances of 'int' and '"
+                         (python-type-name n) "'")
+                    {:type :TypeError})))
+  (loop [n n i 2 factors []]
+    (if (<= (*' i i) n)
+      (if (zero? (mod n i))
+        (recur (quot n i) i (conj factors i))
+        (recur n (inc i) factors))
+      (if (> n 1) (conj factors n) factors))))
+
+(defn- square-free?
+  "True when no factor repeats (numeric == comparison, as in Python sets)."
+  [factors]
+  (loop [seen [] remaining factors]
+    (cond
+      (empty? remaining) true
+      (some #(== % (first remaining)) seen) false
+      :else (recur (conj seen (first remaining)) (rest remaining)))))
+
+(defn mobius
+  "Mobius function: 0 when n is not square free, else -1 for an odd
+number of prime factors and 1 for an even number."
+  [n]
+  (let [factors (prime-factors n)]
+    (if (square-free? factors)
+      (if (odd? (count factors)) -1 1)
+      0)))

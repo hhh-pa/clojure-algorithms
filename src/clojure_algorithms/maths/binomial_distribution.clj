@@ -1,8 +1,35 @@
 (ns clojure-algorithms.maths.binomial-distribution
-  "For more information about the Binomial Distribution -\nhttps://en.wikipedia.org/wiki/Binomial_distribution"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "For more information about the Binomial Distribution -
+https://en.wikipedia.org/wiki/Binomial_distribution")
 
-(declare binomial-distribution)
+(defn- factorial
+  "Exact factorial of a non-negative integer."
+  [n]
+  (reduce *' 1 (range 1 (inc n))))
 
-(defn binomial-distribution "Return probability of k successes out of n tries, with p probability for one\nsuccess\n\nThe function uses the factorial function in order to calculate the binomial\ncoefficient\n\n>>> binomial_distribution(3, 5, 0.7)\n0.30870000000000003\n>>> binomial_distribution (2, 4, 0.5)\n0.375"
-  [successes trials prob] (let [coefficient (atom nil) probability (atom nil)] (try (when (py-truthy (py-gt successes trials)) (throw (ex-info (py-str "successes must be lower or equal to trials") {:type :ValueError}))) (when (py-truthy (let [__b1 (py-lt trials 0)] (if (py-truthy __b1) __b1 (py-lt successes 0)))) (throw (ex-info (py-str "the function is defined for non-negative integers") {:type :ValueError}))) (when (py-truthy (let [__b2 (not (py-truthy (integer? successes)))] (if (py-truthy __b2) __b2 (not (py-truthy (integer? trials)))))) (throw (ex-info (py-str "the function is defined for non-negative integers") {:type :ValueError}))) (when (py-truthy (not (py-truthy (let [__c3 0 __c4 prob __c5 1] (and (py-lt __c3 __c4) (py-lt __c4 __c5)))))) (throw (ex-info (py-str "prob has to be in range of 1 - 0") {:type :ValueError}))) (reset! probability (py-mul (py-pow prob successes) (py-pow (py-sub 1 prob) (py-sub trials successes)))) (reset! coefficient (py-float (py-factorial trials))) (swap! coefficient py-div (py-mul (py-factorial successes) (py-factorial (py-sub trials successes)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul @probability @coefficient)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn binomial-distribution
+  "Return the probability of k successes out of n tries, with p probability
+  for one success, using the binomial coefficient n! / (k! (n-k)!)."
+  [successes trials prob]
+  (when-not (and (number? successes) (number? trials))
+    (throw (ex-info "the function is defined for non-negative integers"
+                    {:type :TypeError})))
+  (when (> successes trials)
+    (throw (ex-info "successes must be lower or equal to trials"
+                    {:type :ValueError})))
+  (when (or (< trials 0) (< successes 0))
+    (throw (ex-info "the function is defined for non-negative integers"
+                    {:type :ValueError})))
+  (when-not (and (integer? successes) (integer? trials))
+    (throw (ex-info "the function is defined for non-negative integers"
+                    {:type :ValueError})))
+  (when-not (number? prob)
+    (throw (ex-info "prob has to be in range of 1 - 0" {:type :TypeError})))
+  (when-not (< 0 prob 1)
+    (throw (ex-info "prob has to be in range of 1 - 0" {:type :ValueError})))
+  (let [probability (* (Math/pow (double prob) successes)
+                       (Math/pow (- 1.0 (double prob)) (- trials successes)))
+        coefficient (/ (double (factorial trials))
+                       (* (factorial successes)
+                          (factorial (- trials successes))))]
+    (* probability coefficient)))

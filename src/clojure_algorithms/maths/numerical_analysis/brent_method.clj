@@ -1,10 +1,64 @@
 (ns clojure-algorithms.maths.numerical-analysis.brent-method
-  "Port of maths/numerical_analysis/brent_method.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Root finding with Brent's method, combining bisection, secant, and inverse
+quadratic interpolation.")
 
-(declare brent-method)
+(defn brent-method
+  "Find the root of func in the interval [left, right] using Brent's method.
 
-(defn brent-method "Find the root of function func in the interval [left, right] using Brent's Method.\n\nBrent's Method combines bisection, secant, and inverse quadratic interpolation.\n\n\nParameters\n----------\nfunc : Callable[[float], float]\n    Function for which to find the root.\nleft : float\n    Left endpoint of interval.\nright : float\n    Right endpoint of interval.\ntol : float\n    Tolerance for convergence (default 1e-8).\nmax_iter : int\n    Maximum number of iterations (default 100).\n\n\nReturns\n-------\nfloat\n    Approximate root of func in [left, right].\n\nRaises\n------\nValueError\n    If func(left) and func(right) do not have opposite signs.\n\nExamples\n--------\n>>> def f(x): return x**3 - x - 2\n>>> round(brent_method(f, 1, 2), 5)\n1.52138\n\n>>> def f2(x): return x**2 + 1\n>>> brent_method(f2, 0, 1)\nTraceback (most recent call last):\n...\nValueError: func(left) and func(right) must have opposite signs"
-  ([func left right] (brent-method func left right 1e-08 100))
+  tol is the tolerance for convergence (default 1e-8) and max-iter the maximum
+  number of iterations (default 100). Throws ex-info with :type :ValueError
+  when func(left) and func(right) do not have opposite signs."
+  ([func left right] (brent-method func left right 1e-8 100))
   ([func left right tol] (brent-method func left right tol 100))
-  ([func left right tol max-iter] (let [left (atom left) right (atom right)] (let [c (atom nil) conditions (atom nil) d (atom nil) fc (atom nil) fl (atom nil) fr (atom nil) fs (atom nil) iteration (atom nil) s (atom nil)] (try (reset! fl (func @left)) (reset! fr (func @right)) (when (py-truthy (py-ge (py-mul @fl @fr) 0)) (throw (ex-info (py-str "func(left) and func(right) must have opposite signs") {:type :ValueError}))) (when (py-truthy (py-lt (py-abs @fl) (py-abs @fr))) (let [__d1 (vec [@right @left])] (reset! left (nth __d1 0)) (reset! right (nth __d1 1))) (let [__d2 (vec [@fr @fl])] (reset! fl (nth __d2 0)) (reset! fr (nth __d2 1)))) (reset! c @left) (reset! fc @fl) (reset! d (py-sub @right @left)) (doseq [__i3 (py-iter (range max-iter))] (reset! iteration __i3) (when (py-truthy (py-eq @fr 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @right}))) (if (py-truthy (not (py-in @fc [@fl @fr]))) (do (reset! s (py-add (py-add (py-div (py-mul (py-mul @left @fr) @fc) (py-mul (py-sub @fl @fr) (py-sub @fl @fc))) (py-div (py-mul (py-mul @right @fl) @fc) (py-mul (py-sub @fr @fl) (py-sub @fr @fc)))) (py-div (py-mul (py-mul @c @fl) @fr) (py-mul (py-sub @fc @fl) (py-sub @fc @fr)))))) (do (reset! s (py-sub @right (py-div (py-mul @fr (py-sub @right @left)) (py-sub @fr @fl)))))) (reset! conditions [(if (py-truthy (py-gt @right @left)) (not (py-truthy (let [__c4 (py-div (py-add (py-mul 3 @left) @right) 4) __c5 @s __c6 @right] (and (py-lt __c4 __c5) (py-lt __c5 __c6))))) (not (py-truthy (let [__c7 @right __c8 @s __c9 (py-div (py-add (py-mul 3 @left) @right) 4)] (and (py-lt __c7 __c8) (py-lt __c8 __c9)))))) (let [__b10 (py-gt @iteration 1)] (if (py-truthy __b10) (py-ge (py-abs (py-sub @s @right)) (py-div (py-abs (py-sub @right @c)) 2)) __b10)) (let [__b11 (py-le @iteration 1)] (if (py-truthy __b11) (py-ge (py-abs (py-sub @s @right)) (py-div (py-abs (py-sub @c @d)) 2)) __b11)) (let [__b12 (py-gt @iteration 1)] (if (py-truthy __b12) (py-lt (py-abs (py-sub @right @c)) tol) __b12)) (let [__b13 (py-le @iteration 1)] (if (py-truthy __b13) (py-lt (py-abs (py-sub @c @d)) tol) __b13))]) (when (py-truthy (boolean (some py-truthy @conditions))) (reset! s (py-div (py-add @left @right) 2)) (reset! d (py-sub @right @left))) (reset! fs (func @s)) (let [__d14 (vec [@c @right])] (reset! d (nth __d14 0)) (reset! c (nth __d14 1))) (reset! fc @fr) (if (py-truthy (py-lt (py-mul @fl @fs) 0)) (do (reset! right @s) (reset! fr @fs)) (do (reset! left @s) (reset! fl @fs))) (when (py-truthy (py-lt (py-abs @fl) (py-abs @fr))) (let [__d15 (vec [@right @left])] (reset! left (nth __d15 0)) (reset! right (nth __d15 1))) (let [__d16 (vec [@fr @fl])] (reset! fl (nth __d16 0)) (reset! fr (nth __d16 1)))) (when (py-truthy (py-lt (py-abs (py-sub @right @left)) tol)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @right})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @right})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([func left right tol max-iter]
+   (let [f (fn [x] (double (func x)))
+         left (double left)
+         right (double right)
+         fl (f left)
+         fr (f right)]
+     (when (>= (* fl fr) 0)
+       (throw (ex-info "func(left) and func(right) must have opposite signs"
+                       {:type :ValueError})))
+     (let [[left right fl fr] (if (< (Math/abs fl) (Math/abs fr))
+                                [right left fr fl]
+                                [left right fl fr])]
+       (loop [iteration 0
+              left left right right fl fl fr fr
+              c left fc fl d (- right left)]
+         (if (>= iteration max-iter)
+           right
+           (if (zero? fr)
+             right
+             (let [s (if (or (= fc fl) (= fc fr))
+                       (- right (/ (* fr (- right left)) (- fr fl)))
+                       (+ (/ (* left fr fc) (* (- fl fr) (- fl fc)))
+                          (/ (* right fl fc) (* (- fr fl) (- fr fc)))
+                          (/ (* c fl fr) (* (- fc fl) (- fc fr)))))
+                   m (/ (+ (* 3 left) right) 4)
+                   bisect? (or (if (> right left)
+                                 (not (and (< m s) (< s right)))
+                                 (not (and (< right s) (< s m))))
+                               (and (> iteration 1)
+                                    (>= (Math/abs (- s right))
+                                        (/ (Math/abs (- right c)) 2)))
+                               (and (<= iteration 1)
+                                    (>= (Math/abs (- s right))
+                                        (/ (Math/abs (- c d)) 2)))
+                               (and (> iteration 1) (< (Math/abs (- right c)) tol))
+                               (and (<= iteration 1) (< (Math/abs (- c d)) tol)))
+                   s (if bisect? (/ (+ left right) 2) s)
+                   d (if bisect? (- right left) d)
+                   fs (f s)
+                   d c
+                   c right
+                   fc fr
+                   [left right fl fr] (if (neg? (* fl fs))
+                                        [left s fl fs]
+                                        [s right fs fr])
+                   [left right fl fr] (if (< (Math/abs fl) (Math/abs fr))
+                                        [right left fr fl]
+                                        [left right fl fr])]
+               (if (< (Math/abs (- right left)) tol)
+                 right
+                 (recur (inc iteration)
+                        left right fl fr c fc d))))))))))

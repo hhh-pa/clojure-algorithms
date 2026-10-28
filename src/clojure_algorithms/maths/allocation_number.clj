@@ -1,8 +1,25 @@
 (ns clojure-algorithms.maths.allocation-number
-  "In a multi-threaded download, this algorithm could be used to provide\neach worker thread with a block of non-overlapping bytes to download.\nFor example:\n    for i in allocation_list:\n        httpx2.get(url, headers={\"Range\": f\"bytes={i}\"})"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "In a multi-threaded download, this algorithm could be used to provide
+each worker thread with a block of non-overlapping bytes to download.
+For example:
+    for i in allocation_list:
+        httpx2.get(url, headers={\"Range\": f\"bytes={i}\"})")
 
-(declare allocation-num)
-
-(defn allocation-num "Divide a number of bytes into x partitions.\n:param number_of_bytes: the total of bytes.\n:param partitions: the number of partition need to be allocated.\n:return: list of bytes to be assigned to each worker thread\n\n>>> allocation_num(16647, 4)\n['1-4161', '4162-8322', '8323-12483', '12484-16647']\n>>> allocation_num(50000, 5)\n['1-10000', '10001-20000', '20001-30000', '30001-40000', '40001-50000']\n>>> allocation_num(888, 999)\nTraceback (most recent call last):\n    ...\nValueError: partitions can not > number_of_bytes!\n>>> allocation_num(888, -4)\nTraceback (most recent call last):\n    ...\nValueError: partitions must be a positive number!"
-  [number-of-bytes partitions] (let [allocation-list (atom nil) bytes-per-partition (atom nil) end-bytes (atom nil) i (atom nil) start-bytes (atom nil)] (try (when (py-truthy (py-le partitions 0)) (throw (ex-info (py-str "partitions must be a positive number!") {:type :ValueError}))) (when (py-truthy (py-gt partitions number-of-bytes)) (throw (ex-info (py-str "partitions can not > number_of_bytes!") {:type :ValueError}))) (reset! bytes-per-partition (py-floordiv number-of-bytes partitions)) (reset! allocation-list []) (doseq [__i1 (py-iter (range partitions))] (reset! i __i1) (reset! start-bytes (py-add (py-mul @i @bytes-per-partition) 1)) (reset! end-bytes (if (py-truthy (py-eq @i (py-sub partitions 1))) number-of-bytes (py-mul (py-add @i 1) @bytes-per-partition))) (swap! allocation-list conj (str (py-str @start-bytes) "-" (py-str @end-bytes)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @allocation-list})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn allocation-num
+  "Divide a number of bytes into x partitions.
+  number-of-bytes: the total of bytes.
+  partitions: the number of partitions to allocate.
+  Returns a vector of \"start-end\" byte ranges, one per worker thread."
+  [number-of-bytes partitions]
+  (when (<= partitions 0)
+    (throw (ex-info "partitions must be a positive number!" {:type :ValueError})))
+  (when (> partitions number-of-bytes)
+    (throw (ex-info "partitions can not > number_of_bytes!" {:type :ValueError})))
+  (let [bytes-per-partition (quot number-of-bytes partitions)]
+    (mapv (fn [i]
+            (str (inc (* i bytes-per-partition))
+                 "-"
+                 (if (= i (dec partitions))
+                   number-of-bytes
+                   (* (inc i) bytes-per-partition))))
+          (range partitions))))

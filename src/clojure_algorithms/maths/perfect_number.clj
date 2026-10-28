@@ -1,17 +1,63 @@
 (ns clojure-algorithms.maths.perfect-number
-  "== Perfect Number ==\nIn number theory, a perfect number is a positive integer that is equal to the sum of\nits positive divisors, excluding the number itself.\n\nFor example: 6 ==> divisors[1, 2, 3, 6]\n    Excluding 6, the sum(divisors) is 1 + 2 + 3 = 6\n    So, 6 is a Perfect Number\n\nThe first few perfect numbers are: 6, 28, 496, 8128, 33550336, ...\n\nhttps://en.wikipedia.org/wiki/Perfect_number\nhttps://oeis.org/A000396"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Perfect Number ==
+In number theory, a perfect number is a positive integer that is equal to the sum of
+its positive divisors, excluding the number itself.
 
-(declare perfect perfect-optimized find-perfect-numbers get-divisors)
+https://en.wikipedia.org/wiki/Perfect_number
+https://oeis.org/A000396")
 
-(defn perfect "Check if a number is a perfect number.\n\nA perfect number is a positive integer that is equal to the sum of its proper\ndivisors (positive divisors excluding the number itself).\n\nThe algorithm finds all divisors up to number//2 (since no proper divisor\ncan be greater than half the number) and sums them for comparison.\n\nTime Complexity: O(sqrt(n)) with optimized divisor finding\nSpace Complexity: O(1)\n\nArgs:\n    number: The positive integer to be checked.\n\nReturns:\n    True if the number is a perfect number, False otherwise.\n\nRaises:\n    ValueError: If number is not an integer.\n\nExamples:\n    Basic perfect numbers:\n    >>> perfect(6)\n    True\n    >>> perfect(28)\n    True\n    >>> perfect(496)\n    True\n    >>> perfect(8128)\n    True\n\n    Large perfect number:\n    >>> perfect(33550336)\n    True\n\n    Non-perfect numbers:\n    >>> perfect(12)\n    False\n    >>> perfect(27)\n    False\n    >>> perfect(29)\n    False\n    >>> perfect(100)\n    False\n\n    Edge cases:\n    >>> perfect(1)\n    False\n    >>> perfect(2)\n    False\n    >>> perfect(0)\n    False\n    >>> perfect(-1)\n    False\n    >>> perfect(-6)\n    False\n\n    Numbers close to perfect numbers:\n    >>> perfect(5)\n    False\n    >>> perfect(7)\n    False\n    >>> perfect(27)\n    False\n    >>> perfect(29)\n    False\n    >>> perfect(495)\n    False\n    >>> perfect(497)\n    False\n    >>> perfect(33550335)\n    False\n    >>> perfect(33550337)\n    False\n\n    Type validation:\n    >>> perfect(12.34)\n    Traceback (most recent call last):\n    ...\n    ValueError: number must be an integer\n    >>> perfect(\"123\")\n    Traceback (most recent call last):\n    ...\n    ValueError: number must be an integer\n    >>> perfect(\"Hello\")\n    Traceback (most recent call last):\n    ...\n    ValueError: number must be an integer\n    >>> perfect([6])\n    Traceback (most recent call last):\n    ...\n    ValueError: number must be an integer\n    >>> perfect(None)\n    Traceback (most recent call last):\n    ...\n    ValueError: number must be an integer\n\n    Testing divisor sum calculation for known cases:\n    >>> # For 6: divisors are 1, 2, 3 -> sum = 6\n    >>> sum(i for i in range(1, 6//2 + 1) if 6 % i == 0) == 6\n    True\n    >>> # For 28: divisors are 1, 2, 4, 7, 14 -> sum = 28\n    >>> sum(i for i in range(1, 28//2 + 1) if 28 % i == 0) == 28\n    True\n    >>> # For 12: divisors are 1, 2, 3, 4, 6 -> sum = 16 ≠ 12\n    >>> sum(i for i in range(1, 12//2 + 1) if 12 % i == 0) == 12\n    False"
-  [number] (let [divisor-sum (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "number must be an integer") {:type :ValueError}))) (when (py-truthy (py-le number 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-eq number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! divisor-sum (reduce +' 0 (doall (for [i (py-iter (range 1 (py-add (py-floordiv number 2) 1))) :when (py-truthy (py-eq (py-mod number i) 0))] i)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @divisor-sum number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- proper-divisor-sum
+  "Sum of proper divisors of n by scanning 1..n//2."
+  [n]
+  (let [n (long n)
+        half (quot n 2)]
+    (loop [i 1 s 0]
+      (if (> i half)
+        s
+        (recur (inc i) (if (zero? (rem n i)) (+ s i) s))))))
 
-(defn perfect-optimized "Optimized version of perfect number checker using mathematical properties.\n\nThis version uses the fact that divisors come in pairs (d, n/d) to reduce\nthe search space to sqrt(n).\n\nTime Complexity: O(sqrt(n))\nSpace Complexity: O(1)\n\nArgs:\n    number: The positive integer to be checked.\n\nReturns:\n    True if the number is a perfect number, False otherwise.\n\nExamples:\n    >>> perfect_optimized(6)\n    True\n    >>> perfect_optimized(28)\n    True\n    >>> perfect_optimized(496)\n    True\n    >>> perfect_optimized(12)\n    False\n    >>> perfect_optimized(1)\n    False\n    >>> perfect_optimized(0)\n    False\n    >>> perfect_optimized(-1)\n    False"
-  [number] (let [divisor-sum (atom nil) i (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "number must be an integer") {:type :ValueError}))) (when (py-truthy (py-le number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! divisor-sum 1) (reset! i 2) (while (py-truthy (py-le (py-mul @i @i) number)) (when (py-truthy (py-eq (py-mod number @i) 0)) (swap! divisor-sum py-add @i) (when (py-truthy (not (py-eq @i (py-floordiv number @i)))) (swap! divisor-sum py-add (py-floordiv number @i)))) (swap! i py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @divisor-sum number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn perfect
+  "Check if a number is a perfect number: a positive integer equal to
+the sum of its proper divisors."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info "number must be an integer" {:type :ValueError})))
+  (cond
+    (<= number 0) false
+    (= number 1) false
+    :else (= (proper-divisor-sum number) number)))
 
-(defn find-perfect-numbers "Find all perfect numbers up to a given limit.\n\nArgs:\n    limit: The upper bound to search for perfect numbers.\n\nReturns:\n    List of perfect numbers up to the limit.\n\nExamples:\n    >>> find_perfect_numbers(10)\n    [6]\n    >>> find_perfect_numbers(30)\n    [6, 28]\n    >>> find_perfect_numbers(500)\n    [6, 28, 496]\n    >>> find_perfect_numbers(0)\n    []\n    >>> find_perfect_numbers(1)\n    []"
-  [limit] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? limit)))] (if (py-truthy __b1) __b1 (py-lt limit 0)))) (throw (ex-info (py-str "limit must be a non-negative integer") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [n (py-iter (range 1 (py-add limit 1))) :when (py-truthy (perfect n))] n))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn perfect-optimized
+  "Optimized perfect number checker using divisor pairs (d, n/d),
+reducing the search space to sqrt(n)."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info "number must be an integer" {:type :ValueError})))
+  (if (<= number 1)
+    false
+    (let [number (long number)]
+      (loop [i 2 divisor-sum 1]
+        (if (> (* i i) number)
+          (= divisor-sum number)
+          (recur (inc i)
+                 (if (zero? (rem number i))
+                   (let [paired (quot number i)]
+                     (+ divisor-sum i (if (= i paired) 0 paired)))
+                   divisor-sum)))))))
 
-(defn get-divisors "Get all proper divisors of a number (excluding the number itself).\n\nArgs:\n    number: The positive integer to find divisors for.\n\nReturns:\n    List of proper divisors in ascending order.\n\nExamples:\n    >>> get_divisors(6)\n    [1, 2, 3]\n    >>> get_divisors(28)\n    [1, 2, 4, 7, 14]\n    >>> get_divisors(12)\n    [1, 2, 3, 4, 6]\n    >>> get_divisors(1)\n    []\n    >>> get_divisors(7)\n    [1]"
-  [number] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? number)))] (if (py-truthy __b1) __b1 (py-le number 0)))) (throw (ex-info (py-str "number must be a positive integer") {:type :ValueError}))) (when (py-truthy (py-eq number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [i (py-iter (range 1 (py-add (py-floordiv number 2) 1))) :when (py-truthy (py-eq (py-mod number i) 0))] i))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn find-perfect-numbers
+  "Find all perfect numbers up to a given limit."
+  [limit]
+  (when (or (not (integer? limit)) (neg? limit))
+    (throw (ex-info "limit must be a non-negative integer" {:type :ValueError})))
+  (filterv perfect (range 1 (inc limit))))
+
+(defn get-divisors
+  "Get all proper divisors of a number (excluding the number itself),
+in ascending order."
+  [number]
+  (when (or (not (integer? number)) (<= number 0))
+    (throw (ex-info "number must be a positive integer" {:type :ValueError})))
+  (if (= number 1)
+    []
+    (filterv #(zero? (rem number %)) (range 1 (inc (quot number 2))))))

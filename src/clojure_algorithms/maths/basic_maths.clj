@@ -1,17 +1,66 @@
 (ns clojure-algorithms.maths.basic-maths
-  "Implementation of Basic Math in Python."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Implementation of Basic Math in Python.")
 
-(declare prime-factors number-of-divisors sum-of-divisors euler-phi)
+(defn- divide-out
+  "Divides `n` by `d` as many times as possible.
+  Returns [remaining-n exponent]."
+  [n d]
+  (loop [n n, e 0]
+    (if (zero? (rem n d))
+      (recur (quot n d) (inc e))
+      [n e])))
 
-(defn prime-factors "Find Prime Factors.\n>>> prime_factors(100)\n[2, 2, 5, 5]\n>>> prime_factors(0)\nTraceback (most recent call last):\n    ...\nValueError: Only positive integers have prime factors\n>>> prime_factors(-10)\nTraceback (most recent call last):\n    ...\nValueError: Only positive integers have prime factors"
-  [n] (let [n (atom n)] (let [i (atom nil) pf (atom nil)] (try (when (py-truthy (py-le @n 0)) (throw (ex-info (py-str "Only positive integers have prime factors") {:type :ValueError}))) (reset! pf []) (while (py-truthy (py-eq (py-mod @n 2) 0)) (swap! pf conj 2) (reset! n (py-int (py-div @n 2) nil))) (doseq [__i1 (py-iter (range 3 (py-add (py-int (Math/sqrt @n) nil) 1) 2))] (reset! i __i1) (while (py-truthy (py-eq (py-mod @n @i) 0)) (swap! pf conj @i) (reset! n (py-int (py-div @n @i) nil)))) (when (py-truthy (py-gt @n 2)) (swap! pf conj @n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @pf})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- factorize
+  "Returns [remaining-n factor-exponent-pairs] after trial division of `n`
+  by 2 and then by odd divisors up to sqrt(n)."
+  [n]
+  (let [[n e2] (divide-out n 2)
+        bound (inc (long (Math/sqrt (double n))))]
+    (loop [n n, d 3, factors (if (pos? e2) [[2 e2]] [])]
+      (if (> d bound)
+        [n factors]
+        (let [[n e] (divide-out n d)]
+          (recur n (+ d 2) (if (pos? e) (conj factors [d e]) factors)))))))
 
-(defn number-of-divisors "Calculate Number of Divisors of an Integer.\n>>> number_of_divisors(100)\n9\n>>> number_of_divisors(0)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted\n>>> number_of_divisors(-10)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted"
-  [n] (let [n (atom n)] (let [div (atom nil) i (atom nil) temp (atom nil)] (try (when (py-truthy (py-le @n 0)) (throw (ex-info (py-str "Only positive numbers are accepted") {:type :ValueError}))) (reset! div 1) (reset! temp 1) (while (py-truthy (py-eq (py-mod @n 2) 0)) (swap! temp py-add 1) (reset! n (py-int (py-div @n 2) nil))) (swap! div py-mul @temp) (doseq [__i1 (py-iter (range 3 (py-add (py-int (Math/sqrt @n) nil) 1) 2))] (reset! i __i1) (reset! temp 1) (while (py-truthy (py-eq (py-mod @n @i) 0)) (swap! temp py-add 1) (reset! n (py-int (py-div @n @i) nil))) (swap! div py-mul @temp)) (when (py-truthy (py-gt @n 1)) (swap! div py-mul 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @div})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn prime-factors
+  "Returns the list of prime factors of the positive integer `n`,
+  with multiplicity. For example, (prime-factors 100) => [2 2 5 5]."
+  [n]
+  (when (<= n 0)
+    (throw (ex-info "Only positive integers have prime factors" {:type :ValueError})))
+  (let [[n factors] (factorize n)
+        factors (if (> n 2) (conj factors [n 1]) factors)]
+    (vec (mapcat (fn [[p e]] (repeat e p)) factors))))
 
-(defn sum-of-divisors "Calculate Sum of Divisors.\n>>> sum_of_divisors(100)\n217\n>>> sum_of_divisors(0)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted\n>>> sum_of_divisors(-10)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted"
-  [n] (let [n (atom n)] (let [i (atom nil) s (atom nil) temp (atom nil)] (try (when (py-truthy (py-le @n 0)) (throw (ex-info (py-str "Only positive numbers are accepted") {:type :ValueError}))) (reset! s 1) (reset! temp 1) (while (py-truthy (py-eq (py-mod @n 2) 0)) (swap! temp py-add 1) (reset! n (py-int (py-div @n 2) nil))) (when (py-truthy (py-gt @temp 1)) (swap! s py-mul (py-div (py-sub (py-pow 2 @temp) 1) (py-sub 2 1)))) (doseq [__i1 (py-iter (range 3 (py-add (py-int (Math/sqrt @n) nil) 1) 2))] (reset! i __i1) (reset! temp 1) (while (py-truthy (py-eq (py-mod @n @i) 0)) (swap! temp py-add 1) (reset! n (py-int (py-div @n @i) nil))) (when (py-truthy (py-gt @temp 1)) (swap! s py-mul (py-div (py-sub (py-pow @i @temp) 1) (py-sub @i 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-int @s nil)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn number-of-divisors
+  "Returns the number of divisors of the positive integer `n`."
+  [n]
+  (when (<= n 0)
+    (throw (ex-info "Only positive numbers are accepted" {:type :ValueError})))
+  (let [[n factors] (factorize n)
+        div (reduce * 1 (map #(inc (second %)) factors))]
+    (if (> n 1) (* div 2) div)))
 
-(defn euler-phi "Calculate Euler's Phi Function.\n>>> euler_phi(100)\n40\n>>> euler_phi(0)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted\n>>> euler_phi(-10)\nTraceback (most recent call last):\n    ...\nValueError: Only positive numbers are accepted"
-  [n] (let [s (atom nil) x (atom nil)] (try (when (py-truthy (py-le n 0)) (throw (ex-info (py-str "Only positive numbers are accepted") {:type :ValueError}))) (reset! s n) (doseq [__i1 (py-iter (py-set (prime-factors n)))] (reset! x __i1) (swap! s py-mul (py-div (py-sub @x 1) @x))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-int @s nil)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- int-pow
+  "Integer power: `base` raised to the non-negative integer `exp`."
+  [base exp]
+  (reduce *' 1 (repeat exp base)))
+
+(defn sum-of-divisors
+  "Returns the sum of all divisors of the positive integer `n`."
+  [n]
+  (when (<= n 0)
+    (throw (ex-info "Only positive numbers are accepted" {:type :ValueError})))
+  (let [[n factors] (factorize n)]
+    (reduce * 1 (map (fn [[p e]] (quot (dec (int-pow p (inc e))) (dec p)))
+                     factors))))
+
+(defn euler-phi
+  "Returns Euler's totient of the positive integer `n`: the count of
+  integers in [1, n] that are coprime to `n`."
+  [n]
+  (when (<= n 0)
+    (throw (ex-info "Only positive numbers are accepted" {:type :ValueError})))
+  (reduce (fn [s p] (quot (* s (dec p)) p))
+          n
+          (distinct (prime-factors n))))

@@ -1,15 +1,28 @@
 (ns clojure-algorithms.maths.quadratic-equations-complex-numbers
-  "Port of maths/quadratic_equations_complex_numbers.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/quadratic_equations_complex_numbers.py")
 
-(declare quadratic-roots main)
-
-(defn quadratic-roots "Given the numerical coefficients a, b and c,\ncalculates the roots for any quadratic equation of the form ax^2 + bx + c\n\n>>> quadratic_roots(a=1, b=3, c=-4)\n(1.0, -4.0)\n>>> quadratic_roots(5, 6, 1)\n(-0.2, -1.0)\n>>> quadratic_roots(1, -6, 25)\n((3+4j), (3-4j))"
-  [& _args]
-  ;; stub: original requires complex-attr; pure-Clojure port not applicable
-  (throw (ex-info "requires complex-attr" {:type :UnsupportedOperation})))
+(defn quadratic-roots
+  "Given the numerical coefficients a, b and c, calculate the roots of
+  the quadratic equation ax^2 + bx + c. Returns a vector [root1 root2]
+  where each root is a double for real roots or a [re im] pair of
+  doubles for complex roots."
+  [a b c]
+  (when (zero? a)
+    (throw (ex-info "Coefficient 'a' must not be zero." {:type :ValueError})))
+  (let [a (double a)
+        b (double b)
+        c (double c)
+        delta (- (* b b) (* 4.0 a c))]
+    (if (neg? delta)
+      (let [real (/ (- b) (* 2.0 a))
+            imag (/ (Math/sqrt (- delta)) (* 2.0 a))]
+        [[real imag] [real (- imag)]])
+      (let [s (Math/sqrt delta)]
+        [(/ (+ (- b) s) (* 2.0 a))
+         (/ (- (- b) s) (* 2.0 a))]))))
 
 (defn main
-  [] (let [solution1 (atom nil) solution2 (atom nil)] (let [__d1 (vec (quadratic-roots nil nil nil))] (reset! solution1 (nth __d1 0)) (reset! solution2 (nth __d1 1))) (println (clojure.string/join " " [(py-str (str "The solutions are: " (py-str @solution1) " and " (py-str @solution2)))])) nil))
-
-;; NOTE: quadratic_roots stubbed (complex-attr)
+  "Print the solutions of 5x^2 + 6x + 1."
+  []
+  (let [[solution1 solution2] (quadratic-roots 5 6 1)]
+    (println (str "The solutions are: " solution1 " and " solution2))))

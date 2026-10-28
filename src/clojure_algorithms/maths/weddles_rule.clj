@@ -1,27 +1,232 @@
 (ns clojure-algorithms.maths.weddles-rule
-  "Port of maths/weddles_rule.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Port of maths/weddles_rule.py")
 
-(declare get-inputs safe-function-eval compute-table apply-weights compute-solution)
+(defn- parse-input-double
+  "Parse s as a double, throwing :ValueError like Python's float()."
+  [s]
+  (if (nil? s)
+    (throw (ex-info "unexpected end of input" {:type :ValueError}))
+    (try
+      (Double/parseDouble s)
+      (catch NumberFormatException _
+        (throw (ex-info (str "could not convert string to float: '" s "'")
+                        {:type :ValueError}))))))
 
-(defn get-inputs "Get user input for the function, lower limit, and upper limit.\n\nReturns:\n    Tuple[str, float, float]: A tuple containing the function as a string,\n    the lower limit (a), and the upper limit (b) as floats.\n\nExample:\n    >>> from unittest.mock import patch\n    >>> inputs = ['1/(1+x**2)', 1.0, -1.0]\n    >>> with patch('builtins.input', side_effect=inputs):\n    ...     get_inputs()\n    ('1/(1+x**2)', 1.0, -1.0)"
-  [] (let [func (atom nil) lower-limit (atom nil) upper-limit (atom nil)] (try (reset! func (do (print "Enter function with variable as x: ") (flush) (read-line))) (reset! lower-limit (py-float (do (print "Enter lower limit: ") (flush) (read-line)))) (reset! upper-limit (py-float (do (print "Enter upper limit: ") (flush) (read-line)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@func @lower-limit @upper-limit]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn get-inputs
+  "Read the integrand expression, lower limit and upper limit from stdin.
+  Returns [function-string lower-limit upper-limit]."
+  []
+  (print "Enter function with variable as x: ")
+  (flush)
+  (let [func (read-line)]
+    (print "Enter lower limit: ")
+    (flush)
+    (let [lower-limit (read-line)]
+      (print "Enter upper limit: ")
+      (flush)
+      (let [upper-limit (read-line)]
+        [func (parse-input-double lower-limit) (parse-input-double upper-limit)]))))
 
-(defn safe-function-eval "Safely evaluates the function by substituting x value using sympy.\n\nArgs:\n    func_str (str): Function expression as a string.\n\nReturns:\n    Callable: A callable lambda function for numerical evaluation.\n\nExamples:\n    >>> f = safe_function_eval('x**2')\n    >>> f(3)\n    9\n    >>> f = safe_function_eval('x + x**2')\n    >>> f(2)\n    6"
-  [& _args]
-  ;; stub: original requires lambdify,symbols,sympify; pure-Clojure port not applicable
-  (throw (ex-info "requires lambdify,symbols,sympify" {:type :UnsupportedOperation})))
+;; A small safe parser for arithmetic in the variable x, standing in for
+;; sympy: numbers, x, pi, E, + - * / // % **, parentheses and single
+;; argument math functions, with Python operator precedence.
 
-(defn compute-table "Compute the table of function values based on the limits and accuracy.\n\nArgs:\n    func (Callable): The mathematical function as a callable.\n    lower_limit (float): The lower limit of the integral.\n    upper_limit (float): The upper limit of the integral.\n    acc (int): The number of subdivisions for accuracy.\n\nReturns:\n    Tuple[np.ndarray, float]: A tuple containing the table\n    of values and the step size (h).\n\nExample:\n    >>> compute_table(\n    ...     safe_function_eval('1/(1+x**2)'), 1, -1, 1\n    ... )\n    (array([0.5       , 0.69230769, 0.9       , 1.        , 0.9       ,\n           0.69230769, 0.5       ]), -0.3333333333333333)"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(def ^:private fn-table
+  "Single-argument math functions available in expressions."
+  {"sin" #(Math/sin ^double %)
+   "cos" #(Math/cos ^double %)
+   "tan" #(Math/tan ^double %)
+   "asin" #(Math/asin ^double %)
+   "acos" #(Math/acos ^double %)
+   "atan" #(Math/atan ^double %)
+   "exp" #(Math/exp ^double %)
+   "log" #(Math/log ^double %)
+   "log10" #(Math/log10 ^double %)
+   "sqrt" #(Math/sqrt ^double %)
+   "cbrt" #(Math/cbrt ^double %)
+   "abs" #(Math/abs ^double %)
+   "floor" #(Math/floor ^double %)
+   "ceil" #(Math/ceil ^double %)})
 
-(defn apply-weights "Apply Weddle's rule weights to the values in the table.\n\nArgs:\n    table (List[float]): A list of computed function values.\n\nReturns:\n    List[float]: A list of weighted values.\n\nExample:\n    >>> apply_weights([0.0, 0.866, 1.0, 0.866, 0.0, -0.866, -1.0])\n    [4.33, 1.0, 5.196, 0.0, -4.33]"
-  [table] (let [add (atom nil) i (atom nil)] (try (reset! add []) (doseq [__i1 (py-iter (range 1 (py-sub (count table) 1)))] (reset! i __i1) (if (py-truthy (let [__b2 (py-eq (py-mod @i 2) 0)] (if (py-truthy __b2) (not (py-eq (py-mod @i 3) 0)) __b2))) (do (swap! add conj (py-get table @i))) (do (if (py-truthy (let [__b3 (not (py-eq (py-mod @i 2) 0))] (if (py-truthy __b3) (not (py-eq (py-mod @i 3) 0)) __b3))) (do (swap! add conj (py-mul 5 (py-get table @i)))) (do (if (py-truthy (py-eq (py-mod @i 6) 0)) (do (swap! add conj (py-mul 2 (py-get table @i)))) (do (when (py-truthy (let [__b4 (py-eq (py-mod @i 3) 0)] (if (py-truthy __b4) (not (py-eq (py-mod @i 2) 0)) __b4))) (swap! add conj (py-mul 6 (py-get table @i))))))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @add})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- parse-failure
+  "Throw a :ValueError for an unparseable expression."
+  [func-str]
+  (throw (ex-info (str "could not parse expression: '" func-str "'")
+                  {:type :ValueError})))
 
-(defn compute-solution "Compute the final solution using the weighted values and table.\n\nArgs:\n    add (List[float]): A list of weighted values from apply_weights.\n    table (List[float]): A list of function values.\n    step_size (float): The step size calculated from the limits and accuracy.\n\nReturns:\n    float: The final computed integral solution.\n\nExample:\n    >>> compute_solution([4.33, 6.0, 0.0, -4.33], [0.0, 0.866, 1.0, 0.866, 0.0,\n    ... -0.866, -1.0], 0.5235983333333333)\n    0.7853975"
-  [add table step-size] (py-mul (py-mul 0.3 step-size) (py-add (py-add (reduce +' 0 add) (py-get table 0)) (py-get table (py-neg 1)))))
+(declare parse-expr parse-factor)
 
-;; NOTE: safe_function_eval stubbed (lambdify,symbols,sympify)
-;; NOTE: compute_table stubbed (np)
+(defn- tokenize
+  "Split the expression into a vector of tokens."
+  [func-str]
+  (let [n (count func-str)]
+    (loop [i 0
+           tokens []]
+      (if (>= i n)
+        tokens
+        (let [c (.charAt ^String func-str i)]
+          (cond
+            (Character/isWhitespace c)
+            (recur (inc i) tokens)
+
+            (or (Character/isDigit c)
+                (and (= c \.) (< (inc i) n)
+                     (Character/isDigit (.charAt ^String func-str (inc i)))))
+            (let [m (re-matcher #"\G(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+                                func-str)]
+              (.find m i)
+              (recur (.end m) (conj tokens [:num (Double/parseDouble (.group m))])))
+
+            (or (Character/isLetter c) (= c \_))
+            (let [m (re-matcher #"\G[A-Za-z_][A-Za-z0-9_]*" func-str)]
+              (.find m i)
+              (let [word (.group m)]
+                (recur (.end m)
+                       (conj tokens (cond (= word "x") :x
+                                          (= word "pi") [:const Math/PI]
+                                          (= word "E") [:const Math/E]
+                                          (contains? fn-table word) [:fn word]
+                                          :else (parse-failure func-str))))))
+
+            (and (= c \*) (< (inc i) n) (= (.charAt ^String func-str (inc i)) \*))
+            (recur (+ i 2) (conj tokens :pow))
+
+            (and (= c \/) (< (inc i) n) (= (.charAt ^String func-str (inc i)) \/))
+            (recur (+ i 2) (conj tokens :floordiv))
+
+            (= c \+) (recur (inc i) (conj tokens :+))
+            (= c \-) (recur (inc i) (conj tokens :-))
+            (= c \*) (recur (inc i) (conj tokens :*))
+            (= c \/) (recur (inc i) (conj tokens :/))
+            (= c \%) (recur (inc i) (conj tokens :%))
+            (= c \() (recur (inc i) (conj tokens :lparen))
+            (= c \)) (recur (inc i) (conj tokens :rparen))
+            :else (parse-failure func-str)))))))
+
+(defn- parse-primary
+  "Parse a number, x, constant, call, or parenthesized expression.
+  Returns [evaluator-fn next-index]."
+  [func-str toks i]
+  (let [t (nth toks i nil)]
+    (cond
+      (nil? t) (parse-failure func-str)
+      (= t :x) [(fn [x] (double x)) (inc i)]
+      (and (vector? t) (= (first t) :num)) [(constantly (second t)) (inc i)]
+      (and (vector? t) (= (first t) :const)) [(constantly (second t)) (inc i)]
+      (and (vector? t) (= (first t) :fn))
+      (let [g (get fn-table (second t))]
+        (when-not (= (nth toks (inc i) nil) :lparen)
+          (parse-failure func-str))
+        (let [[h j] (parse-expr func-str toks (+ i 2))]
+          (when-not (= (nth toks j nil) :rparen)
+            (parse-failure func-str))
+          [(fn [x] (g (h x))) (inc j)]))
+      (= t :lparen)
+      (let [[h j] (parse-expr func-str toks (inc i))]
+        (when-not (= (nth toks j nil) :rparen)
+          (parse-failure func-str))
+        [h (inc j)])
+      :else (parse-failure func-str))))
+
+(defn- parse-power
+  "Parse primary ['**' factor], right associative."
+  [func-str toks i]
+  (let [[f j] (parse-primary func-str toks i)]
+    (if (= (nth toks j nil) :pow)
+      (let [[g k] (parse-factor func-str toks (inc j))]
+        [(fn [x] (Math/pow (f x) (g x))) k])
+      [f j])))
+
+(defn- parse-factor
+  "Parse unary +/- or a power."
+  [func-str toks i]
+  (let [t (nth toks i nil)]
+    (cond (= t :-) (let [[f j] (parse-factor func-str toks (inc i))]
+                     [(fn [x] (- (f x))) j])
+          (= t :+) (parse-factor func-str toks (inc i))
+          :else (parse-power func-str toks i))))
+
+(defn- parse-term
+  "Parse factor (('*' | '/' | '//' | '%') factor)*."
+  [func-str toks i]
+  (let [[f j] (parse-factor func-str toks i)]
+    (loop [f f
+           j j]
+      (let [t (nth toks j nil)]
+        (cond
+          (= t :*) (let [[g k] (parse-factor func-str toks (inc j))]
+                     (recur (fn [x] (* (f x) (g x))) k))
+          (= t :/) (let [[g k] (parse-factor func-str toks (inc j))]
+                     (recur (fn [x] (/ (f x) (g x))) k))
+          (= t :floordiv) (let [[g k] (parse-factor func-str toks (inc j))]
+                            (recur (fn [x] (Math/floor (/ (f x) (g x)))) k))
+          (= t :%) (let [[g k] (parse-factor func-str toks (inc j))]
+                     (recur (fn [x]
+                              (let [a (f x)
+                                    b (g x)]
+                                (- a (* b (Math/floor (/ a b))))))
+                            k))
+          :else [f j])))))
+
+(defn- parse-expr
+  "Parse term (('+' | '-') term)*."
+  [func-str toks i]
+  (let [[f j] (parse-term func-str toks i)]
+    (loop [f f
+           j j]
+      (let [t (nth toks j nil)]
+        (cond
+          (= t :+) (let [[g k] (parse-term func-str toks (inc j))]
+                     (recur (fn [x] (+ (f x) (g x))) k))
+          (= t :-) (let [[g k] (parse-term func-str toks (inc j))]
+                     (recur (fn [x] (- (f x) (g x))) k))
+          :else [f j])))))
+
+(defn safe-function-eval
+  "Build a callable evaluator for an arithmetic expression in x.
+  Supports numbers, x, pi, E, + - * / // % **, parentheses and
+  single-argument math functions. Throws :ValueError when the
+  expression cannot be parsed."
+  [func-str]
+  (let [toks (tokenize func-str)
+        [f j] (if (empty? toks)
+                (parse-failure func-str)
+                (parse-expr func-str toks 0))]
+    (when-not (= j (count toks))
+      (parse-failure func-str))
+    f))
+
+(defn compute-table
+  "Evaluate func at acc * 6 + 1 evenly spaced points from lower-limit to
+  upper-limit. Returns [table step-size]."
+  [func lower-limit upper-limit acc]
+  (let [n-points (inc (* acc 6))
+        h (/ (- (double upper-limit) (double lower-limit)) (dec n-points))
+        xs (mapv (fn [i] (+ (double lower-limit) (* i h))) (range n-points))]
+    [(mapv (fn [x] (double (func x))) xs) h]))
+
+(defn apply-weights
+  "Apply Weddle's rule weights to the interior table values."
+  [table]
+  (loop [i 1
+         add []]
+    (if (>= i (dec (count table)))
+      add
+      (recur (inc i)
+             (conj add (cond (and (even? i) (not (zero? (mod i 3))))
+                             (nth table i)
+
+                             (and (odd? i) (not (zero? (mod i 3))))
+                             (* 5 (nth table i))
+
+                             (zero? (mod i 6))
+                             (* 2 (nth table i))
+
+                             :else
+                             (* 6 (nth table i))))))))
+
+(defn compute-solution
+  "Combine the weighted values, table endpoints and step size into the
+  final Weddle's rule integral estimate."
+  [add table step-size]
+  (* 0.3 step-size (+ (reduce + 0.0 add) (first table) (last table))))

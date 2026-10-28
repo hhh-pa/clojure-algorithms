@@ -1,8 +1,15 @@
 (ns clojure-algorithms.maths.weighted-average
-  "Port of maths/weighted_average.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/weighted_average.py")
 
-(declare weighted-average)
-
-(defn weighted-average "Return the weighted average of a list of values given their corresponding weights.\n\nhttps://en.wikipedia.org/wiki/Weighted_arithmetic_mean\n\n>>> weighted_average([1, 2, 3], [1, 1, 1])\n2.0\n>>> weighted_average([10, 20, 30], [1, 2, 3])\n23.333333333333332\n>>> weighted_average([5, 15], [1, 3])\n12.5\n>>> weighted_average([100], [0.5])\n100.0\n>>> weighted_average([], [])\nTraceback (most recent call last):\n    ...\nValueError: Inputs cannot be empty\n>>> weighted_average([1, 2], [1])\nTraceback (most recent call last):\n    ...\nValueError: Values and weights must have the same length\n>>> weighted_average([1, 2, 3], [0, 0, 0])\nTraceback (most recent call last):\n    ...\nValueError: Sum of weights cannot be zero"
-  [values weights] (let [total-weight (atom nil)] (try (when (py-truthy (not (py-truthy values))) (throw (ex-info (py-str "Inputs cannot be empty") {:type :ValueError}))) (when (py-truthy (not (py-eq (count values) (count weights)))) (throw (ex-info (py-str "Values and weights must have the same length") {:type :ValueError}))) (reset! total-weight (reduce +' 0 weights)) (when (py-truthy (py-eq @total-weight 0)) (throw (ex-info (py-str "Sum of weights cannot be zero") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (reduce +' 0 (doall (for [[value weight] (py-iter (map vector values weights))] (py-mul value weight)))) @total-weight)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn weighted-average
+  "Returns the weighted average of `values` given their corresponding
+  `weights`. See https://en.wikipedia.org/wiki/Weighted_arithmetic_mean"
+  [values weights]
+  (when (empty? values)
+    (throw (ex-info "Inputs cannot be empty" {:type :ValueError})))
+  (when (not= (count values) (count weights))
+    (throw (ex-info "Values and weights must have the same length" {:type :ValueError})))
+  (let [total (reduce + weights)]
+    (when (zero? total)
+      (throw (ex-info "Sum of weights cannot be zero" {:type :ValueError})))
+    (/ (double (reduce + (map * values weights))) total)))

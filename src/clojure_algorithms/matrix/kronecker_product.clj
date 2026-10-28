@@ -1,11 +1,22 @@
 (ns clojure-algorithms.matrix.kronecker-product
-  "Perform Kronecker product of two matrices.\nhttps://en.wikipedia.org/wiki/Kronecker_product"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Kronecker product of two matrices.
+  https://en.wikipedia.org/wiki/Kronecker_product")
 
-(declare is-2d kronecker-product)
+(defn is-2d
+  "True when matrix is a (possibly empty) sequence of sequences."
+  [matrix]
+  (boolean (and (sequential? matrix) (every? sequential? matrix))))
 
-(defn is-2d ">>> is_2d([])\nTrue\n>>> is_2d([1, 2])\nFalse\n>>> is_2d([[1, 2], [3, 4]])\nTrue"
-  [matrix] (every? py-truthy (let [__b1 (sequential? matrix)] (if (py-truthy __b1) (doall (for [i (py-iter matrix)] (sequential? i))) __b1))))
-
-(defn kronecker-product ":param matrix_a: A 2-D Matrix with dimension m x n\n:param matrix_b: Another 2-D Matrix with dimension p x q\n:return: Result of matrix_a ⊗ matrix_b\n:raises ValueError: If the matrices are not 2-D.\n\n>>> kronecker_product([[1, 2]], [[5, 6], [7, 8]])\n[[5, 6, 10, 12], [7, 8, 14, 16]]\n\n>>> kronecker_product([[1, 2], [4, 5]], [[5, 6], [7, 8]])\n[[5, 6, 10, 12], [7, 8, 14, 16], [20, 24, 25, 30], [28, 32, 35, 40]]\n\n>>> kronecker_product([1, 2], [[5, 6], [7, 8]])\nTraceback (most recent call last):\n    ...\nValueError: Input matrices must be 2-D."
-  [matrix-a matrix-b] (let [c-index-a (atom nil) c-index-b (atom nil) cols-matrix-a (atom nil) cols-matrix-b (atom nil) r-index-a (atom nil) r-index-b (atom nil) result (atom nil) rows-matrix-a (atom nil) rows-matrix-b (atom nil)] (try (when (py-truthy (not (py-truthy (every? py-truthy [(is-2d matrix-a) (is-2d matrix-b)])))) (throw (ex-info (py-str "Input matrices must be 2-D.") {:type :ValueError}))) (when (py-truthy (let [__b1 (not (py-truthy matrix-a))] (if (py-truthy __b1) __b1 (not (py-truthy matrix-b))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (let [__d2 (vec [(count matrix-a) (count (py-get matrix-a 0))])] (reset! rows-matrix-a (nth __d2 0)) (reset! cols-matrix-a (nth __d2 1))) (let [__d3 (vec [(count matrix-b) (count (py-get matrix-b 0))])] (reset! rows-matrix-b (nth __d3 0)) (reset! cols-matrix-b (nth __d3 1))) (reset! result (vec (for [--v (py-iter (range (py-mul @rows-matrix-a @rows-matrix-b)))] (py-mul [0] (py-mul @cols-matrix-a @cols-matrix-b))))) (doseq [__i4 (py-iter (range @rows-matrix-a))] (reset! r-index-a __i4) (doseq [__i5 (py-iter (range @cols-matrix-a))] (reset! c-index-a __i5) (doseq [__i6 (py-iter (range @rows-matrix-b))] (reset! r-index-b __i6) (doseq [__i7 (py-iter (range @cols-matrix-b))] (reset! c-index-b __i7) (swap! result (fn [__c] (py-assoc-in __c [(py-add (py-mul @r-index-a @rows-matrix-b) @r-index-b) (py-add (py-mul @c-index-a @cols-matrix-b) @c-index-b)] (py-mul (py-get (py-get matrix-a @r-index-a) @c-index-a) (py-get (py-get matrix-b @r-index-b) @c-index-b))))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn kronecker-product
+  "Returns the Kronecker product of matrix-a (m x n) and matrix-b (p x q)."
+  [matrix-a matrix-b]
+  (when-not (and (is-2d matrix-a) (is-2d matrix-b))
+    (throw (ex-info "Input matrices must be 2-D." {:type :ValueError})))
+  (if (or (empty? matrix-a) (empty? matrix-b))
+    []
+    (let [rows-a (count matrix-a) cols-a (count (first matrix-a))
+          rows-b (count matrix-b) cols-b (count (first matrix-b))]
+      (vec (for [ra (range rows-a) rb (range rows-b)]
+             (vec (for [ca (range cols-a) cb (range cols-b)]
+                    (* (get-in matrix-a [ra ca])
+                       (get-in matrix-b [rb cb])))))))))

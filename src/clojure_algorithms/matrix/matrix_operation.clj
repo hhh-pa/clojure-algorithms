@@ -1,48 +1,161 @@
 (ns clojure-algorithms.matrix.matrix-operation
-  "Functions for 2D matrix operations"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
-
-(declare add subtract scalar-multiply multiply identity transpose minor determinant permanent inverse -check-not-integer -shape -verify-matrix-sizes main)
-
-(defn add ">>> add([[1,2],[3,4]],[[2,3],[4,5]])\n[[3, 5], [7, 9]]\n>>> add([[1.2,2.4],[3,4]],[[2,3],[4,5]])\n[[3.2, 5.4], [7, 9]]\n>>> add([[1, 2], [4, 5]], [[3, 7], [3, 4]], [[3, 5], [5, 7]])\n[[7, 14], [12, 16]]\n>>> add([3], [4, 5])\nTraceback (most recent call last):\n  ...\nTypeError: Expected a matrix, got int/list instead"
-  [& matrix-s] (let [i (atom nil)] (try (when (py-truthy (every? py-truthy (doall (for [m (py-iter matrix-s)] (-check-not-integer m))))) (doseq [__i1 (py-iter (py-slice matrix-s 1 nil nil))] (reset! i __i1) (-verify-matrix-sizes (py-get matrix-s 0) @i)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [m (py-iter (apply map vector matrix-s))] (vec (for [t (py-iter (apply map vector m))] (reduce +' 0 t)))))}))) (throw (ex-info (py-str "Expected a matrix, got int/list instead") {:type :TypeError})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn subtract ">>> subtract([[1,2],[3,4]],[[2,3],[4,5]])\n[[-1, -1], [-1, -1]]\n>>> subtract([[1,2.5],[3,4]],[[2,3],[4,5.5]])\n[[-1, -0.5], [-1, -1.5]]\n>>> subtract([3], [4, 5])\nTraceback (most recent call last):\n  ...\nTypeError: Expected a matrix, got int/list instead"
-  [matrix-a matrix-b] (try (when (py-truthy (let [__b2 (-check-not-integer matrix-a)] (if (py-truthy __b2) (let [__b1 (-check-not-integer matrix-b)] (if (py-truthy __b1) (-verify-matrix-sizes matrix-a matrix-b) __b1)) __b2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [m (py-iter (map vector matrix-a matrix-b))] (vec (for [[i j] (py-iter (apply map vector m))] (py-sub i j)))))}))) (throw (ex-info (py-str "Expected a matrix, got int/list instead") {:type :TypeError})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-(defn scalar-multiply ">>> scalar_multiply([[1,2],[3,4]],5)\n[[5, 10], [15, 20]]\n>>> scalar_multiply([[1.4,2.3],[3,4]],5)\n[[7.0, 11.5], [15, 20]]"
-  [matrix n] (vec (for [row (py-iter matrix)] (vec (for [x (py-iter row)] (py-mul x n))))))
-
-(defn multiply ">>> multiply([[1,2],[3,4]],[[5,5],[7,5]])\n[[19, 15], [43, 35]]\n>>> multiply([[1,2.5],[3,4.5]],[[5,5],[7,5]])\n[[22.5, 17.5], [46.5, 37.5]]\n>>> multiply([[1, 2, 3]], [[2], [3], [4]])\n[[20]]"
-  [matrix-a matrix-b] (let [cols (atom nil) msg (atom nil) rows (atom nil)] (try (when (py-truthy (let [__b1 (-check-not-integer matrix-a)] (if (py-truthy __b1) (-check-not-integer matrix-b) __b1))) (let [__d2 (vec (-verify-matrix-sizes matrix-a matrix-b))] (reset! rows (nth __d2 0)) (reset! cols (nth __d2 1)))) (when (py-truthy (not (py-eq (py-get @cols 0) (py-get @rows 1)))) (reset! msg (str "Cannot multiply matrix of dimensions (" (py-str (py-get @rows 0)) "," (py-str (py-get @cols 0)) ") and (" (py-str (py-get @rows 1)) "," (py-str (py-get @cols 1)) ")")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [i (py-iter matrix-a)] (vec (for [j (py-iter (apply map vector matrix-b))] (reduce +' 0 (doall (for [[m n] (py-iter (map vector i j))] (py-mul m n))))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn identity ":param n: dimension for nxn matrix\n:type n: int\n:return: Identity matrix of shape [n, n]\n>>> identity(3)\n[[1, 0, 0], [0, 1, 0], [0, 0, 1]]"
-  [n] (let [n (atom n)] (try (reset! n (py-int @n nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [row (py-iter (range @n))] (vec (for [column (py-iter (range @n))] (py-int (py-eq row column) nil)))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn transpose ">>> transpose([[1,2],[3,4]]) # doctest: +ELLIPSIS\n<map object at ...\n>>> transpose([[1,2],[3,4]], return_map=False)\n[[1, 3], [2, 4]]\n>>> transpose([1, [2, 3]])\nTraceback (most recent call last):\n  ...\nTypeError: Expected a matrix, got int/list instead"
-  ([matrix] (transpose matrix true))
-  ([matrix return-map] (try (when (py-truthy (-check-not-integer matrix)) (if (py-truthy return-map) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (map py-list (apply map vector matrix))}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-list (map py-list (apply map vector matrix)))}))))) (throw (ex-info (py-str "Expected a matrix, got int/list instead") {:type :TypeError})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn minor ">>> minor([[1, 2], [3, 4]], 1, 1)\n[[1]]"
-  [matrix row column] (let [minor (atom nil)] (try (reset! minor (py-add (py-slice matrix nil row nil) (py-slice matrix (py-add row 1) nil nil))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [row (py-iter @minor)] (py-add (py-slice row nil column nil) (py-slice row (py-add column 1) nil nil))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn determinant ">>> determinant([[1, 2], [3, 4]])\n-2\n>>> determinant([[1.5, 2.5], [3, 4]])\n-1.5"
-  [matrix] (try (when (py-truthy (py-eq (count matrix) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get (py-get matrix 0) 0)}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reduce +' 0 (doall (for [[i x] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) (py-get matrix 0)))] (py-mul (py-mul x (determinant (minor matrix 0 i))) (py-pow (py-neg 1) i)))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-(defn permanent ">>> permanent([[1, 2], [3, 4]])\n10\n>>> permanent([[1.5, 2.5], [3, 4]])\n13.5"
-  [matrix] (try (when (py-truthy (py-eq (count matrix) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get (py-get matrix 0) 0)}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reduce +' 0 (doall (for [[i x] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) (py-get matrix 0)))] (py-mul x (permanent (minor matrix 0 i))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-(defn inverse ">>> inverse([[1, 2], [3, 4]])\n[[-2.0, 1.0], [1.5, -0.5]]\n>>> inverse([[1, 1], [1, 1]])"
-  [matrix] (let [adjugate (atom nil) cofactors (atom nil) det (atom nil) matrix-minor (atom nil)] (try (reset! det (determinant matrix)) (when (py-truthy (py-eq @det 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (reset! matrix-minor (vec (for [i (py-iter (range (count matrix)))] (vec (for [j (py-iter (range (count matrix)))] (determinant (minor matrix i j))))))) (reset! cofactors (vec (for [row (py-iter (range (count matrix)))] (vec (for [[col x] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) (py-get @matrix-minor row)))] (py-mul x (py-pow (py-neg 1) (py-add row col)))))))) (reset! adjugate (py-list (transpose @cofactors))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (scalar-multiply @adjugate (py-div 1 @det))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Functions for 2D matrix operations.")
 
 (defn -check-not-integer
-  [matrix] (let [__b1 (not (py-truthy (integer? matrix)))] (if (py-truthy __b1) (not (py-truthy (integer? (py-get matrix 0)))) __b1)))
+  "True when matrix looks like a matrix rather than an int."
+  [matrix]
+  (and (not (integer? matrix)) (not (integer? (first matrix)))))
 
 (defn -shape
-  [matrix] [(count matrix) (count (py-get matrix 0))])
+  "Returns [rows cols] of the matrix."
+  [matrix]
+  [(count matrix) (count (first matrix))])
 
 (defn -verify-matrix-sizes
-  [matrix-a matrix-b] (let [msg (atom nil) shape (atom nil)] (try (reset! shape (py-add (-shape matrix-a) (-shape matrix-b))) (when (py-truthy (let [__b1 (not (py-eq (py-get @shape 0) (py-get @shape 3)))] (if (py-truthy __b1) __b1 (not (py-eq (py-get @shape 1) (py-get @shape 2)))))) (reset! msg (str "operands could not be broadcast together with shape (" (py-str [(py-get @shape 0) (py-get @shape 1)]) "), (" (py-str [(py-get @shape 2) (py-get @shape 3)]) ")")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [[(py-get @shape 0) (py-get @shape 2)] [(py-get @shape 1) (py-get @shape 3)]]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Throws unless the two matrices have mutually transposed shapes.
+  Returns [[rows-a rows-b] [cols-a cols-b]]."
+  [matrix-a matrix-b]
+  (let [[r1 c1] (-shape matrix-a)
+        [r2 c2] (-shape matrix-b)]
+    (when (or (not= r1 c2) (not= c1 r2))
+      (throw (ex-info (str "operands could not be broadcast together with shape "
+                           "(" [r1 c1] "), (" [r2 c2] ")")
+                      {:type :ValueError})))
+    [[r1 r2] [c1 c2]]))
+
+(defn add
+  "Adds any number of matrices element by element."
+  [& matrix-s]
+  (if (every? -check-not-integer matrix-s)
+    (do
+      (doseq [m (rest matrix-s)]
+        (-verify-matrix-sizes (first matrix-s) m))
+      (reduce (fn [acc m]
+                (mapv (fn [ra rb] (mapv +' ra rb)) acc m))
+              matrix-s))
+    (throw (ex-info "Expected a matrix, got int/list instead"
+                    {:type :TypeError}))))
+
+(defn subtract
+  "Subtracts matrix-b from matrix-a element by element."
+  [matrix-a matrix-b]
+  (if (and (-check-not-integer matrix-a)
+           (-check-not-integer matrix-b)
+           (do (-verify-matrix-sizes matrix-a matrix-b) true))
+    (mapv (fn [ra rb] (mapv -' ra rb)) matrix-a matrix-b)
+    (throw (ex-info "Expected a matrix, got int/list instead"
+                    {:type :TypeError}))))
+
+(defn scalar-multiply
+  "Multiplies every element of matrix by n."
+  [matrix n]
+  (mapv (fn [row] (mapv (fn [x] (* x n)) row)) matrix))
+
+(defn multiply
+  "Multiplies matrix-a by matrix-b."
+  [matrix-a matrix-b]
+  (if (and (-check-not-integer matrix-a) (-check-not-integer matrix-b))
+    (let [[[r1 r2] [c1 c2]] (-verify-matrix-sizes matrix-a matrix-b)]
+      (when (not= c1 r2)
+        (throw (ex-info (str "Cannot multiply matrix of dimensions ("
+                             r1 "," c1 ") and (" r2 "," c2 ")")
+                        {:type :ValueError})))
+      (let [cols (apply map vector matrix-b)]
+        (mapv (fn [row]
+                (mapv (fn [col] (reduce +' 0 (map *' row col))) cols))
+              matrix-a)))
+    (throw (ex-info "Expected a matrix, got int/list instead"
+                    {:type :TypeError}))))
+
+(defn identity
+  "Returns the n x n identity matrix."
+  [n]
+  (let [n (long n)]
+    (mapv (fn [r] (mapv (fn [c] (if (= r c) 1 0)) (range n))) (range n))))
+
+(defn transpose
+  "Transposes the matrix. With return-map true (the default) returns a
+  lazy sequence of rows, mirroring Python's map object."
+  ([matrix] (transpose matrix true))
+  ([matrix return-map]
+   (if (-check-not-integer matrix)
+     (let [t (apply map vector matrix)]
+       (if return-map
+         (map vec t)
+         (mapv vec t)))
+     (throw (ex-info "Expected a matrix, got int/list instead"
+                     {:type :TypeError})))))
+
+(defn minor
+  "Returns the matrix with row and column removed."
+  [matrix row column]
+  (let [rows (vec matrix)
+        kept (vec (concat (subvec rows 0 row) (subvec rows (inc row))))]
+    (mapv (fn [r]
+            (let [r (vec r)]
+              (vec (concat (subvec r 0 column) (subvec r (inc column))))))
+          kept)))
+
+(defn determinant
+  "Returns the determinant via cofactor expansion along the first row."
+  [matrix]
+  (if (= 1 (count matrix))
+    (get-in matrix [0 0])
+    (reduce +'
+            0
+            (map-indexed (fn [i x]
+                           (*' x
+                               (determinant (minor matrix 0 i))
+                               (if (odd? i) -1 1)))
+                         (first matrix)))))
+
+(defn permanent
+  "Returns the permanent, like the determinant but all signs positive."
+  [matrix]
+  (if (= 1 (count matrix))
+    (get-in matrix [0 0])
+    (reduce +'
+            0
+            (map-indexed (fn [i x] (*' x (permanent (minor matrix 0 i))))
+                         (first matrix)))))
+
+(defn inverse
+  "Returns the inverse matrix, or nil when the matrix is singular."
+  [matrix]
+  (let [det (determinant matrix)]
+    (when-not (zero? det)
+      (let [n (count matrix)
+            minors (mapv (fn [i]
+                           (mapv (fn [j] (determinant (minor matrix i j)))
+                                 (range n)))
+                         (range n))
+            cofactors (mapv (fn [i row]
+                              (mapv (fn [j x]
+                                      (*' x (if (odd? (+ i j)) -1 1)))
+                                    (range)
+                                    row))
+                            (range)
+                            minors)
+            adjugate (transpose cofactors false)]
+        (scalar-multiply adjugate (/ 1.0 det))))))
 
 (defn main
-  [] (let [matrix-a (atom nil) matrix-b (atom nil) matrix-c (atom nil) matrix-d (atom nil)] (reset! matrix-a [[12 10] [3 9]]) (reset! matrix-b [[3 4] [7 4]]) (reset! matrix-c [[11 12 13 14] [21 22 23 24] [31 32 33 34] [41 42 43 44]]) (reset! matrix-d [[3 0 2] [2 0 (py-neg 2)] [0 1 1]]) (println (clojure.string/join " " [(py-str (str "Add Operation, add(matrix_a, matrix_b) = " (py-str (pr-str (add @matrix-a @matrix-b))) " \n"))])) (println (clojure.string/join " " [(py-str (str "Multiply Operation, multiply(matrix_a, matrix_b) = " (py-str (pr-str (multiply @matrix-a @matrix-b))) " \n"))])) (println (clojure.string/join " " [(py-str (str "Identity: " (py-str (identity 5)) "\n"))])) (println (clojure.string/join " " [(py-str (str "Minor of " (py-str @matrix-c) " = " (py-str (minor @matrix-c 1 2)) " \n"))])) (println (clojure.string/join " " [(py-str (str "Determinant of " (py-str @matrix-b) " = " (py-str (determinant @matrix-b)) " \n"))])) (println (clojure.string/join " " [(py-str (str "Permanent of " (py-str @matrix-b) " = " (py-str (permanent @matrix-b)) " \n"))])) (println (clojure.string/join " " [(py-str (str "Inverse of " (py-str @matrix-d) " = " (py-str (inverse @matrix-d)) "\n"))])) nil))
+  "Demonstrates the matrix operations."
+  []
+  (let [matrix-a [[12 10] [3 9]]
+        matrix-b [[3 4] [7 4]]
+        matrix-c [[11 12 13 14] [21 22 23 24] [31 32 33 34] [41 42 43 44]]
+        matrix-d [[3 0 2] [2 0 -2] [0 1 1]]]
+    (println (str "Add Operation, add(matrix_a, matrix_b) = "
+                  (pr-str (add matrix-a matrix-b)) " \n"))
+    (println (str "Multiply Operation, multiply(matrix_a, matrix_b) = "
+                  (pr-str (multiply matrix-a matrix-b)) " \n"))
+    (println (str "Identity: " (pr-str (identity 5)) "\n"))
+    (println (str "Minor of " (pr-str matrix-c) " = "
+                  (pr-str (minor matrix-c 1 2)) " \n"))
+    (println (str "Determinant of " (pr-str matrix-b) " = "
+                  (determinant matrix-b) " \n"))
+    (println (str "Permanent of " (pr-str matrix-b) " = "
+                  (permanent matrix-b) " \n"))
+    (println (str "Inverse of " (pr-str matrix-d) " = "
+                  (pr-str (inverse matrix-d)) "\n"))))

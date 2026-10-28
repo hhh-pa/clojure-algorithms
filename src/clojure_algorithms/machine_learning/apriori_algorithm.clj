@@ -1,14 +1,85 @@
 (ns clojure-algorithms.machine-learning.apriori-algorithm
-  "Apriori Algorithm is a Association rule mining technique, also known as market basket\nanalysis, aims to discover interesting relationships or associations among a set of\nitems in a transactional or relational database.\n\nFor example, Apriori Algorithm states: \"If a customer buys item A and item B, then they\nare likely to buy item C.\"  This rule suggests a relationship between items A, B, and C,\nindicating that customers who purchased A and B are more likely to also purchase item C.\n\nWIKI: https://en.wikipedia.org/wiki/Apriori_algorithm\nExamples: https://www.kaggle.com/code/earthian/apriori-association-rules-mining"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Apriori association-rule mining (market basket analysis): discover
+  relationships such as \"customers who buy A and B also buy C\" among
+  items in a transaction database.
 
-(declare load-data prune apriori)
+  Reference: https://en.wikipedia.org/wiki/Apriori_algorithm")
 
-(defn load-data "Returns a sample transaction dataset.\n\n>>> load_data()\n[['milk'], ['milk', 'butter'], ['milk', 'bread'], ['milk', 'bread', 'chips']]"
-  [] [["milk"] ["milk" "butter"] ["milk" "bread"] ["milk" "bread" "chips"]])
+(defn load-data
+  "Sample transaction dataset."
+  []
+  [["milk"] ["milk" "butter"] ["milk" "bread"] ["milk" "bread" "chips"]])
 
-(defn prune "Prune candidate itemsets that are not frequent.\nThe goal of pruning is to filter out candidate itemsets that are not frequent.  This\nis done by checking if all the (k-1) subsets of a candidate itemset are present in\nthe frequent itemsets of the previous iteration (valid subsequences of the frequent\nitemsets from the previous iteration).\n\nPrunes candidate itemsets that are not frequent.\n\n>>> itemset = ['X', 'Y', 'Z']\n>>> candidates = [['X', 'Y'], ['X', 'Z'], ['Y', 'Z']]\n>>> prune(itemset, candidates, 2)\n[['X', 'Y'], ['X', 'Z'], ['Y', 'Z']]\n\n>>> itemset = ['1', '2', '3', '4']\n>>> candidates = ['1', '2', '4']\n>>> prune(itemset, candidates, 3)\n[]"
-  [itemset candidates length] (let [candidate (atom nil) is-subsequence (atom nil) item (atom nil) item-tuple (atom nil) itemset-counter (atom nil) pruned (atom nil)] (try (reset! itemset-counter (py-counter (doall (for [item (py-iter itemset)] (py-list item))))) (reset! pruned []) (doseq [__i1 (py-iter candidates)] (reset! candidate __i1) (reset! is-subsequence true) (try (doseq [__i2 (py-iter @candidate)] (reset! item __i2) (reset! item-tuple (py-list @item)) (when (py-truthy (let [__b3 (not (py-in @item-tuple @itemset-counter))] (if (py-truthy __b3) __b3 (py-lt (py-ddget @itemset-counter @item-tuple 0) (py-sub length 1))))) (reset! is-subsequence false) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (when (py-truthy @is-subsequence) (swap! pruned conj @candidate))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @pruned})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- tuple-key
+  "Python tuple() of an item: vectors stay vectors, strings become a vector
+  of their characters, matching tuple(item) on both levels."
+  [x]
+  (if (sequential? x) (vec x) (mapv str (seq (str x)))))
 
-(defn apriori "Returns a list of frequent itemsets and their support counts.\n\n>>> data = [['A', 'B', 'C'], ['A', 'B'], ['A', 'C'], ['A', 'D'], ['B', 'C']]\n>>> apriori(data, 2)\n[(['A', 'B'], 1), (['A', 'C'], 2), (['B', 'C'], 2)]\n\n>>> data = [['1', '2', '3'], ['1', '2'], ['1', '3'], ['1', '4'], ['2', '3']]\n>>> apriori(data, 3)\n[]"
-  [data min-support] (let [candidate (atom nil) counts (atom nil) frequent-itemsets (atom nil) i (atom nil) item (atom nil) itemset (atom nil) j (atom nil) length (atom nil) transaction (atom nil)] (try (reset! itemset (vec (for [transaction (py-iter data)] (py-list transaction)))) (reset! frequent-itemsets []) (reset! length 1) (while (py-truthy @itemset) (reset! counts (py-mul [0] (count @itemset))) (doseq [__i1 (py-iter data)] (reset! transaction __i1) (doseq [[__i2 __i3] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) @itemset))] (reset! j __i2) (reset! candidate __i3) (when (py-truthy (every? py-truthy (doall (for [item (py-iter @candidate)] (py-in item @transaction))))) (swap! counts (fn [__c] (py-assoc-in __c [@j] (py-add (py-get-in __c [@j]) 1))))))) (reset! itemset (vec (for [[i item] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) @itemset)) :when (py-truthy (py-ge (py-get @counts i) min-support))] item))) (doseq [[__i4 __i5] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) @itemset))] (reset! i __i4) (reset! item __i5) (swap! frequent-itemsets conj [(py-sorted @item) (py-get @counts @i)])) (swap! length py-add 1) (reset! itemset (prune @itemset (py-list (py-combinations @itemset @length)) @length))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @frequent-itemsets})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- candidate-items
+  "Elements of a candidate: vectors iterate directly, strings iterate by
+  character, matching Python's for-in semantics."
+  [candidate]
+  (if (sequential? candidate) candidate (map str (seq (str candidate)))))
+
+(defn prune
+  "Keep candidates whose every item-tuple is frequent in itemset (count of at
+  least length - 1).
+
+  >>> (prune [\"X\" \"Y\" \"Z\"] [[\"X\" \"Y\"] [\"X\" \"Z\"] [\"Y\" \"Z\"]] 2)
+  [[\"X\" \"Y\"] [\"X\" \"Z\"] [\"Y\" \"Z\"]]"
+  [itemset candidates length]
+  (let [counter (frequencies (map tuple-key itemset))]
+    (vec (filter (fn [candidate]
+                   (every? (fn [item]
+                             (let [k (tuple-key item)]
+                               (and (contains? counter k)
+                                    (>= (get counter k) (dec length)))))
+                           (candidate-items candidate)))
+                 candidates))))
+
+(defn- combinations
+  "All k-combinations of coll in index order (like itertools.combinations)."
+  [coll k]
+  (let [v (vec coll)
+        n (count v)]
+    (cond (<= k 0) [[]]
+          (> k n) []
+          :else (vec (mapcat (fn [i]
+                               (map #(into [(nth v i)] %)
+                                    (combinations (subvec v (inc i)) (dec k))))
+                             (range 0 (inc (- n k))))))))
+
+(defn apriori
+  "Frequent itemsets of data with support >= min-support, as
+  [sorted-itemset support] pairs.
+
+  NOTE: support counts are read back with the filtered indices, exactly as
+  the upstream implementation does (it enumerates the pruned itemset while
+  indexing the pre-pruning counts), so counts for pruned-away neighbours
+  shift positions. This quirk is preserved for behaviour parity:
+  >>> (apriori [[\"A\" \"B\" \"C\"] [\"A\" \"B\"] [\"A\" \"C\"] [\"A\" \"D\"] [\"B\" \"C\"]] 2)
+  [[[\"A\" \"B\"] 1] [[\"A\" \"C\"] 2] [[\"B\" \"C\"] 2]]"
+  [data min-support]
+  (loop [itemset (mapv vec data)
+         frequent []
+         length 1]
+    (if (empty? itemset)
+      frequent
+      (let [counts (mapv (fn [candidate]
+                           (count (filter (fn [transaction]
+                                            (every? #(some #{%} transaction)
+                                                    candidate))
+                                          data)))
+                         itemset)
+            kept (vec (keep-indexed (fn [i item]
+                                      (when (>= (nth counts i) min-support) item))
+                                    itemset))
+            frequent (into frequent
+                           (map-indexed (fn [i item]
+                                          [(vec (sort item)) (nth counts i)])
+                                        kept))
+            length (inc length)]
+        (recur (prune kept (combinations kept length) length)
+               frequent
+               length)))))

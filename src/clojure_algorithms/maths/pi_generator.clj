@@ -1,15 +1,38 @@
 (ns clojure-algorithms.maths.pi-generator
-  "Port of maths/pi_generator.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Pi digit generation via the Leibniz-formula spigot algorithm.")
 
-(declare calculate-pi main)
+(defn- floordiv
+  "Integer division rounding toward negative infinity."
+  [a b]
+  (let [q (quot a b)
+        r (rem a b)]
+    (if (or (zero? r) (= (neg? a) (neg? b))) q (dec q))))
 
-(defn calculate-pi "https://en.wikipedia.org/wiki/Leibniz_formula_for_%CF%80\nLeibniz Formula for Pi\n\nThe Leibniz formula is the special case arctan(1) = pi / 4.\nLeibniz's formula converges extremely slowly: it exhibits sublinear convergence.\n\nConvergence (https://en.wikipedia.org/wiki/Leibniz_formula_for_%CF%80#Convergence)\n\nWe cannot try to prove against an interrupted, uncompleted generation.\nhttps://en.wikipedia.org/wiki/Leibniz_formula_for_%CF%80#Unusual_behaviour\nThe errors can in fact be predicted, but those calculations also approach infinity\nfor accuracy.\n\nOur output will be a string so that we can definitely store all digits.\n\n>>> import math\n>>> float(calculate_pi(15)) == math.pi\nTrue\n\nSince we cannot predict errors or interrupt any infinite alternating series\ngeneration since they approach infinity, or interrupt any alternating series, we'll\nneed math.isclose()\n\n>>> math.isclose(float(calculate_pi(50)), math.pi)\nTrue\n>>> math.isclose(float(calculate_pi(100)), math.pi)\nTrue\n\nSince math.pi contains only 16 digits, here are some tests with known values:\n\n>>> calculate_pi(50)\n'3.14159265358979323846264338327950288419716939937510'\n>>> calculate_pi(80)\n'3.14159265358979323846264338327950288419716939937510582097494459230781640628620899'"
-  [limit] (let [counter (atom nil) decimal (atom nil) k (atom nil) m (atom nil) n (atom nil) nn (atom nil) nr (atom nil) q (atom nil) r (atom nil) result (atom nil) t (atom nil)] (try (reset! q 1) (reset! r 0) (reset! t 1) (reset! k 1) (reset! n 3) (reset! m 3) (reset! decimal limit) (reset! counter 0) (reset! result "") (try (while (py-truthy (not (py-eq @counter (py-add @decimal 1)))) (if (py-truthy (py-lt (py-sub (py-add (py-mul 4 @q) @r) @t) (py-mul @n @t))) (do (swap! result py-add (py-str @n)) (when (py-truthy (py-eq @counter 0)) (swap! result py-add ".")) (when (py-truthy (py-eq @decimal @counter)) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (swap! counter py-add 1) (reset! nr (py-mul 10 (py-sub @r (py-mul @n @t)))) (reset! n (py-sub (py-floordiv (py-mul 10 (py-add (py-mul 3 @q) @r)) @t) (py-mul 10 @n))) (swap! q py-mul 10) (reset! r @nr)) (do (reset! nr (py-mul (py-add (py-mul 2 @q) @r) @m)) (reset! nn (py-floordiv (py-add (py-add (py-mul @q (py-mul 7 @k)) 2) (py-mul @r @m)) (py-mul @t @m))) (swap! q py-mul @k) (swap! t py-mul @m) (swap! m py-add 2) (swap! k py-add 1) (reset! n @nn) (reset! r @nr)))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn calculate-pi
+  "Return pi as a string with limit digits after the decimal point."
+  [limit]
+  (loop [q 1
+         r 0
+         t 1
+         k 1
+         n 3
+         m 3
+         counter 0
+         result ""]
+    (if (= counter (inc limit))
+      result
+      (if (< (-' (+' (*' 4 q) r) t) (*' n t))
+        (let [result (cond-> (str result n) (zero? counter) (str "."))]
+          (if (= limit counter)
+            result
+            (let [nr (*' 10 (-' r (*' n t)))
+                  nn (-' (floordiv (*' 10 (+' (*' 3 q) r)) t) (*' 10 n))]
+              (recur (*' q 10) nr t k nn m (inc counter) result))))
+        (let [nr (*' (+' (*' 2 q) r) m)
+              nn (floordiv (+' (*' q (*' 7 k)) 2 (*' r m)) (*' t m))]
+          (recur (*' q k) nr (*' t m) (inc k) nn (+ m 2) counter result))))))
 
 (defn main
-  [& _args]
-  ;; stub: original requires method .testmod; pure-Clojure port not applicable
-  (throw (ex-info "requires method .testmod" {:type :UnsupportedOperation})))
-
-;; NOTE: main stubbed (method .testmod)
+  []
+  (println (str "calculate_pi(50) = '" (calculate-pi 50) "'"))
+  nil)

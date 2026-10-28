@@ -1,8 +1,21 @@
 (ns clojure-algorithms.maths.special-numbers.evil-number
-  "== Evil Number ==\nAn evil number is a non-negative integer that has an even number of 1s in its\nbinary expansion. Numbers that are not evil are called odious numbers.\n\nExamples of evil numbers: 0, 3, 5, 6, 9, 10, 12, 15, 17, 18, 20, 23, 24, 27, ...\nReference: https://en.wikipedia.org/wiki/Evil_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Evil Number ==
+An evil number is a non-negative integer that has an even number of 1s in its
+binary expansion. Numbers that are not evil are called odious numbers.
 
-(declare is-evil-number)
+Examples of evil numbers: 0, 3, 5, 6, 9, 10, 12, 15, 17, 18, 20, 23, 24, 27, ...
+Reference: https://en.wikipedia.org/wiki/Evil_number")
 
-(defn is-evil-number "Check if a given number is an evil number.\n\nA non-negative integer is evil if the sum of its binary digits (its Hamming weight)\nis even.\n\n:param number: A non-negative integer.\n:return: True if number is an evil number, False otherwise.\n\n>>> is_evil_number(0)\nTrue\n>>> is_evil_number(3)\nTrue\n>>> is_evil_number(5)\nTrue\n>>> is_evil_number(6)\nTrue\n>>> is_evil_number(9)\nTrue\n>>> is_evil_number(1)\nFalse\n>>> is_evil_number(2)\nFalse\n>>> is_evil_number(4)\nFalse\n>>> is_evil_number(7)\nFalse\n>>> is_evil_number(8)\nFalse\n>>> is_evil_number(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a non-negative integer\n>>> is_evil_number(5.5)\nTraceback (most recent call last):\n    ...\nTypeError: Input must be an integer"
-  [number] (let [count-v (atom nil) temp (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (throw (ex-info (py-str "Input must be an integer") {:type :TypeError}))) (when (py-truthy (py-lt number 0)) (throw (ex-info (py-str "Input must be a non-negative integer") {:type :ValueError}))) (reset! count-v 0) (reset! temp number) (while (py-truthy (py-gt @temp 0)) (when (py-truthy (py-eq (py-mod @temp 2) 1)) (swap! count-v py-add 1)) (reset! temp (py-floordiv @temp 2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq (py-mod @count-v 2) 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-evil-number
+  "Returns true if `number` is evil, i.e. its binary expansion contains an
+even number of 1s. Throws an ex-info with :type :TypeError when `number` is
+not an integer, and :type :ValueError when it is negative."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info "Input must be an integer" {:type :TypeError})))
+  (when (neg? number)
+    (throw (ex-info "Input must be a non-negative integer" {:type :ValueError})))
+  (loop [temp number, ones 0]
+    (if (zero? temp)
+      (even? ones)
+      (recur (quot temp 2) (if (odd? temp) (inc ones) ones)))))

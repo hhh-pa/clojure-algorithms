@@ -1,8 +1,28 @@
 (ns clojure-algorithms.maths.sieve-of-eratosthenes
-  "Sieve of Eratosthones\n\nThe sieve of Eratosthenes is an algorithm used to find prime numbers, less than or\nequal to a given value.\nIllustration:\nhttps://upload.wikimedia.org/wikipedia/commons/b/b9/Sieve_of_Eratosthenes_animation.gif\nReference: https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes\n\ndoctest provider: Bruno Simas Hadlich (https://github.com/brunohadlich)\nAlso thanks to Dmitry (https://github.com/LizardWizzard) for finding the problem"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Sieve of Eratosthones
 
-(declare prime-sieve)
+  The sieve of Eratosthenes is an algorithm used to find prime numbers, less
+  than or equal to a given value.
+  Illustration:
+  https://upload.wikimedia.org/wikipedia/commons/b/b9/Sieve_of_Eratosthenes_animation.gif
+  Reference: https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
 
-(defn prime-sieve "Returns a list with all prime numbers up to n.\n\n>>> prime_sieve(50)\n[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]\n>>> prime_sieve(25)\n[2, 3, 5, 7, 11, 13, 17, 19, 23]\n>>> prime_sieve(10)\n[2, 3, 5, 7]\n>>> prime_sieve(9)\n[2, 3, 5, 7]\n>>> prime_sieve(2)\n[2]\n>>> prime_sieve(1)\n[]"
-  [num] (let [end (atom nil) i (atom nil) j (atom nil) msg (atom nil) prime (atom nil) sieve (atom nil) start (atom nil)] (try (when (py-truthy (py-le num 0)) (reset! msg (str (py-str num) ": Invalid input, please enter a positive integer.")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! sieve (py-mul [true] (py-add num 1))) (reset! prime []) (reset! start 2) (reset! end (py-int (Math/sqrt num) nil)) (while (py-truthy (py-le @start @end)) (when (py-truthy (identical? (py-get @sieve @start) true)) (swap! prime conj @start) (doseq [__i1 (py-iter (range (py-mul @start @start) (py-add num 1) @start))] (reset! i __i1) (when (py-truthy (identical? (py-get @sieve @i) true)) (swap! sieve (fn [__c] (py-assoc-in __c [@i] false)))))) (swap! start py-add 1)) (doseq [__i2 (py-iter (range (py-add @end 1) (py-add num 1)))] (reset! j __i2) (when (py-truthy (identical? (py-get @sieve @j) true)) (swap! prime conj @j))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @prime})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  doctest provider: Bruno Simas Hadlich (https://github.com/brunohadlich)
+  Also thanks to Dmitry (https://github.com/LizardWizzard) for finding the problem")
+
+(defn prime-sieve
+  "Returns a list with all prime numbers up to n."
+  [num]
+  (when (<= num 0)
+    (throw (ex-info (str num ": Invalid input, please enter a positive integer.")
+                    {:type :ValueError})))
+  (let [sieve (boolean-array (inc num) true)
+        end (int (Math/sqrt num))]
+    (loop [start 2 primes []]
+      (if (> start end)
+        (into primes (filter #(aget sieve %) (range (inc end) (inc num))))
+        (if (aget sieve start)
+          (do (doseq [i (range (* start start) (inc num) start)]
+                (aset sieve i false))
+              (recur (inc start) (conj primes start)))
+          (recur (inc start) primes))))))

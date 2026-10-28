@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.persistence-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.persistence :as sut]))
 
 (deftest test-fn-multiplicative-persistence-examples

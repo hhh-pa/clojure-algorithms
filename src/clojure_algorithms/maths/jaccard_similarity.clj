@@ -1,9 +1,34 @@
 (ns clojure-algorithms.maths.jaccard-similarity
-  "The Jaccard similarity coefficient is a commonly used indicator of the\nsimilarity between two sets. Let U be a set and A and B be subsets of U,\nthen the Jaccard index/similarity is defined to be the ratio of the number\nof elements of their intersection and the number of elements of their union.\n\nInspired from Wikipedia and\nthe book Mining of Massive Datasets [MMDS 2nd Edition, Chapter 3]\n\nhttps://en.wikipedia.org/wiki/Jaccard_index\nhttps://mmds.org\n\nJaccard similarity is widely used with MinHashing."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "The Jaccard similarity coefficient is a commonly used indicator of the
+  similarity between two sets. Let U be a set and A and B be subsets of U,
+  then the Jaccard index/similarity is defined to be the ratio of the number
+  of elements of their intersection and the number of elements of their union.
 
-(declare jaccard-similarity)
+  https://en.wikipedia.org/wiki/Jaccard_index"
+  (:require [clojure.set :as set]))
 
-(defn jaccard-similarity "Finds the jaccard similarity between two sets.\nEssentially, its intersection over union.\n\nThe alternative way to calculate this is to take union as sum of the\nnumber of items in the two sets. This will lead to jaccard similarity\nof a set with itself be 1/2 instead of 1. [MMDS 2nd Edition, Page 77]\n\nParameters:\n    :set_a (set,list,tuple): A non-empty set/list\n    :set_b (set,list,tuple): A non-empty set/list\n    :alternativeUnion (boolean): If True, use sum of number of\n    items as union\n\nOutput:\n    (float) The jaccard similarity between the two sets.\n\nExamples:\n>>> set_a = {'a', 'b', 'c', 'd', 'e'}\n>>> set_b = {'c', 'd', 'e', 'f', 'h', 'i'}\n>>> jaccard_similarity(set_a, set_b)\n0.375\n>>> jaccard_similarity(set_a, set_a)\n1.0\n>>> jaccard_similarity(set_a, set_a, True)\n0.5\n>>> set_a = ['a', 'b', 'c', 'd', 'e']\n>>> set_b = ('c', 'd', 'e', 'f', 'h', 'i')\n>>> jaccard_similarity(set_a, set_b)\n0.375\n>>> set_a = ('c', 'd', 'e', 'f', 'h', 'i')\n>>> set_b = ['a', 'b', 'c', 'd', 'e']\n>>> jaccard_similarity(set_a, set_b)\n0.375\n>>> set_a = ('c', 'd', 'e', 'f', 'h', 'i')\n>>> set_b = ['a', 'b', 'c', 'd']\n>>> jaccard_similarity(set_a, set_b, True)\n0.2\n>>> set_a = {'a', 'b'}\n>>> set_b = ['c', 'd']\n>>> jaccard_similarity(set_a, set_b)\nTraceback (most recent call last):\n    ...\nValueError: Set a and b must either both be sets or be either a list or a tuple."
+(defn jaccard-similarity
+  "Returns the Jaccard similarity (intersection over union) of `set-a` and
+  `set-b`, which must either both be sets or both be sequential collections.
+  When `alternative-union` is true, the union is taken as the sum of the
+  item counts instead."
   ([set-a set-b] (jaccard-similarity set-a set-b false))
-  ([set-a set-b alternative-union] (let [set-a (atom set-a)] (let [intersection (atom nil) intersection-length (atom nil) union (atom nil) union-length (atom nil)] (try (if (py-truthy (let [__b1 (set? @set-a)] (if (py-truthy __b1) (set? set-b) __b1))) (do (reset! intersection-length (count (clojure.set/intersection (set @set-a) (set set-b)))) (if (py-truthy alternative-union) (do (reset! union-length (py-add (count @set-a) (count set-b)))) (do (reset! union-length (count (clojure.set/union (set @set-a) (set set-b)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div @intersection-length @union-length)}))) (do (when (py-truthy (let [__b3 (let [__b2 (sequential? @set-a)] (if (py-truthy __b2) __b2 (sequential? @set-a)))] (if (py-truthy __b3) (or (sequential? set-b) (sequential? set-b)) __b3))) (reset! intersection (vec (for [element (py-iter @set-a) :when (py-truthy (py-in element set-b))] element))) (if (py-truthy alternative-union) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (count @intersection) (py-add (count @set-a) (count set-b)))}))) (do (reset! union (py-add (py-list @set-a) (vec (for [element (py-iter set-b) :when (py-truthy (not (py-in element @set-a)))] element)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (count @intersection) (count @union))}))))))) (throw (ex-info (py-str "Set a and b must either both be sets or be either a list or a tuple.") {:type :ValueError})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([set-a set-b alternative-union]
+   (cond
+     (and (set? set-a) (set? set-b))
+     (let [inter (count (set/intersection set-a set-b))
+           union (if alternative-union
+                   (+ (count set-a) (count set-b))
+                   (count (set/union set-a set-b)))]
+       (/ (double inter) union))
+     (and (sequential? set-a) (sequential? set-b))
+     (let [inter (count (filter #(boolean (some #{%} set-b)) set-a))]
+       (if alternative-union
+         (/ (double inter) (+ (count set-a) (count set-b)))
+         (let [union (+ (count set-a)
+                        (count (remove #(boolean (some #{%} set-a)) set-b)))]
+           (/ (double inter) union))))
+     :else
+     (throw (ex-info (str "Set a and b must either both be sets or be either "
+                          "a list or a tuple.")
+                     {:type :ValueError})))))

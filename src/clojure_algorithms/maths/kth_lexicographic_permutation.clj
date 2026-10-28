@@ -1,8 +1,19 @@
 (ns clojure-algorithms.maths.kth-lexicographic-permutation
-  "Port of maths/kth_lexicographic_permutation.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Port of maths/kth_lexicographic_permutation.py")
 
-(declare kth-permutation)
-
-(defn kth-permutation "Finds k'th lexicographic permutation (in increasing order) of\n0,1,2,...n-1 in O(n^2) time.\n\nExamples:\nFirst permutation is always 0,1,2,...n\n>>> kth_permutation(0,5)\n[0, 1, 2, 3, 4]\n\nThe order of permutation of 0,1,2,3 is [0,1,2,3], [0,1,3,2], [0,2,1,3],\n[0,2,3,1], [0,3,1,2], [0,3,2,1], [1,0,2,3], [1,0,3,2], [1,2,0,3],\n[1,2,3,0], [1,3,0,2]\n>>> kth_permutation(10,4)\n[1, 3, 0, 2]"
-  [k n] (let [k (atom k)] (let [elements (atom nil) factorial (atom nil) factorials (atom nil) i (atom nil) number (atom nil) permutation (atom nil)] (try (reset! factorials [1]) (doseq [__i1 (py-iter (range 2 n))] (reset! i __i1) (swap! factorials conj (py-mul (py-get @factorials (py-neg 1)) @i))) (assert (py-truthy (let [__c2 0 __c3 @k __c4 (py-mul (py-get @factorials (py-neg 1)) n)] (and (py-le __c2 __c3) (py-lt __c3 __c4)))) (py-str "k out of bounds")) (reset! permutation []) (reset! elements (py-list (range n))) (while (py-truthy @factorials) (let [__p5 (py-pop2 @factorials nil)] (reset! factorials (second __p5)) (reset! factorial (first __p5))) (let [__d6 (vec [(py-floordiv @k @factorial) (py-mod @k @factorial)])] (reset! number (nth __d6 0)) (reset! k (nth __d6 1))) (swap! permutation conj (py-get @elements @number)) (swap! elements py-remove-first (py-get @elements @number))) (swap! permutation conj (py-get @elements 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @permutation})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn kth-permutation
+  "Returns the k'th lexicographic permutation (in increasing order, 0-based)
+  of 0,1,2,...n-1 in O(n^2) time."
+  [k n]
+  (let [factorials (vec (reductions *' 1 (range 2 n)))]
+    (assert (and (<= 0 k) (< k (* (peek factorials) n))) "k out of bounds")
+    (loop [k k, facts (rseq factorials), elems (vec (range n)), perm []]
+      (if (empty? facts)
+        (conj perm (first elems))
+        (let [f (first facts)
+              q (quot k f)
+              r (rem k f)]
+          (recur r
+                 (next facts)
+                 (vec (concat (subvec elems 0 q) (subvec elems (inc q))))
+                 (conj perm (nth elems q))))))))

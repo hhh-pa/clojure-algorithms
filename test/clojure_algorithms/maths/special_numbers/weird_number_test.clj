@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.weird-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.weird-number :as sut]))
 
 (deftest test-fn-factors-examples
@@ -19,8 +18,10 @@
 (deftest test-fn-semi-perfect-examples
   (is (= true (boolean (sut/semi-perfect 0))))
   (is (= true (boolean (sut/semi-perfect 1))))
-  (is (= true (boolean (sut/semi-perfect 12)))))
+  (is (= true (boolean (sut/semi-perfect 12))))
+  (is (= false (boolean (sut/semi-perfect 13)))))
 
 (deftest test-fn-weird-examples
   (is (= false (boolean (sut/weird 0))))
+  (is (= true (boolean (sut/weird 70))))
   (is (= false (boolean (sut/weird 77)))))

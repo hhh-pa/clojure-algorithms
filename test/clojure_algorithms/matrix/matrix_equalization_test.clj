@@ -1,7 +1,6 @@
 (ns clojure-algorithms.matrix.matrix-equalization-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.matrix.matrix-equalization :as sut]))
 
 (deftest test-fn-array-equalization-examples

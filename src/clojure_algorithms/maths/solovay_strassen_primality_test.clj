@@ -1,11 +1,54 @@
 (ns clojure-algorithms.maths.solovay-strassen-primality-test
-  "This script implements the Solovay-Strassen Primality test.\n\nThis probabilistic primality test is based on Euler's criterion. It is similar\nto the Fermat test but uses quadratic residues. It can quickly identify\ncomposite numbers but may occasionally classify composite numbers as prime.\n\nMore details and concepts about this can be found on:\nhttps://en.wikipedia.org/wiki/Solovay%E2%80%93Strassen_primality_test"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "This script implements the Solovay-Strassen Primality test.
 
-(declare jacobi-symbol solovay-strassen)
+  This probabilistic primality test is based on Euler's criterion. It is similar
+  to the Fermat test but uses quadratic residues. It can quickly identify
+  composite numbers but may occasionally classify composite numbers as prime.
 
-(defn jacobi-symbol "Calculate the Jacobi symbol. The Jacobi symbol is a generalization\nof the Legendre symbol, which can be used to simplify computations involving\nquadratic residues. The Jacobi symbol is used in primality tests, like the\nSolovay-Strassen test, because it helps determine if an integer is a\nquadratic residue modulo a given modulus, providing valuable information\nabout the number's potential primality or compositeness.\n\nParameters:\n    random_a: A randomly chosen integer from 2 to n-2 (inclusive)\n    number: The number that is tested for primality\n\nReturns:\n    jacobi_symbol: The Jacobi symbol is a mathematical function\n    used to determine whether an integer is a quadratic residue modulo\n    another integer (usually prime) or not.\n\n>>> jacobi_symbol(2, 13)\n-1\n>>> jacobi_symbol(5, 19)\n1\n>>> jacobi_symbol(7, 14)\n0"
-  [random-a number] (let [random-a (atom random-a) number (atom number)] (let [r (atom nil) t (atom nil)] (try (when (py-truthy (py-in @random-a [0 1])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @random-a}))) (swap! random-a py-mod @number) (reset! t 1) (while (py-truthy (not (py-eq @random-a 0))) (while (py-truthy (py-eq (py-mod @random-a 2) 0)) (swap! random-a py-floordiv 2) (reset! r (py-mod @number 8)) (when (py-truthy (py-in @r [3 5])) (reset! t (py-neg @t)))) (let [__d1 (vec [@number @random-a])] (reset! random-a (nth __d1 0)) (reset! number (nth __d1 1))) (when (py-truthy (let [__c2 (py-mod @random-a 4) __c3 (py-mod @number 4) __c4 3] (and (py-eq __c2 __c3) (py-eq __c3 __c4)))) (reset! t (py-neg @t))) (swap! random-a py-mod @number)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-eq @number 1)) @t 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  More details and concepts about this can be found on:
+  https://en.wikipedia.org/wiki/Solovay%E2%80%93Strassen_primality_test")
 
-(defn solovay-strassen "Check whether the input number is prime or not using\nthe Solovay-Strassen Primality test\n\nParameters:\n    number: The number that is tested for primality\n    iterations: The number of times that the test is run\n    which effects the accuracy\n\nReturns:\n    result: True if number is probably prime and false\n    if not\n\n>>> random.seed(10)\n>>> solovay_strassen(13, 5)\nTrue\n>>> solovay_strassen(9, 10)\nFalse\n>>> solovay_strassen(17, 15)\nTrue"
-  [number iterations] (let [--v (atom nil) a (atom nil) x (atom nil) y (atom nil)] (try (when (py-truthy (py-le number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-le number 3)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (doseq [__i1 (py-iter (range iterations))] (reset! --v __i1) (reset! a (py-randint 2 (py-sub number 2))) (reset! x (jacobi-symbol @a number)) (reset! y (py-powmod @a (py-floordiv (py-sub number 1) 2) number)) (when (py-truthy (let [__b2 (py-eq @x 0)] (if (py-truthy __b2) __b2 (not (py-eq @y (py-mod @x number)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn jacobi-symbol
+  "Calculates the Jacobi symbol (random-a/number), used to determine whether
+  an integer is a quadratic residue modulo another integer."
+  [random-a number]
+  (if (#{0 1} random-a)
+    random-a
+    (loop [a (mod random-a number), n number, t 1]
+      (if (zero? a)
+        (if (== n 1) t 0)
+        (let [[a t] (loop [a a, t t]
+                      (if (even? a)
+                        (recur (quot a 2)
+                               (if (#{3 5} (mod n 8)) (- t) t))
+                        [a t]))
+              [a n] [n a]
+              t (if (and (== (mod a 4) 3) (== (mod n 4) 3)) (- t) t)]
+          (recur (mod a n) n t))))))
+
+(defn- powmod
+  "Modular exponentiation: base^exp mod m."
+  [base exp m]
+  (loop [b (mod base m), e exp, acc 1]
+    (if (zero? e)
+      acc
+      (recur (mod (* b b) m)
+             (quot e 2)
+             (if (odd? e) (mod (* acc b) m) acc)))))
+
+(defn solovay-strassen
+  "Returns true if `number` is probably prime according to the
+  Solovay-Strassen test run for `iterations` rounds."
+  [number iterations]
+  (cond
+    (<= number 1) false
+    (<= number 3) true
+    :else (loop [i 0]
+            (if (>= i iterations)
+              true
+              (let [a (+ 2 (rand-int (- number 3)))
+                    x (jacobi-symbol a number)
+                    y (powmod a (quot (dec number) 2) number)]
+                (if (or (zero? x) (not= y (mod x number)))
+                  false
+                  (recur (inc i))))))))

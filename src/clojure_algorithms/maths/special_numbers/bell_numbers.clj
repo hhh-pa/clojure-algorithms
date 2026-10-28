@@ -1,11 +1,35 @@
 (ns clojure-algorithms.maths.special-numbers.bell-numbers
-  "Bell numbers represent the number of ways to partition a set into non-empty\nsubsets. This module provides functions to calculate Bell numbers for sets of\nintegers. In other words, the first (n + 1) Bell numbers.\n\nFor more information about Bell numbers, refer to:\nhttps://en.wikipedia.org/wiki/Bell_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Bell numbers represent the number of ways to partition a set into non-empty
+subsets. This module provides functions to calculate Bell numbers for sets of
+integers. In other words, the first (n + 1) Bell numbers.
 
-(declare bell-numbers -binomial-coefficient)
+For more information about Bell numbers, refer to:
+https://en.wikipedia.org/wiki/Bell_number")
 
-(defn bell-numbers "Calculate Bell numbers for the sets of lengths from 0 to max_set_length.\nIn other words, calculate first (max_set_length + 1) Bell numbers.\n\nArgs:\n    max_set_length (int): The maximum length of the sets for which\n    Bell numbers are calculated.\n\nReturns:\n    list: A list of Bell numbers for sets of lengths from 0 to max_set_length.\n\nExamples:\n>>> bell_numbers(-2)\nTraceback (most recent call last):\n    ...\nValueError: max_set_length must be non-negative\n>>> bell_numbers(0)\n[1]\n>>> bell_numbers(1)\n[1, 1]\n>>> bell_numbers(5)\n[1, 1, 2, 5, 15, 52]"
-  [max-set-length] (let [bell (atom nil) i (atom nil) j (atom nil)] (try (when (py-truthy (py-lt max-set-length 0)) (throw (ex-info (py-str "max_set_length must be non-negative") {:type :ValueError}))) (reset! bell (py-mul [0] (py-add max-set-length 1))) (swap! bell (fn [__c] (py-assoc-in __c [0] 1))) (doseq [__i1 (py-iter (range 1 (py-add max-set-length 1)))] (reset! i __i1) (doseq [__i2 (py-iter (range @i))] (reset! j __i2) (swap! bell (fn [__c] (py-assoc-in __c [@i] (py-add (py-get-in __c [@i]) (py-mul (-binomial-coefficient (py-sub @i 1) @j) (py-get @bell @j)))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @bell})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn -binomial-coefficient
+  "The binomial coefficient C(total-elements, elements-to-choose)."
+  [total-elements elements-to-choose]
+  (if (or (zero? elements-to-choose) (= elements-to-choose total-elements))
+    1
+    (let [k (min elements-to-choose (- total-elements elements-to-choose))]
+      (reduce (fn [coefficient i]
+                (quot (*' coefficient (- total-elements i)) (inc i)))
+              1
+              (range k)))))
 
-(defn -binomial-coefficient "Calculate the binomial coefficient C(total_elements, elements_to_choose)\n\nArgs:\n    total_elements (int): The total number of elements.\n    elements_to_choose (int): The number of elements to choose.\n\nReturns:\n    int: The binomial coefficient C(total_elements, elements_to_choose).\n\nExamples:\n>>> _binomial_coefficient(5, 2)\n10\n>>> _binomial_coefficient(6, 3)\n20"
-  [total-elements elements-to-choose] (let [elements-to-choose (atom elements-to-choose)] (let [coefficient (atom nil) i (atom nil)] (try (when (py-truthy (py-in @elements-to-choose (set [0 total-elements]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (reset! elements-to-choose (py-min [@elements-to-choose (py-sub total-elements @elements-to-choose)])) (reset! coefficient 1) (doseq [__i1 (py-iter (range @elements-to-choose))] (reset! i __i1) (swap! coefficient py-mul (py-sub total-elements @i)) (swap! coefficient py-floordiv (py-add @i 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @coefficient})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn bell-numbers
+  "Returns a vector of the Bell numbers for set lengths 0 through
+`max-set-length`, i.e. the first (`max-set-length` + 1) Bell numbers.
+Throws an ex-info with :type :ValueError when `max-set-length` is negative."
+  [max-set-length]
+  (when (neg? max-set-length)
+    (throw (ex-info "max_set_length must be non-negative" {:type :ValueError})))
+  (reduce (fn [bell i]
+            (conj bell
+                  (reduce +' 0
+                          (map-indexed (fn [j bell-j]
+                                         (*' (-binomial-coefficient (dec i) j)
+                                             bell-j))
+                                       bell))))
+          [1]
+          (range 1 (inc max-set-length))))

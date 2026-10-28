@@ -1,8 +1,17 @@
 (ns clojure-algorithms.maths.ncr-combinations
-  "Generalized combinations (n choose r) calculator for real total and integer choose.\nWikipedia URL:\nhttps://en.wikipedia.org/wiki/Binomial_coefficient"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Generalized combinations (n choose r) calculator for real total and integer choose.
+  Wikipedia URL:
+  https://en.wikipedia.org/wiki/Binomial_coefficient")
 
-(declare combinations)
-
-(defn combinations "Compute the number of combinations using the formula:\n\n    combinations = total * (total-1) * ... * (total-choose+1) / choose!\n\nParameters\n----------\ntotal : float\n    Total number of items. Can be any real number.\nchoose : int\n    Number of items to select. Must be a non-negative integer.\n\nReturns\n-------\nfloat\n    The number of combinations.\n\nRaises\n------\nValueError\n    If choose is not a non-negative integer.\n\nExamples\n--------\n>>> combinations(5, 2)\n10.0\n>>> combinations(5.5, 2)\n12.375\n>>> combinations(10, 0)\n1.0\n>>> combinations(0, 0)\n1.0\n>>> combinations(5, -1)\nTraceback (most recent call last):\n    ...\nValueError: choose must be a non-negative integer\n>>> combinations(5, 2.5)\nTraceback (most recent call last):\n    ...\nValueError: choose must be a non-negative integer"
-  [total choose] (let [denominator (atom nil) i (atom nil) numerator (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? choose)))] (if (py-truthy __b1) __b1 (py-lt choose 0)))) (throw (ex-info (py-str "choose must be a non-negative integer") {:type :ValueError}))) (when (py-truthy (py-eq choose 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1.0}))) (reset! numerator 1.0) (doseq [__i2 (py-iter (range choose))] (reset! i __i2) (swap! numerator py-mul (py-sub total @i))) (reset! denominator (py-factorial choose)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div @numerator @denominator)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn combinations
+  "Computes the number of combinations: total * (total-1) * ... *
+  (total-choose+1) / choose!. `total` may be any real number; `choose`
+  must be a non-negative integer."
+  [total choose]
+  (when (or (not (integer? choose)) (neg? choose))
+    (throw (ex-info "choose must be a non-negative integer" {:type :ValueError})))
+  (if (zero? choose)
+    1.0
+    (let [numerator (reduce * 1.0 (map #(- total %) (range choose)))
+          denominator (reduce *' 1 (range 1 (inc choose)))]
+      (/ numerator denominator))))

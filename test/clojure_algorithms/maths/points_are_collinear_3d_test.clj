@@ -1,7 +1,5 @@
 (ns clojure-algorithms.maths.points-are-collinear-3d-test
   (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
             [clojure-algorithms.maths.points-are-collinear-3d :as sut]))
 
 (deftest test-fn-create-vector-examples
@@ -14,6 +12,11 @@
   (is (approx [0 0 0] (sut/get-3d-vectors-cross [1 1 1] [1 1 1])))
   (is (approx [-36 -48 27] (sut/get-3d-vectors-cross [-4 3 0] [3 -9 -12])))
   (is (approx [-123.2594 277.15110000000004 129.11260000000001] (sut/get-3d-vectors-cross [17.67 4.7 6.78] [-9.5 4.78 -19.33]))))
+
+(deftest test-fn-is-zero-vector-examples
+  (is (= true (boolean (sut/is-zero-vector [0 0 0] 10))))
+  (is (= false (boolean (sut/is-zero-vector [15 74 32] 10))))
+  (is (= false (boolean (sut/is-zero-vector [-15 -74 -32] 10)))))
 
 (deftest test-fn-are-collinear-examples
   (is (= true (boolean (sut/are-collinear [4.802293498137402 3.536233125455244 0] [-2.186788107953106 -9.24561398001649 7.141509524846482] [1.530169574640268 -2.447927606600034 3.343487096469054]))))

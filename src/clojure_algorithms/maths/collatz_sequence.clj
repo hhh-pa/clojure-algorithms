@@ -1,11 +1,33 @@
 (ns clojure-algorithms.maths.collatz-sequence
-  "The Collatz conjecture is a famous unsolved problem in mathematics. Given a starting\npositive integer, define the following sequence:\n- If the current term n is even, then the next term is n/2.\n- If the current term n is odd, then the next term is 3n + 1.\nThe conjecture claims that this sequence will always reach 1 for any starting number.\n\nOther names for this problem include the 3n + 1 problem, the Ulam conjecture, Kakutani's\nproblem, the Thwaites conjecture, Hasse's algorithm, the Syracuse problem, and the\nhailstone sequence.\n\nReference: https://en.wikipedia.org/wiki/Collatz_conjecture"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "The Collatz conjecture is a famous unsolved problem in mathematics. Given a starting
+  positive integer, define the following sequence:
+  - If the current term n is even, then the next term is n/2.
+  - If the current term n is odd, then the next term is 3n + 1.
+  The conjecture claims that this sequence will always reach 1 for any starting number.
 
-(declare collatz-sequence main)
+  Reference: https://en.wikipedia.org/wiki/Collatz_conjecture")
 
-(defn collatz-sequence "Generate the Collatz sequence starting at n.\n>>> tuple(collatz_sequence(2.1))\nTraceback (most recent call last):\n    ...\nTypeError: Sequence only defined for integers\n>>> tuple(collatz_sequence(0))\nTraceback (most recent call last):\n    ...\nValueError: Sequence only defined for positive integers\n>>> tuple(collatz_sequence(4))\n(4, 2, 1)\n>>> tuple(collatz_sequence(11))\n(11, 34, 17, 52, 26, 13, 40, 20, 10, 5, 16, 8, 4, 2, 1)\n>>> tuple(collatz_sequence(31))     # doctest: +NORMALIZE_WHITESPACE\n(31, 94, 47, 142, 71, 214, 107, 322, 161, 484, 242, 121, 364, 182, 91, 274, 137,\n412, 206, 103, 310, 155, 466, 233, 700, 350, 175, 526, 263, 790, 395, 1186, 593,\n1780, 890, 445, 1336, 668, 334, 167, 502, 251, 754, 377, 1132, 566, 283, 850, 425,\n1276, 638, 319, 958, 479, 1438, 719, 2158, 1079, 3238, 1619, 4858, 2429, 7288, 3644,\n1822, 911, 2734, 1367, 4102, 2051, 6154, 3077, 9232, 4616, 2308, 1154, 577, 1732,\n866, 433, 1300, 650, 325, 976, 488, 244, 122, 61, 184, 92, 46, 23, 70, 35, 106, 53,\n160, 80, 40, 20, 10, 5, 16, 8, 4, 2, 1)\n>>> tuple(collatz_sequence(43))     # doctest: +NORMALIZE_WHITESPACE\n(43, 130, 65, 196, 98, 49, 148, 74, 37, 112, 56, 28, 14, 7, 22, 11, 34, 17, 52, 26,\n13, 40, 20, 10, 5, 16, 8, 4, 2, 1)"
-  [n] (let [n (atom n)] (let [__ys (atom [])] (try (when (py-truthy (not (py-truthy (integer? @n)))) (throw (ex-info (py-str "Sequence only defined for integers") {:type :TypeError}))) (when (py-truthy (py-lt @n 1)) (throw (ex-info (py-str "Sequence only defined for positive integers") {:type :ValueError}))) (do (swap! __ys conj @n) nil) (while (py-truthy (not (py-eq @n 1))) (if (py-truthy (py-eq (py-mod @n 2) 0)) (do (swap! n py-floordiv 2)) (do (reset! n (py-add (py-mul 3 @n) 1)))) (do (swap! __ys conj @n) nil)) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) @__ys)))
+(defn- collatz-step
+  "Single Collatz step."
+  [n]
+  (if (even? n) (quot n 2) (+' 1 (*' 3 n))))
+
+(defn collatz-sequence
+  "Returns a lazy sequence of the Collatz sequence starting at the positive
+  integer `n`, ending at 1."
+  [n]
+  (when-not (integer? n)
+    (throw (ex-info "Sequence only defined for integers" {:type :TypeError})))
+  (when (< n 1)
+    (throw (ex-info "Sequence only defined for positive integers" {:type :ValueError})))
+  (concat (take-while #(not= 1 %) (iterate collatz-step n)) [1]))
 
 (defn main
-  [] (let [n (atom nil) sequence (atom nil)] (reset! n (py-int (do (print "Your number: ") (flush) (read-line)) nil)) (reset! sequence (py-list (collatz-sequence @n))) (println (clojure.string/join " " [(py-str @sequence)])) (println (clojure.string/join " " [(py-str (str "Collatz sequence from " (py-str @n) " took " (py-str (count @sequence)) " steps."))])) nil))
+  "Reads a number from stdin and prints its Collatz sequence."
+  []
+  (print "Your number: ")
+  (flush)
+  (let [n (Long/parseLong (read-line))
+        sequence (vec (collatz-sequence n))]
+    (println sequence)
+    (println (str "Collatz sequence from " n " took " (count sequence) " steps."))))

@@ -1,8 +1,33 @@
 (ns clojure-algorithms.maths.eulers-totient
-  "Port of maths/eulers_totient.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Eulers Totient function finds the number of relative primes of a
+  number n from 1 to n.")
 
-(declare totient)
-
-(defn totient ">>> n = 10\n>>> totient_calculation = totient(n)\n>>> for i in range(1, n):\n...     print(f\"{i} has {totient_calculation[i]} relative primes.\")\n1 has 0 relative primes.\n2 has 1 relative primes.\n3 has 2 relative primes.\n4 has 2 relative primes.\n5 has 4 relative primes.\n6 has 2 relative primes.\n7 has 6 relative primes.\n8 has 4 relative primes.\n9 has 6 relative primes."
-  [n] (let [i (atom nil) is-prime (atom nil) j (atom nil) primes (atom nil) totients (atom nil)] (try (reset! is-prime (vec (for [i (py-iter (range (py-add n 1)))] true))) (reset! totients (vec (for [i (py-iter (range (py-add n 1)))] (py-sub i 1)))) (reset! primes []) (doseq [__i1 (py-iter (range 2 (py-add n 1)))] (reset! i __i1) (when (py-truthy (py-get @is-prime @i)) (swap! primes conj @i)) (try (doseq [__i2 (py-iter (range (count @primes)))] (reset! j __i2) (when (py-truthy (py-ge (py-mul @i (py-get @primes @j)) n)) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (swap! is-prime (fn [__c] (py-assoc-in __c [(py-mul @i (py-get @primes @j))] false))) (when (py-truthy (py-eq (py-mod @i (py-get @primes @j)) 0)) (swap! totients (fn [__c] (py-assoc-in __c [(py-mul @i (py-get @primes @j))] (py-mul (py-get @totients @i) (py-get @primes @j))))) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (swap! totients (fn [__c] (py-assoc-in __c [(py-mul @i (py-get @primes @j))] (py-mul (py-get @totients @i) (py-sub (py-get @primes @j) 1)))))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @totients})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn totient
+  "Returns a vector `t` of length n+1 where `t[i]` is the number of
+  relative primes of i (Euler's totient), computed with a linear sieve."
+  [n]
+  (loop [i 2
+         is-prime (vec (repeat (inc n) true))
+         totients (vec (map dec (range (inc n))))
+         primes []]
+    (if (> i n)
+      totients
+      (let [primes (if (is-prime i) (conj primes i) primes)
+            [is-prime totients]
+            (loop [js primes
+                   is-prime is-prime
+                   totients totients]
+              (if (empty? js)
+                [is-prime totients]
+                (let [p (first js)
+                      ip (* i p)]
+                  (if (>= ip n)
+                    [is-prime totients]
+                    (let [is-prime (assoc is-prime ip false)]
+                      (if (zero? (mod i p))
+                        [is-prime (assoc totients ip (* (totients i) p))]
+                        (recur (rest js)
+                               is-prime
+                               (assoc totients ip
+                                      (* (totients i) (dec p))))))))))]
+        (recur (inc i) is-prime totients primes)))))

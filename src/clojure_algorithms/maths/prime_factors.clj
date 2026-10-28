@@ -1,11 +1,59 @@
 (ns clojure-algorithms.maths.prime-factors
-  "python/black : True"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "python/black : True")
 
-(declare prime-factors unique-prime-factors)
+(defn- type-name
+  "Python-style type name used in the comparison error message."
+  [x]
+  (cond (nil? x) "NoneType"
+        (boolean? x) "bool"
+        (string? x) "str"
+        (map? x) "dict"
+        (set? x) "set"
+        (sequential? x) "list"
+        :else (.getSimpleName (class x))))
 
-(defn prime-factors "Returns prime factors of n as a list.\n\n>>> prime_factors(0)\n[]\n>>> prime_factors(100)\n[2, 2, 5, 5]\n>>> prime_factors(2560)\n[2, 2, 2, 2, 2, 2, 2, 2, 2, 5]\n>>> prime_factors(10**-2)\n[]\n>>> prime_factors(0.02)\n[]\n>>> x = prime_factors(10**241) # doctest: +NORMALIZE_WHITESPACE\n>>> x == [2]*241 + [5]*241\nTrue\n>>> prime_factors(10**-354)\n[]\n>>> prime_factors('hello')\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'str'\n>>> prime_factors([1,2,'hello'])\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'list'"
-  [n] (let [n (atom n)] (let [factors (atom nil) i (atom nil)] (try (reset! i 2) (reset! factors []) (while (py-truthy (py-le (py-mul @i @i) @n)) (if (py-truthy (py-mod @n @i)) (do (swap! i py-add 1)) (do (swap! n py-floordiv @i) (swap! factors conj @i)))) (when (py-truthy (py-gt @n 1)) (swap! factors conj @n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @factors})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- check-number
+  "Reject non-numeric input like Python's <= comparison does."
+  [n]
+  (when-not (number? n)
+    (throw (ex-info (str "'<=' not supported between instances of 'int' and '"
+                         (type-name n) "'")
+                    {:type :TypeError}))))
 
-(defn unique-prime-factors "Returns unique prime factors of n as a list.\n\n>>> unique_prime_factors(0)\n[]\n>>> unique_prime_factors(100)\n[2, 5]\n>>> unique_prime_factors(2560)\n[2, 5]\n>>> unique_prime_factors(10**-2)\n[]\n>>> unique_prime_factors(0.02)\n[]\n>>> unique_prime_factors(10**241)\n[2, 5]\n>>> unique_prime_factors(10**-354)\n[]\n>>> unique_prime_factors('hello')\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'str'\n>>> unique_prime_factors([1,2,'hello'])\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'int' and 'list'"
-  [n] (let [n (atom n)] (let [factors (atom nil) i (atom nil)] (try (reset! i 2) (reset! factors []) (while (py-truthy (py-le (py-mul @i @i) @n)) (when (py-truthy (not (py-truthy (py-mod @n @i)))) (while (py-truthy (not (py-truthy (py-mod @n @i)))) (swap! n py-floordiv @i)) (swap! factors conj @i)) (swap! i py-add 1)) (when (py-truthy (py-gt @n 1)) (swap! factors conj @n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @factors})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn prime-factors
+  "Return the prime factors of n as a vector, with multiplicity."
+  [n]
+  (check-number n)
+  (loop [i 2
+         m n
+         factors []]
+    (if (<= (* i i) m)
+      (if (zero? (rem m i))
+        (recur i (quot m i) (conj factors i))
+        (recur (inc i) m factors))
+      (if (> m 1)
+        (conj factors m)
+        factors))))
+
+(defn- strip-factor
+  "Divide m by i until it no longer divides m."
+  [m i]
+  (loop [m m]
+    (if (zero? (rem m i))
+      (recur (quot m i))
+      m)))
+
+(defn unique-prime-factors
+  "Return the unique prime factors of n as a vector."
+  [n]
+  (check-number n)
+  (loop [i 2
+         m n
+         factors []]
+    (if (<= (* i i) m)
+      (if (zero? (rem m i))
+        (recur (inc i) (strip-factor m i) (conj factors i))
+        (recur (inc i) m factors))
+      (if (> m 1)
+        (conj factors m)
+        factors))))

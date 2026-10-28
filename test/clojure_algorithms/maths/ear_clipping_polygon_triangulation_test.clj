@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.ear-clipping-polygon-triangulation-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is]]
             [clojure-algorithms.maths.ear-clipping-polygon-triangulation :as sut]))
 
 (deftest test-fn-is-ear-examples
@@ -33,6 +32,15 @@
   (is (= true (boolean (sut/is-point-inside-triangle [0 0] [1 1] [2 0] [1 0])))))
 
 (deftest test-fn-triangulate-polygon-examples
-  (is (thrown? Exception (sut/triangulate-polygon [[0 2] [2 2] [2 0] [1 0] [1 1] [0 1]])))
-  (is (thrown? Exception (sut/triangulate-polygon [[0 3] [2 2] [3 0] [3 3]])))
-  (is (thrown? Exception (sut/triangulate-polygon [[0 0] [2 0] [1 1] [2 2] [0 2]]))))
+  (is (approx [[[0 1] [0 2] [2 2]]
+               [[2 2] [2 0] [1 0]]
+               [[2 2] [1 0] [1 1]]
+               [[0 1] [2 2] [1 1]]]
+              (sut/triangulate-polygon [[0 2] [2 2] [2 0] [1 0] [1 1] [0 1]])))
+  (is (approx [[[3 3] [0 3] [2 2]]
+               [[3 3] [2 2] [3 0]]]
+              (sut/triangulate-polygon [[0 3] [2 2] [3 0] [3 3]])))
+  (is (approx [[[0 0] [2 0] [1 1]]
+               [[0 2] [0 0] [1 1]]
+               [[0 2] [1 1] [2 2]]]
+              (sut/triangulate-polygon [[0 0] [2 0] [1 1] [2 2] [0 2]]))))

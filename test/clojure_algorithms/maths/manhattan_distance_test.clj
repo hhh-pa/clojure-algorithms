@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.manhattan-distance-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.manhattan-distance :as sut]))
 
 (deftest test-fn-manhattan-distance-examples

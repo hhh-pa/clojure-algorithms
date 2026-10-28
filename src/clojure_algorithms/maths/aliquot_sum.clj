@@ -1,8 +1,14 @@
 (ns clojure-algorithms.maths.aliquot-sum
-  "Port of maths/aliquot_sum.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Aliquot sum of a positive integer.
+  See https://en.wikipedia.org/wiki/Aliquot_sum")
 
-(declare aliquot-sum)
-
-(defn aliquot-sum "Finds the aliquot sum of an input integer, where the\naliquot sum of a number n is defined as the sum of all\nnatural numbers less than n that divide n evenly. For\nexample, the aliquot sum of 15 is 1 + 3 + 5 = 9. This is\na simple O(n) implementation.\n@param input_num: a positive integer whose aliquot sum is to be found\n@return: the aliquot sum of input_num, if input_num is positive.\nOtherwise, raise a ValueError\nWikipedia Explanation: https://en.wikipedia.org/wiki/Aliquot_sum\n\n>>> aliquot_sum(15)\n9\n>>> aliquot_sum(6)\n6\n>>> aliquot_sum(-1)\nTraceback (most recent call last):\n  ...\nValueError: Input must be positive\n>>> aliquot_sum(0)\nTraceback (most recent call last):\n  ...\nValueError: Input must be positive\n>>> aliquot_sum(1.6)\nTraceback (most recent call last):\n  ...\nValueError: Input must be an integer\n>>> aliquot_sum(12)\n16\n>>> aliquot_sum(1)\n0\n>>> aliquot_sum(19)\n1"
-  [input-num] (try (when (py-truthy (not (py-truthy (integer? input-num)))) (throw (ex-info (py-str "Input must be an integer") {:type :ValueError}))) (when (py-truthy (py-le input-num 0)) (throw (ex-info (py-str "Input must be positive") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reduce +' 0 (doall (for [divisor (py-iter (range 1 (py-add (py-floordiv input-num 2) 1))) :when (py-truthy (py-eq (py-mod input-num divisor) 0))] divisor)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn aliquot-sum
+  "Returns the aliquot sum of `input-num`: the sum of all natural numbers
+  less than `input-num` that divide it evenly. For example, the aliquot
+  sum of 15 is 1 + 3 + 5 = 9."
+  [input-num]
+  (when-not (integer? input-num)
+    (throw (ex-info "Input must be an integer" {:type :ValueError})))
+  (when (<= input-num 0)
+    (throw (ex-info "Input must be positive" {:type :ValueError})))
+  (reduce + 0 (filter #(zero? (rem input-num %)) (range 1 (inc (quot input-num 2))))))

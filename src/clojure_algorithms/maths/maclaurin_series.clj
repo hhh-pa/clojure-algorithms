@@ -1,13 +1,48 @@
 (ns clojure-algorithms.maths.maclaurin-series
-  "https://en.wikipedia.org/wiki/Taylor_series#Trigonometric_functions"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "https://en.wikipedia.org/wiki/Taylor_series#Trigonometric_functions")
 
-(declare maclaurin-sin maclaurin-cos)
+(defn- factorial
+  [n]
+  (reduce *' 1 (range 1 (inc n))))
 
-(defn maclaurin-sin "Finds the maclaurin approximation of sin\n\n:param theta: the angle to which sin is found\n:param accuracy: the degree of accuracy wanted minimum\n:return: the value of sine in radians\n\n\n>>> from math import isclose, sin\n>>> all(isclose(maclaurin_sin(x, 50), sin(x)) for x in range(-25, 25))\nTrue\n>>> maclaurin_sin(10)\n-0.5440211108893691\n>>> maclaurin_sin(-10)\n0.5440211108893704\n>>> maclaurin_sin(10, 15)\n-0.544021110889369\n>>> maclaurin_sin(-10, 15)\n0.5440211108893704\n>>> maclaurin_sin(\"10\")\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_sin() requires either an int or float for theta\n>>> maclaurin_sin(10, -30)\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_sin() requires a positive int for accuracy\n>>> maclaurin_sin(10, 30.5)\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_sin() requires a positive int for accuracy\n>>> maclaurin_sin(10, \"30\")\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_sin() requires a positive int for accuracy"
+(defn- check-args
+  [fname theta accuracy]
+  (when-not (number? theta)
+    (throw (ex-info (str fname "() requires either an int or float for theta")
+                    {:type :ValueError})))
+  (when-not (and (integer? accuracy) (pos? accuracy))
+    (throw (ex-info (str fname "() requires a positive int for accuracy")
+                    {:type :ValueError}))))
+
+(defn- reduce-angle
+  "Reduces theta modulo 2*pi, matching upstream's floored division."
+  [theta]
+  (let [t (double theta)
+        div (Math/floor (/ t (* 2 Math/PI)))]
+    (- t (* 2 div Math/PI))))
+
+(defn maclaurin-sin
+  "Finds the maclaurin approximation of sin for the angle theta."
   ([theta] (maclaurin-sin theta 30))
-  ([theta accuracy] (let [theta (atom theta)] (let [div (atom nil)] (try (when (py-truthy (not (py-truthy (or (integer? @theta) (number? @theta))))) (throw (ex-info (py-str "maclaurin_sin() requires either an int or float for theta") {:type :ValueError}))) (when (py-truthy (let [__b1 (not (py-truthy (integer? accuracy)))] (if (py-truthy __b1) __b1 (py-le accuracy 0)))) (throw (ex-info (py-str "maclaurin_sin() requires a positive int for accuracy") {:type :ValueError}))) (reset! theta (py-float @theta)) (reset! div (py-floordiv @theta (py-mul 2 Math/PI))) (swap! theta py-sub (py-mul (py-mul 2 @div) Math/PI)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reduce +' 0 (doall (for [r (py-iter (range accuracy))] (py-div (py-mul (py-pow (py-neg 1) r) (py-pow @theta (py-add (py-mul 2 r) 1))) (py-factorial (py-add (py-mul 2 r) 1))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([theta accuracy]
+   (check-args "maclaurin_sin" theta accuracy)
+   (let [theta (reduce-angle theta)]
+     (reduce + 0.0
+             (map (fn [r]
+                    (/ (* (Math/pow -1.0 r)
+                          (Math/pow theta (inc (* 2 r))))
+                       (double (factorial (inc (* 2 r))))))
+                  (range accuracy))))))
 
-(defn maclaurin-cos "Finds the maclaurin approximation of cos\n\n:param theta: the angle to which cos is found\n:param accuracy: the degree of accuracy wanted\n:return: the value of cosine in radians\n\n\n>>> from math import isclose, cos\n>>> all(isclose(maclaurin_cos(x, 50), cos(x)) for x in range(-25, 25))\nTrue\n>>> maclaurin_cos(5)\n0.2836621854632268\n>>> maclaurin_cos(-5)\n0.2836621854632265\n>>> maclaurin_cos(10, 15)\n-0.8390715290764524\n>>> maclaurin_cos(-10, 15)\n-0.8390715290764521\n>>> maclaurin_cos(\"10\")\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_cos() requires either an int or float for theta\n>>> maclaurin_cos(10, -30)\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_cos() requires a positive int for accuracy\n>>> maclaurin_cos(10, 30.5)\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_cos() requires a positive int for accuracy\n>>> maclaurin_cos(10, \"30\")\nTraceback (most recent call last):\n    ...\nValueError: maclaurin_cos() requires a positive int for accuracy"
+(defn maclaurin-cos
+  "Finds the maclaurin approximation of cos for the angle theta."
   ([theta] (maclaurin-cos theta 30))
-  ([theta accuracy] (let [theta (atom theta)] (let [div (atom nil)] (try (when (py-truthy (not (py-truthy (or (integer? @theta) (number? @theta))))) (throw (ex-info (py-str "maclaurin_cos() requires either an int or float for theta") {:type :ValueError}))) (when (py-truthy (let [__b1 (not (py-truthy (integer? accuracy)))] (if (py-truthy __b1) __b1 (py-le accuracy 0)))) (throw (ex-info (py-str "maclaurin_cos() requires a positive int for accuracy") {:type :ValueError}))) (reset! theta (py-float @theta)) (reset! div (py-floordiv @theta (py-mul 2 Math/PI))) (swap! theta py-sub (py-mul (py-mul 2 @div) Math/PI)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reduce +' 0 (doall (for [r (py-iter (range accuracy))] (py-div (py-mul (py-pow (py-neg 1) r) (py-pow @theta (py-mul 2 r))) (py-factorial (py-mul 2 r))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([theta accuracy]
+   (check-args "maclaurin_cos" theta accuracy)
+   (let [theta (reduce-angle theta)]
+     (reduce + 0.0
+             (map (fn [r]
+                    (/ (* (Math/pow -1.0 r)
+                          (Math/pow theta (* 2 r)))
+                       (double (factorial (* 2 r)))))
+                  (range accuracy))))))

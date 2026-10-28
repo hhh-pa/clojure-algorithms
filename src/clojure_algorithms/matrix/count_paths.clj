@@ -1,8 +1,24 @@
 (ns clojure-algorithms.matrix.count-paths
-  "Given a grid, where you start from the top left position [0, 0],\nyou want to find how many paths you can take to get to the bottom right position.\n\nstart here  ->   0  0  0  0\n                 1  1  0  0\n                 0  0  0  1\n                 0  1  0  0  <- finish here\nhow many 'distinct' paths can you take to get to the finish?\nUsing a recursive depth-first search algorithm below, you are able to\nfind the number of distinct unique paths (count).\n\n'*' will demonstrate a path\nIn the example above, there are two distinct paths:\n1.                2.\n    *  *  *  0      *  *  *  *\n    1  1  *  0      1  1  *  *\n    0  0  *  1      0  0  *  1\n    0  1  *  *      0  1  *  *"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Counts distinct paths from the top-left to the bottom-right of a grid,
+  where 1 marks a blocked cell and 0 a free one.")
 
-(declare depth-first-search)
-
-(defn depth-first-search "Recursive Backtracking Depth First Search Algorithm\n\nStarting from top left of a matrix, count the number of\npaths that can reach the bottom right of a matrix.\n1 represents a block (inaccessible)\n0 represents a valid space (accessible)\n\n0  0  0  0\n1  1  0  0\n0  0  0  1\n0  1  0  0\n>>> grid = [[0, 0, 0, 0], [1, 1, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0]]\n>>> depth_first_search(grid, 0, 0, set())\n2\n\n0  0  0  0  0\n0  1  1  1  0\n0  1  1  1  0\n0  0  0  0  0\n>>> grid = [[0, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 1, 1, 1, 0], [0, 0, 0, 0, 0]]\n>>> depth_first_search(grid, 0, 0, set())\n2"
-  [grid row col visit] (let [visit (atom visit)] (let [col-length (atom nil) count-v (atom nil) row-length (atom nil)] (try (let [__d1 (vec [(count grid) (count (py-get grid 0))])] (reset! row-length (nth __d1 0)) (reset! col-length (nth __d1 1))) (when (py-truthy (let [__b5 (py-lt (py-min [row col]) 0)] (if (py-truthy __b5) __b5 (let [__b4 (py-eq row @row-length)] (if (py-truthy __b4) __b4 (let [__b3 (py-eq col @col-length)] (if (py-truthy __b3) __b3 (let [__b2 (py-in [row col] @visit)] (if (py-truthy __b2) __b2 (py-eq (py-get (py-get grid row) col) 1)))))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (when (py-truthy (let [__b6 (py-eq row (py-sub @row-length 1))] (if (py-truthy __b6) (py-eq col (py-sub @col-length 1)) __b6))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (swap! visit (fn [__c] (conj (set __c) [row col]))) (reset! count-v 0) (swap! count-v py-add (depth-first-search grid (py-add row 1) col @visit)) (swap! count-v py-add (depth-first-search grid (py-sub row 1) col @visit)) (swap! count-v py-add (depth-first-search grid row (py-add col 1) @visit)) (swap! count-v py-add (depth-first-search grid row (py-sub col 1) @visit)) (swap! visit py-remove-first [row col]) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @count-v})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn depth-first-search
+  "Recursive backtracking depth-first search counting the paths from
+  (row, col) to the bottom-right corner. visit holds the cells on the
+  current path."
+  [grid row col visit]
+  (let [rows (count grid) cols (count (first grid))]
+    (cond (or (neg? (min row col))
+              (= row rows)
+              (= col cols)
+              (contains? visit [row col])
+              (= 1 (get-in grid [row col])))
+          0
+          (and (= row (dec rows)) (= col (dec cols)))
+          1
+          :else
+          (let [v (conj visit [row col])]
+            (+ (depth-first-search grid (inc row) col v)
+               (depth-first-search grid (dec row) col v)
+               (depth-first-search grid row (inc col) v)
+               (depth-first-search grid row (dec col) v))))))

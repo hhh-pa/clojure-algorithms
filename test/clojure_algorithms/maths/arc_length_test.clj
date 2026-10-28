@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.arc-length-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is]]
             [clojure-algorithms.maths.arc-length :as sut]))
 
 (deftest test-fn-arc-length-examples

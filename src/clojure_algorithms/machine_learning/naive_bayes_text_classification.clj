@@ -1,26 +1,128 @@
 (ns clojure-algorithms.machine-learning.naive-bayes-text-classification
-  "Naive Bayes text classification using a multinomial event model.\n\nThe implementation in this module is intentionally educational and keeps the\nlogic explicit: token counting, prior probabilities, and posterior scoring in\nlog-space.\n\nReferences:\n- https://en.wikipedia.org/wiki/Naive_Bayes_classifier\n- https://scikit-learn.org/stable/modules/naive_bayes.html"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Multinomial Naive Bayes text classification.
 
-(declare build-toy-dataset make-NaiveBayesTextClassifier NaiveBayesTextClassifier-tokenize NaiveBayesTextClassifier-fit NaiveBayesTextClassifier-predict-proba NaiveBayesTextClassifier-predict)
+  The model is an immutable map; fit returns a new fitted model. Scoring is
+  done in log-space with Laplace smoothing.
 
-(defrecord NaiveBayesTextClassifier [alpha classes- vocabulary- class-document-counts- class-token-counts- class-total-tokens- class-log-prior- is-fitted-])
+  References:
+  https://en.wikipedia.org/wiki/Naive_Bayes_classifier
+  https://scikit-learn.org/stable/modules/naive_bayes.html"
+  (:require [clojure.string :as str]))
 
-(defn make-NaiveBayesTextClassifier "Constructor for NaiveBayesTextClassifier. Multinomial Naive Bayes classifier for short text documents.\n\nArgs:\n    alpha: Additive (Laplace) smoothing parameter. Must be greater than 0.\n\n>>> NaiveBayesTextClassifier(alpha=0)\nTraceback (most recent call last):\n...\nValueError: alpha must be greater than 0."
+(defn make-NaiveBayesTextClassifier
+  "Create an unfitted classifier with Laplace smoothing alpha.
+  Throws :ValueError unless alpha is positive."
   ([] (make-NaiveBayesTextClassifier 1.0))
-  ([alpha] (let [self (atom {})] (try (when (py-truthy (py-le alpha 0)) (throw (ex-info (py-str "alpha must be greater than 0.") {:type :ValueError}))) (swap! self (fn [__c] (py-assoc-in __c [:alpha] alpha))) (swap! self (fn [__c] (py-assoc-in __c [:classes-] []))) (swap! self (fn [__c] (py-assoc-in __c [:vocabulary-] (py-set [])))) (swap! self (fn [__c] (py-assoc-in __c [:class-document-counts-] (py-counter [])))) (swap! self (fn [__c] (py-assoc-in __c [:class-token-counts-] {}))) (swap! self (fn [__c] (py-assoc-in __c [:class-total-tokens-] (py-counter [])))) (swap! self (fn [__c] (py-assoc-in __c [:class-log-prior-] {}))) (swap! self (fn [__c] (py-assoc-in __c [:is-fitted-] false))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->NaiveBayesTextClassifier @self))))
+  ([alpha]
+   (when (<= alpha 0)
+     (throw (ex-info "alpha must be greater than 0." {:type :ValueError})))
+   {:alpha alpha
+    :classes- []
+    :vocabulary- #{}
+    :class-document-counts- {}
+    :class-token-counts- {}
+    :class-total-tokens- {}
+    :class-log-prior- {}
+    :is-fitted- false}))
 
-(defn NaiveBayesTextClassifier-tokenize "Split text into lowercase alphanumeric tokens.\n\n>>> NaiveBayesTextClassifier._tokenize(\"Hello, NLP world!\")\n['hello', 'nlp', 'world']"
-  [text] (py-re-findall "[a-z0-9']+" (clojure.string/lower-case @text) 0))
+(defn NaiveBayesTextClassifier-tokenize
+  "Split text into lowercase alphanumeric tokens.
 
-(defn NaiveBayesTextClassifier-fit "Fit the classifier from labeled training texts.\n\n>>> model = NaiveBayesTextClassifier()\n>>> model.fit([\"cheap meds\", \"project meeting\"], [\"spam\", \"ham\"])\n>>> sorted(model.classes_)\n['ham', 'spam']\n\n>>> model.fit([\"only one text\"], [\"ham\", \"spam\"])\nTraceback (most recent call last):\n...\nValueError: texts and labels must have the same length.\n\n>>> model.fit([], [])\nTraceback (most recent call last):\n...\nValueError: training data must not be empty."
-  [self texts labels] (let [label (atom nil) text (atom nil) tokens (atom nil) total-documents (atom nil)] (when (py-truthy (not (py-truthy texts))) (throw (ex-info (py-str "training data must not be empty.") {:type :ValueError}))) (when (py-truthy (not (py-eq (count texts) (count labels)))) (throw (ex-info (py-str "texts and labels must have the same length.") {:type :ValueError}))) (swap! self (fn [__c] (py-assoc-in __c [:classes-] (py-sorted (py-set labels))))) nil nil (swap! self (fn [__c] (py-assoc-in __c [:class-token-counts-] {}))) nil nil (doseq [[__i1 __i2] (py-iter (map vector texts labels))] (reset! text __i1) (reset! label __i2) (when (py-truthy (let [__b3 (not (py-truthy (string? @text)))] (if (py-truthy __b3) __b3 (not (py-truthy (string? @label)))))) (throw (ex-info (py-str "texts and labels must contain strings only.") {:type :TypeError}))) (reset! tokens (NaiveBayesTextClassifier-tokenize self @text)) (swap! self (fn [__c] (py-assoc-in __c [:class-document-counts- @label] (py-add (py-get-in __c [:class-document-counts- @label]) 1)))) (py-dict-update (py-get (:class-token-counts- @self) @label) @tokens {}) (swap! self (fn [__c] (py-assoc-in __c [:class-total-tokens- @label] (py-add (py-get-in __c [:class-total-tokens- @label]) (count @tokens))))) (py-dict-update (:vocabulary- @self) @tokens {})) (reset! total-documents (count texts)) (swap! self (fn [__c] (py-assoc-in __c [:class-log-prior-] (into {} (for [label (py-iter (:classes- @self))] (list [label (py-log (py-div (py-get (:class-document-counts- @self) label) @total-documents))])))))) (swap! self (fn [__c] (py-assoc-in __c [:is-fitted-] true))) nil))
+  >>> (NaiveBayesTextClassifier-tokenize \"Hello, NLP world!\")
+  [\"hello\" \"nlp\" \"world\"]"
+  [text]
+  (vec (re-seq #"[a-z0-9']+" (str/lower-case text))))
 
-(defn NaiveBayesTextClassifier-predict-proba "Return posterior probabilities for every class.\n\n>>> train_texts, train_labels = build_toy_dataset()\n>>> model = NaiveBayesTextClassifier()\n>>> model.fit(train_texts, train_labels)\n>>> probs = model.predict_proba(\"cheap meds available now\")\n>>> round(sum(probs.values()), 6)\n1.0\n>>> probs['spam'] > probs['ham']\nTrue\n\nAn empty input text has no tokens, so predictions fall back to class priors.\n>>> empty_probs = model.predict_proba(\"\")\n>>> round(empty_probs['spam'], 3), round(empty_probs['ham'], 3)\n(0.5, 0.5)\n\n>>> NaiveBayesTextClassifier().predict_proba(\"hello\")\nTraceback (most recent call last):\n...\nValueError: model has not been fitted yet."
-  [self text] (let [count-v (atom nil) denominator (atom nil) exp-scores (atom nil) label (atom nil) log-posteriors (atom nil) log-prob (atom nil) max-log (atom nil) normalizer (atom nil) token (atom nil) token-counts (atom nil) tokens (atom nil) vocabulary-size (atom nil)] (try (when (py-truthy (not (py-truthy (:is-fitted- @self)))) (throw (ex-info (py-str "model has not been fitted yet.") {:type :ValueError}))) (when (py-truthy (not (py-truthy (string? text)))) (throw (ex-info (py-str "text must be a string.") {:type :TypeError}))) (reset! tokens (NaiveBayesTextClassifier-tokenize self text)) (reset! vocabulary-size (count (:vocabulary- @self))) (reset! log-posteriors {}) (doseq [__i1 (py-iter (:classes- @self))] (reset! label __i1) (reset! log-prob (py-get (:class-log-prior- @self) @label)) (reset! token-counts (py-get (:class-token-counts- @self) @label)) (reset! denominator (py-add (py-get (:class-total-tokens- @self) @label) (py-mul (:alpha @self) @vocabulary-size))) (doseq [__i2 (py-iter @tokens)] (reset! token __i2) (reset! count-v (py-get @token-counts @token)) (swap! log-prob py-add (py-log (py-div (py-add @count-v (:alpha @self)) @denominator)))) (swap! log-posteriors (fn [__c] (py-assoc-in __c [@label] @log-prob)))) (reset! max-log (py-max (vec (vals @log-posteriors)))) (reset! exp-scores (into {} (for [[label score] (py-iter (vec @log-posteriors))] (list [label (Math/exp (py-sub score @max-log))])))) (reset! normalizer (reduce +' 0 (vec (vals @exp-scores)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (into {} (for [[label score] (py-iter (vec @exp-scores))] (list [label (py-div score @normalizer)])))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn NaiveBayesTextClassifier-fit
+  "Fit the classifier on texts with labels; returns the fitted model.
 
-(defn NaiveBayesTextClassifier-predict "Predict the most likely class label for a text.\n\n>>> train_texts, train_labels = build_toy_dataset()\n>>> model = NaiveBayesTextClassifier(alpha=1.0)\n>>> model.fit(train_texts, train_labels)\n>>> model.predict(\"free cheap meds\")\n'spam'\n>>> model.predict(\"project meeting schedule\")\n'ham'"
-  [self text] (let [probabilities (atom nil)] (try (reset! probabilities (NaiveBayesTextClassifier-predict-proba self text)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-max-by (fn [label] (py-get @probabilities label)) @probabilities)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Throws :ValueError on empty or length-mismatched data, :TypeError on
+  non-string texts or labels."
+  [model texts labels]
+  (when (empty? texts)
+    (throw (ex-info "training data must not be empty." {:type :ValueError})))
+  (when (not= (count texts) (count labels))
+    (throw (ex-info "texts and labels must have the same length."
+                    {:type :ValueError})))
+  (doseq [[text label] (map vector texts labels)]
+    (when (or (not (string? text)) (not (string? label)))
+      (throw (ex-info "texts and labels must contain strings only."
+                      {:type :TypeError}))))
+  (let [classes (vec (sort (set labels)))
+        per-label (group-by second (map vector texts labels))
+        doc-counts (into {} (map (fn [[label pairs]] [label (count pairs)])
+                                 per-label))
+        token-counts
+        (into {} (map (fn [[label pairs]]
+                        [label (frequencies
+                                (mapcat #(NaiveBayesTextClassifier-tokenize
+                                          (first %))
+                                        pairs))])
+                      per-label))
+        total-tokens (into {} (map (fn [[label counts]]
+                                     [label (reduce + 0 (vals counts))])
+                                   token-counts))
+        total-docs (count texts)]
+    (assoc model
+           :classes- classes
+           :vocabulary- (set (mapcat #(keys (get token-counts %)) classes))
+           :class-document-counts- doc-counts
+           :class-token-counts- token-counts
+           :class-total-tokens- total-tokens
+           :class-log-prior-
+           (into {} (map (fn [label]
+                           [label (Math/log (/ (double (get doc-counts label))
+                                               total-docs))])
+                         classes))
+           :is-fitted- true)))
 
-(defn build-toy-dataset "Build a tiny text dataset for examples and quick local testing.\n\n>>> texts, labels = build_toy_dataset()\n>>> len(texts), len(labels)\n(6, 6)\n>>> sorted(set(labels))\n['ham', 'spam']"
-  [] (let [labels (atom nil) texts (atom nil)] (try (reset! texts ["buy cheap meds now" "cheap meds available online" "win cash prizes now" "project meeting schedule attached" "let us discuss the project timeline" "team meeting moved to monday"]) (reset! labels ["spam" "spam" "spam" "ham" "ham" "ham"]) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@texts @labels]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn NaiveBayesTextClassifier-predict-proba
+  "Posterior probability per class for text (softmax over log-posteriors).
+
+  Throws :ValueError when unfitted, :TypeError when text is not a string."
+  [model text]
+  (when-not (:is-fitted- model)
+    (throw (ex-info "model has not been fitted yet." {:type :ValueError})))
+  (when-not (string? text)
+    (throw (ex-info "text must be a string." {:type :TypeError})))
+  (let [tokens (NaiveBayesTextClassifier-tokenize text)
+        vocab-size (count (:vocabulary- model))
+        log-posteriors
+        (into {}
+              (map (fn [label]
+                     (let [counts (get (:class-token-counts- model) label)
+                           denom (+ (get (:class-total-tokens- model) label)
+                                    (* (:alpha model) vocab-size))]
+                       [label (+ (get (:class-log-prior- model) label)
+                                 (reduce + 0
+                                         (map #(Math/log
+                                                (/ (+ (double (get counts % 0))
+                                                      (:alpha model))
+                                                   denom))
+                                              tokens)))]))
+                   (:classes- model)))
+        max-log (apply max (vals log-posteriors))
+        scores (into {} (map (fn [[label score]]
+                               [label (Math/exp (- score max-log))])
+                             log-posteriors))
+        normalizer (reduce + (vals scores))]
+    (into {} (map (fn [[label score]] [label (/ score normalizer)]) scores))))
+
+(defn NaiveBayesTextClassifier-predict
+  "Most likely class label for text (first maximal class wins ties)."
+  [model text]
+  (let [probs (NaiveBayesTextClassifier-predict-proba model text)]
+    (reduce (fn [best label]
+              (if (> (get probs label) (get probs best)) label best))
+            (:classes- model))))
+
+(defn build-toy-dataset
+  "Tiny labeled corpus: [texts labels] with 3 spam and 3 ham messages."
+  []
+  [["buy cheap meds now"
+    "cheap meds available online"
+    "win cash prizes now"
+    "project meeting schedule attached"
+    "let us discuss the project timeline"
+    "team meeting moved to monday"]
+   ["spam" "spam" "spam" "ham" "ham" "ham"]])

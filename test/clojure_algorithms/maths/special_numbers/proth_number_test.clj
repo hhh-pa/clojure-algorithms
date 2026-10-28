@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.proth-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.proth-number :as sut]))
 
 (deftest test-fn-proth-examples
@@ -19,3 +18,18 @@
   (is (= false (boolean (sut/is-proth-number 34))))
   (is (thrown? Exception (sut/is-proth-number -1)))
   (is (thrown? Exception (sut/is-proth-number 6.0))))
+
+(deftest test-proth-sequence-start
+  (is (approx [3 5 9 13 17 25] (mapv sut/proth (range 1 7)))))
+
+(deftest test-error-types
+  (is (= :ValueError
+         (try (sut/proth 0)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e))))))
+  (is (= :TypeError
+         (try (sut/proth 6.0)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

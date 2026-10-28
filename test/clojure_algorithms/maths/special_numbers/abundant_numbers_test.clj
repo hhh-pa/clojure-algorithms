@@ -1,7 +1,5 @@
 (ns clojure-algorithms.maths.special-numbers.abundant-numbers-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.abundant-numbers :as sut]))
 
 (deftest test-fn-is-abundant-number-examples
@@ -15,3 +13,10 @@
   (is (= false (boolean (sut/is-abundant-number 1))))
   (is (= true (boolean (sut/is-abundant-number 945))))
   (is (thrown? Exception (sut/is-abundant-number 28.0))))
+
+(deftest test-error-type
+  (is (= :TypeError
+         (try (sut/is-abundant-number 28.0)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

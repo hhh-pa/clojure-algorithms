@@ -1,8 +1,24 @@
 (ns clojure-algorithms.maths.max-sum-sliding-window
-  "Given an array of integer elements and an integer 'k', we are required to find the\nmaximum sum of 'k' consecutive elements in the array.\n\nInstead of using a nested for loop, in a Brute force approach we will use a technique\ncalled 'Window sliding technique' where the nested loops can be converted to a single\nloop to reduce time complexity."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Given an array of integer elements and an integer 'k', we are required to find the
+maximum sum of 'k' consecutive elements in the array.
 
-(declare max-sum-in-array)
+Instead of using a nested for loop, in a Brute force approach we will use a technique
+called 'Window sliding technique' where the nested loops can be converted to a single
+loop to reduce time complexity.")
 
-(defn max-sum-in-array "Returns the maximum sum of k consecutive elements\n>>> arr = [1, 4, 2, 10, 2, 3, 1, 0, 20]\n>>> k = 4\n>>> max_sum_in_array(arr, k)\n24\n>>> k = 10\n>>> max_sum_in_array(arr,k)\nTraceback (most recent call last):\n    ...\nValueError: Invalid Input\n>>> arr = [1, 4, 2, 10, 2, 13, 1, 0, 2]\n>>> k = 4\n>>> max_sum_in_array(arr, k)\n27"
-  [array k] (let [current-sum (atom nil) i (atom nil) max-sum (atom nil)] (try (when (py-truthy (let [__b1 (py-lt (count array) k)] (if (py-truthy __b1) __b1 (py-lt k 0)))) (throw (ex-info (py-str "Invalid Input") {:type :ValueError}))) (let [__v2 (reduce +' 0 (py-slice array nil k nil))] (reset! max-sum __v2) (reset! current-sum __v2)) (doseq [__i3 (py-iter (range (py-sub (count array) k)))] (reset! i __i3) (reset! current-sum (py-add (py-sub @current-sum (py-get array @i)) (py-get array (py-add @i k)))) (reset! max-sum (py-max [@max-sum @current-sum]))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @max-sum})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn max-sum-in-array
+  "Return the maximum sum of k consecutive elements of array using the
+  sliding window technique. Throws :ValueError when k is negative or
+  larger than the array."
+  [array k]
+  (when (or (< (count array) k) (< k 0))
+    (throw (ex-info "Invalid Input" {:type :ValueError})))
+  (let [initial (reduce + 0 (take k array))]
+    (loop [i 0
+           current-sum initial
+           max-sum initial]
+      (if (>= i (- (count array) k))
+        max-sum
+        (let [current-sum' (+ (- current-sum (nth array i))
+                              (nth array (+ i k)))]
+          (recur (inc i) current-sum' (max max-sum current-sum')))))))

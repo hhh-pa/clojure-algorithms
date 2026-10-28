@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.recursive-digit-sum-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is]]
             [clojure-algorithms.maths.recursive-digit-sum :as sut]))
 
 (deftest test-fn-super-digit-examples

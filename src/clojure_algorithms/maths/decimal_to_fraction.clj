@@ -1,8 +1,28 @@
 (ns clojure-algorithms.maths.decimal-to-fraction
-  "Port of maths/decimal_to_fraction.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Convert a decimal number to its simplest fraction form."
+  (:require [clojure.string :as str]))
 
-(declare decimal-to-fraction)
-
-(defn decimal-to-fraction "Return a decimal number in its simplest fraction form\n>>> decimal_to_fraction(2)\n(2, 1)\n>>> decimal_to_fraction(89.)\n(89, 1)\n>>> decimal_to_fraction(\"67\")\n(67, 1)\n>>> decimal_to_fraction(\"45.0\")\n(45, 1)\n>>> decimal_to_fraction(1.5)\n(3, 2)\n>>> decimal_to_fraction(\"6.25\")\n(25, 4)\n>>> decimal_to_fraction(\"78td\")\nTraceback (most recent call last):\nValueError: Please enter a valid number\n>>> decimal_to_fraction(0)\n(0, 1)\n>>> decimal_to_fraction(-2.5)\n(-5, 2)\n>>> decimal_to_fraction(0.125)\n(1, 8)\n>>> decimal_to_fraction(1000000.25)\n(4000001, 4)\n>>> decimal_to_fraction(1.3333)\n(13333, 10000)\n>>> decimal_to_fraction(\"1.23e2\")\n(123, 1)\n>>> decimal_to_fraction(\"0.500\")\n(1, 2)"
-  [decimal] (let [decimal (atom decimal)] (let [denominator (atom nil) dividend (atom nil) divisor (atom nil) fractional-part (atom nil) number-of-frac-digits (atom nil) numerator (atom nil) remainder (atom nil)] (try (try (reset! decimal (py-float @decimal)) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond (contains? #{:ValueError} __t) (do (throw (ex-info (py-str "Please enter a valid number") {:type :ValueError}))) :else (throw __eh)))))) (reset! fractional-part (py-sub @decimal (py-int @decimal nil))) (if (py-truthy (py-eq @fractional-part 0)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-int @decimal nil) 1]}))) (do (reset! number-of-frac-digits (count (py-get (py-split (py-str @decimal) "." -1) 1))) (reset! numerator (py-int (py-mul @decimal (py-pow 10 @number-of-frac-digits)) nil)) (reset! denominator (py-pow 10 @number-of-frac-digits)) (let [__d1 (vec [@denominator @numerator])] (reset! divisor (nth __d1 0)) (reset! dividend (nth __d1 1))) (try (while (py-truthy true) (reset! remainder (py-mod @dividend @divisor)) (when (py-truthy (py-eq @remainder 0)) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (let [__d2 (vec [@divisor @remainder])] (reset! dividend (nth __d2 0)) (reset! divisor (nth __d2 1)))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (let [__d3 (vec [(py-floordiv @numerator @divisor) (py-floordiv @denominator @divisor)])] (reset! numerator (nth __d3 0)) (reset! denominator (nth __d3 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@numerator @denominator]})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn decimal-to-fraction
+  "Return [numerator denominator] for the given decimal (number or string)."
+  [decimal]
+  (let [d (try
+            (cond (number? decimal) (double decimal)
+                  (string? decimal) (Double/parseDouble decimal)
+                  :else (throw (ex-info "Please enter a valid number"
+                                        {:type :ValueError})))
+            (catch NumberFormatException _
+              (throw (ex-info "Please enter a valid number" {:type :ValueError}))))
+        int-part (long d)]
+    (if (zero? (- d int-part))
+      [int-part 1]
+      (let [digits (count (second (str/split (str d) #"\.")))
+            scale (long (Math/pow 10 digits))
+            numerator (long (* d scale))
+            denominator scale
+            divisor (loop [divisor denominator
+                           dividend numerator]
+                      (let [remainder (mod dividend divisor)]
+                        (if (zero? remainder)
+                          divisor
+                          (recur remainder divisor))))]
+        [(quot numerator divisor) (quot denominator divisor)]))))

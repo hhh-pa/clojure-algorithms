@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.harshad-numbers-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.harshad-numbers :as sut]))
 
 (deftest test-fn-int-to-base-examples
@@ -34,3 +33,10 @@
   (is (= false (boolean (sut/is-harshad-number-in-base -21 5))))
   (is (thrown? Exception (sut/is-harshad-number-in-base 45 37)))
   (is (thrown? Exception (sut/is-harshad-number-in-base 45 1))))
+
+(deftest test-error-type
+  (is (= :ValueError
+         (try (sut/int-to-base 98 37)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

@@ -21,9 +21,12 @@ classic algorithms and data structures implemented in idiomatic Clojure.
 
 - **1,350** implementations, each with a matching `clojure.test` suite
   (**1,350** test namespaces).
-- Full suite: **2,078 tests, 0 failures, 0 errors** (`clojure -M:test`;
-  ≈12,040 assertions — the exact figure varies slightly run to run
+- Full suite: **2,418 tests, 0 failures, 0 errors** (`clojure -M:test`;
+  ≈13,800 assertions — the exact figure varies slightly run to run
   because one property test asserts per edge of a random graph).
+- Deliberate deviations from upstream are marked `NOTE` in code and are
+  limited to cases where upstream is broken (RSA keygen enforces `p ≠ q`,
+  which upstream omits).
 - Implementations that depend on Python-only libraries (NumPy, OpenCV,
   network APIs) are ported as pure-Clojure logic where possible, otherwise
   as documented stubs — see the namespace docstrings.

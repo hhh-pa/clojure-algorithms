@@ -1,14 +1,56 @@
 (ns clojure-algorithms.maths.numerical-analysis.integration-by-simpson-approx
-  "Author : Syed Faizan ( 3rd Year IIIT Pune )\nGithub : faizan2700\n\nPurpose : You have one function f(x) which takes float integer and returns\nfloat you have to integrate the function in limits a to b.\nThe approximation proposed by Thomas Simpson in 1743 is one way to calculate\nintegration.\n\n( read article : https://cp-algorithms.com/num_methods/simpson-integration.html )\n\nsimpson_integration() takes function,lower_limit=a,upper_limit=b,precision and\nreturns the integration of function in given limit."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Author : Syed Faizan ( 3rd Year IIIT Pune )
+Github : faizan2700
 
-(declare f simpson-integration N-STEPS)
+Purpose : You have one function f(x) which takes float integer and returns
+float you have to integrate the function in limits a to b.
+The approximation proposed by Thomas Simpson in 1743 is one way to calculate
+integration.
 
-(defn f
-  [x] (py-mul x x))
+( read article : https://cp-algorithms.com/num_methods/simpson-integration.html )
 
-(defn simpson-integration "Args:\n    function : the function which's integration is desired\n    a : the lower limit of integration\n    b : upper limit of integration\n    precision : precision of the result,error required default is 4\n\nReturns:\n    result : the value of the approximated integration of function in range a to b\n\nRaises:\n    AssertionError: function is not callable\n    AssertionError: a is not float or integer\n    AssertionError: function should return float or integer\n    AssertionError: b is not float or integer\n    AssertionError: precision is not positive integer\n\n>>> simpson_integration(lambda x : x*x,1,2,3)\n2.333\n\n>>> simpson_integration(lambda x : x*x,'wrong_input',2,3)\nTraceback (most recent call last):\n    ...\nAssertionError: a should be float or integer your input : wrong_input\n\n>>> simpson_integration(lambda x : x*x,1,'wrong_input',3)\nTraceback (most recent call last):\n    ...\nAssertionError: b should be float or integer your input : wrong_input\n\n>>> simpson_integration(lambda x : x*x,1,2,'wrong_input')\nTraceback (most recent call last):\n    ...\nAssertionError: precision should be positive integer your input : wrong_input\n>>> simpson_integration('wrong_input',2,3,4)\nTraceback (most recent call last):\n    ...\nAssertionError: the function(object) passed should be callable your input : ...\n\n>>> simpson_integration(lambda x : x*x,3.45,3.2,1)\n-2.8\n\n>>> simpson_integration(lambda x : x*x,3.45,3.2,0)\nTraceback (most recent call last):\n    ...\nAssertionError: precision should be positive integer your input : 0\n\n>>> simpson_integration(lambda x : x*x,3.45,3.2,-1)\nTraceback (most recent call last):\n    ...\nAssertionError: precision should be positive integer your input : -1"
-  ([function a b] (simpson-integration function a b 4))
-  ([function a b precision] (let [a1 (atom nil) h (atom nil) i (atom nil) result (atom nil)] (try (assert (py-truthy (fn? function)) (py-str (str "the function(object) passed should be callable your input : " (py-str function)))) (assert (py-truthy (or (number? a) (integer? a))) (py-str (str "a should be float or integer your input : " (py-str a)))) (assert (py-truthy (or (number? (function a)) (integer? (function a)))) (py-str (str "the function should return integer or float return type of your function, " (py-str (py-type a))))) (assert (py-truthy (or (number? b) (integer? b))) (py-str (str "b should be float or integer your input : " (py-str b)))) (assert (py-truthy (let [__b1 (integer? precision)] (if (py-truthy __b1) (py-gt precision 0) __b1))) (py-str (str "precision should be positive integer your input : " (py-str precision)))) (reset! h (py-div (py-sub b a) N-STEPS)) (reset! result (py-add (function a) (function b))) (doseq [__i2 (py-iter (range 1 N-STEPS))] (reset! i __i2) (reset! a1 (py-add a (py-mul @h @i))) (swap! result py-add (py-mul (function @a1) (if (py-truthy (py-mod @i 2)) 4 2)))) (swap! result py-mul (py-div @h 3)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-round @result precision)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+simpson-integration takes function, lower_limit=a, upper_limit=b, precision and
+returns the integration of function in given limit.")
 
 (def N-STEPS 1000)
+
+(defn f
+  "Sample function f(x) = x^2."
+  [x]
+  (* x x))
+
+(defn- round-to
+  [value precision]
+  (Double/parseDouble
+   (.toPlainString (.setScale (BigDecimal. ^double (double value))
+                              precision
+                              java.math.RoundingMode/HALF_EVEN))))
+
+(defn simpson-integration
+  "Approximate the integral of function from a to b with Simpson's rule.
+
+  precision is the number of decimals of the result (default 4).
+  Throws AssertionError when the function is not callable, a or b is not a
+  number, the function does not return a number, or precision is not a
+  positive integer."
+  ([function a b] (simpson-integration function a b 4))
+  ([function a b precision]
+   (assert (ifn? function)
+           (str "the function(object) passed should be callable your input : "
+                function))
+   (assert (number? a) (str "a should be float or integer your input : " a))
+   (assert (number? (function a))
+           (str "the function should return integer or float return type of "
+                "your function, " (type a)))
+   (assert (number? b) (str "b should be float or integer your input : " b))
+   (assert (and (integer? precision) (pos? precision))
+           (str "precision should be positive integer your input : " precision))
+   (let [h (/ (- (double b) (double a)) N-STEPS)
+         fa (double (function a))
+         fb (double (function b))
+         result (reduce (fn [acc i]
+                          (+ acc (* (double (function (+ (double a) (* h i))))
+                                    (if (odd? i) 4 2))))
+                        (+ fa fb)
+                        (range 1 N-STEPS))]
+     (round-to (* result (/ h 3)) precision))))

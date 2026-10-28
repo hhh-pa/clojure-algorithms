@@ -1,8 +1,20 @@
 (ns clojure-algorithms.maths.special-numbers.automorphic-number
-  "== Automorphic Numbers ==\nA number n is said to be a Automorphic number if\nthe square of n \"ends\" in the same digits as n itself.\n\nExamples of Automorphic Numbers: 0, 1, 5, 6, 25, 76, 376, 625, 9376, 90625, ...\nhttps://en.wikipedia.org/wiki/Automorphic_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Automorphic Numbers ==
+A number n is said to be a Automorphic number if
+the square of n \"ends\" in the same digits as n itself.
 
-(declare is-automorphic-number)
+Examples of Automorphic Numbers: 0, 1, 5, 6, 25, 76, 376, 625, 9376, 90625, ...
+https://en.wikipedia.org/wiki/Automorphic_number"
+  (:require [clojure.string :as str]))
 
-(defn is-automorphic-number "# doctest: +NORMALIZE_WHITESPACE\nThis functions takes an integer number as input.\nreturns True if the number is automorphic.\n>>> is_automorphic_number(-1)\nFalse\n>>> is_automorphic_number(0)\nTrue\n>>> is_automorphic_number(5)\nTrue\n>>> is_automorphic_number(6)\nTrue\n>>> is_automorphic_number(7)\nFalse\n>>> is_automorphic_number(25)\nTrue\n>>> is_automorphic_number(259918212890625)\nTrue\n>>> is_automorphic_number(259918212890636)\nFalse\n>>> is_automorphic_number(740081787109376)\nTrue\n>>> is_automorphic_number(5.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=5.0] must be an integer"
-  [number] (let [number (atom number)] (let [msg (atom nil) number-square (atom nil)] (try (when (py-truthy (not (py-truthy (integer? @number)))) (reset! msg (str "Input value of [number=" (py-str @number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt @number 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! number-square (py-mul @number @number)) (while (py-truthy (py-gt @number 0)) (when (py-truthy (not (py-eq (py-mod @number 10) (py-mod @number-square 10)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (swap! number py-floordiv 10) (swap! number-square py-floordiv 10)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn is-automorphic-number
+  "Returns true if `number` is automorphic, i.e. its square ends in the same
+digits as the number itself. Returns false for negative integers.
+Throws an ex-info with :type :TypeError when `number` is not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (if (neg? number)
+    false
+    (str/ends-with? (str (*' number number)) (str number))))

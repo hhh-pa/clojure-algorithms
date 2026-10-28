@@ -1,8 +1,47 @@
 (ns clojure-algorithms.maths.three-sum
-  "https://en.wikipedia.org/wiki/3SUM"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "https://en.wikipedia.org/wiki/3SUM")
 
-(declare three-sum)
+(defn- triplets-from
+  "Finds unique triplets starting at index i that sum to zero,
+  using two pointers over the sorted vector nums."
+  [nums i]
+  (let [n (count nums)
+        target (- (nums i))]
+    (loop [low (inc i) high (dec n) acc []]
+      (if (>= low high)
+        acc
+        (let [s (+ (nums low) (nums high))]
+          (cond (= s target)
+                (let [low (loop [low low]
+                            (if (and (< low high)
+                                     (= (nums low) (nums (inc low))))
+                              (recur (inc low))
+                              low))
+                      high (loop [high high]
+                             (if (and (< low high)
+                                      (= (nums high) (nums (dec high))))
+                               (recur (dec high))
+                               high))]
+                  (recur (inc low) (dec high)
+                         (conj acc [(nums i) (nums low) (nums high)])))
+                (< s target) (recur (inc low) high acc)
+                :else (recur low (dec high) acc)))))))
 
-(defn three-sum "Find all unique triplets in a sorted array of integers that sum up to zero.\n\nArgs:\n    nums: A sorted list of integers.\n\nReturns:\n    A list of lists containing unique triplets that sum up to zero.\n\n>>> three_sum([-1, 0, 1, 2, -1, -4])\n[[-1, -1, 2], [-1, 0, 1]]\n>>> three_sum([1, 2, 3, 4])\n[]"
-  [nums] (let [nums (atom nums)] (let [ans (atom nil) c (atom nil) high (atom nil) i (atom nil) low (atom nil)] (try (reset! nums (py-sorted @nums)) (reset! ans []) (doseq [__i1 (py-iter (range (py-sub (count @nums) 2)))] (reset! i __i1) (when (py-truthy (let [__b2 (py-eq @i 0)] (if (py-truthy __b2) __b2 (not (py-eq (py-get @nums @i) (py-get @nums (py-sub @i 1))))))) (let [__d3 (vec [(py-add @i 1) (py-sub (count @nums) 1) (py-sub 0 (py-get @nums @i))])] (reset! low (nth __d3 0)) (reset! high (nth __d3 1)) (reset! c (nth __d3 2))) (while (py-truthy (py-lt @low @high)) (if (py-truthy (py-eq (py-add (py-get @nums @low) (py-get @nums @high)) @c)) (do (swap! ans conj [(py-get @nums @i) (py-get @nums @low) (py-get @nums @high)]) (while (py-truthy (let [__b4 (py-lt @low @high)] (if (py-truthy __b4) (py-eq (py-get @nums @low) (py-get @nums (py-add @low 1))) __b4))) (swap! low py-add 1)) (while (py-truthy (let [__b5 (py-lt @low @high)] (if (py-truthy __b5) (py-eq (py-get @nums @high) (py-get @nums (py-sub @high 1))) __b5))) (swap! high py-sub 1)) (swap! low py-add 1) (swap! high py-sub 1)) (do (if (py-truthy (py-lt (py-add (py-get @nums @low) (py-get @nums @high)) @c)) (do (swap! low py-add 1)) (do (swap! high py-sub 1)))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn three-sum
+  "Finds all unique triplets in a sorted array of integers that sum up to zero.
+
+  Args:
+      nums: A sorted list of integers.
+
+  Returns:
+      A list of lists containing unique triplets that sum up to zero."
+  [nums]
+  (let [nums (vec (sort nums))
+        n (count nums)]
+    (loop [i 0 ans []]
+      (if (> i (- n 3))
+        ans
+        (recur (inc i)
+               (if (and (pos? i) (= (nums i) (nums (dec i))))
+                 ans
+                 (into ans (triplets-from nums i))))))))

@@ -1,7 +1,6 @@
 (ns clojure-algorithms.matrix.cramers-rule-2x2-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.matrix.cramers-rule-2x2 :as sut]))
 
 (deftest test-fn-cramers-rule-2x2-examples

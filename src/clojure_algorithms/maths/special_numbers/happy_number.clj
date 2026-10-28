@@ -1,8 +1,27 @@
 (ns clojure-algorithms.maths.special-numbers.happy-number
-  "Port of maths/special_numbers/happy_number.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A happy number is a number which eventually reaches 1 when replaced by the
+sum of the square of each digit.")
 
-(declare is-happy-number)
+(defn- value-repr
+  "Python-repr-style rendering used in error messages: strings are wrapped in
+single quotes, other values use their plain string form."
+  [v]
+  (if (string? v) (str "'" v "'") (str v)))
 
-(defn is-happy-number "A happy number is a number which eventually reaches 1 when replaced by the sum of\nthe square of each digit.\n\n:param number: The number to check for happiness.\n:return: True if the number is a happy number, False otherwise.\n\n>>> is_happy_number(19)\nTrue\n>>> is_happy_number(2)\nFalse\n>>> is_happy_number(23)\nTrue\n>>> is_happy_number(1)\nTrue\n>>> is_happy_number(0)\nTraceback (most recent call last):\n    ...\nValueError: number=0 must be a positive integer\n>>> is_happy_number(-19)\nTraceback (most recent call last):\n    ...\nValueError: number=-19 must be a positive integer\n>>> is_happy_number(19.1)\nTraceback (most recent call last):\n    ...\nValueError: number=19.1 must be a positive integer\n>>> is_happy_number(\"happy\")\nTraceback (most recent call last):\n    ...\nValueError: number='happy' must be a positive integer"
-  [number] (let [number (atom number)] (let [msg (atom nil) seen (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? @number)))] (if (py-truthy __b1) __b1 (py-le @number 0)))) (reset! msg (str "number=" (py-str (pr-str @number)) " must be a positive integer")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! seen (py-set [])) (while (py-truthy (let [__b2 (not (py-eq @number 1))] (if (py-truthy __b2) (not (py-in @number @seen)) __b2))) (swap! seen (fn [__c] (conj (set __c) @number))) (reset! number (reduce +' 0 (doall (for [digit (py-iter (py-str @number))] (py-pow (py-int digit nil) 2)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @number 1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn is-happy-number
+  "Returns true if `number` is happy: it eventually reaches 1 when repeatedly
+replaced by the sum of the squares of its digits. Throws an ex-info with
+:type :ValueError when `number` is not a positive integer."
+  [number]
+  (when (or (not (integer? number)) (<= number 0))
+    (throw (ex-info (str "number=" (value-repr number)
+                         " must be a positive integer")
+                    {:type :ValueError})))
+  (letfn [(digit-square-sum [n]
+            (reduce + 0 (map #(let [d (Character/digit ^char % 10)] (* d d))
+                             (str n))))]
+    (loop [n number, seen #{}]
+      (cond
+        (= n 1) true
+        (contains? seen n) false
+        :else (recur (digit-square-sum n) (conj seen n))))))

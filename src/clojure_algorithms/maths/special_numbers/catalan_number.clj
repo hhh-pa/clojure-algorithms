@@ -1,8 +1,21 @@
 (ns clojure-algorithms.maths.special-numbers.catalan-number
-  "Calculate the nth Catalan number\n\nSource:\n    https://en.wikipedia.org/wiki/Catalan_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Calculate the nth Catalan number
 
-(declare catalan)
+Source:
+    https://en.wikipedia.org/wiki/Catalan_number")
 
-(defn catalan ":param number: nth catalan number to calculate\n:return: the nth catalan number\nNote: A catalan number is only defined for positive integers\n\n>>> catalan(5)\n14\n>>> catalan(0)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=0] must be > 0\n>>> catalan(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=-1] must be > 0\n>>> catalan(5.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=5.0] must be an integer"
-  [number] (let [current-number (atom nil) i (atom nil) msg (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (reset! msg (str "Input value of [number=" (py-str number) "] must be > 0")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (reset! current-number 1) (doseq [__i1 (py-iter (range 1 number))] (reset! i __i1) (swap! current-number py-mul (py-sub (py-mul 4 @i) 2)) (swap! current-number py-floordiv (py-add @i 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @current-number})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn catalan
+  "Returns the nth Catalan number. A Catalan number is only defined for
+positive integers. Throws an ex-info with :type :TypeError when `number` is
+not an integer, and :type :ValueError when it is below 1."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (when (< number 1)
+    (throw (ex-info (str "Input value of [number=" number "] must be > 0")
+                    {:type :ValueError})))
+  (reduce (fn [current i]
+            (quot (*' current (- (* 4 i) 2)) (inc i)))
+          1
+          (range 1 number)))

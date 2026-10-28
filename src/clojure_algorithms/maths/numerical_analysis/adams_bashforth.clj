@@ -1,38 +1,173 @@
 (ns clojure-algorithms.maths.numerical-analysis.adams-bashforth
-  "Use the Adams-Bashforth methods to solve Ordinary Differential Equations.\n\nhttps://en.wikipedia.org/wiki/Linear_multistep_method\nAuthor : Ravi Kumar"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Use the Adams-Bashforth methods to solve Ordinary Differential Equations.
 
-(declare make-AdamsBashforth AdamsBashforth-post-init AdamsBashforth-step-2 AdamsBashforth-step-3 AdamsBashforth-step-4 AdamsBashforth-step-5)
+https://en.wikipedia.org/wiki/Linear_multistep_method
+Author : Ravi Kumar")
 
 (defrecord AdamsBashforth [func x-initials y-initials step-size x-final])
 
-(defn make-AdamsBashforth "Constructor for AdamsBashforth. args:\nfunc: An ordinary differential equation (ODE) as function of x and y.\nx_initials: List containing initial required values of x.\ny_initials: List containing initial required values of y.\nstep_size: The increment value of x.\nx_final: The final value of x.\n\nReturns: Solution of y at each nodal point\n\n>>> def f(x, y):\n...     return x + y\n>>> AdamsBashforth(f, [0, 0.2, 0.4], [0, 0.2, 1], 0.2, 1)  # doctest: +ELLIPSIS\nAdamsBashforth(func=..., x_initials=[0, 0.2, 0.4], y_initials=[0, 0.2, 1], step...)\n>>> AdamsBashforth(f, [0, 0.2, 1], [0, 0, 0.04], 0.2, 1).step_2()\nTraceback (most recent call last):\n    ...\nValueError: The final value of x must be greater than the initial values of x.\n\n>>> AdamsBashforth(f, [0, 0.2, 0.3], [0, 0, 0.04], 0.2, 1).step_3()\nTraceback (most recent call last):\n    ...\nValueError: x-values must be equally spaced according to step size.\n\n>>> AdamsBashforth(f,[0,0.2,0.4,0.6,0.8],[0,0,0.04,0.128,0.307],-0.2,1).step_5()\nTraceback (most recent call last):\n    ...\nValueError: Step size must be positive."
-  [func x-initials y-initials step-size x-final] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:func] func))) (swap! self (fn [__c] (py-assoc-in __c [:x-initials] x-initials))) (swap! self (fn [__c] (py-assoc-in __c [:y-initials] y-initials))) (swap! self (fn [__c] (py-assoc-in __c [:step-size] step-size))) (swap! self (fn [__c] (py-assoc-in __c [:x-final] x-final))) (AdamsBashforth-post-init self) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->AdamsBashforth @self)))
-
 (defn AdamsBashforth-post-init
-  [self] (when (py-truthy (py-ge (py-get (:x-initials @self) (py-neg 1)) (:x-final @self))) (throw (ex-info (py-str "The final value of x must be greater than the initial values of x.") {:type :ValueError}))) (when (py-truthy (py-le (:step-size @self) 0)) (throw (ex-info (py-str "Step size must be positive.") {:type :ValueError}))) (when (py-truthy (not (py-truthy (every? py-truthy (doall (for [[x0 x1] (py-iter (map vector (:x-initials @self) (py-slice (:x-initials @self) 1 nil nil)))] (py-eq (py-round (py-sub x1 x0) 10) (:step-size @self)))))))) (throw (ex-info (py-str "x-values must be equally spaced according to step size.") {:type :ValueError}))) nil)
+  "Validate an AdamsBashforth configuration.
 
-(defn AdamsBashforth-step-2 ">>> def f(x, y):\n...     return x\n>>> AdamsBashforth(f, [0, 0.2], [0, 0], 0.2, 1).step_2()\narray([0.  , 0.  , 0.06, 0.16, 0.3 , 0.48])\n\n>>> AdamsBashforth(f, [0, 0.2, 0.4], [0, 0, 0.04], 0.2, 1).step_2()\nTraceback (most recent call last):\n    ...\nValueError: Insufficient initial points information."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  Throws ex-info with :type :ValueError when the final x is not greater
+  than the last initial x, when the step size is not positive, or when the
+  initial x values are not equally spaced according to the step size."
+  [self]
+  (let [{:keys [x-initials step-size x-final]} self
+        round10 (fn [v] (/ (Math/round (* (double v) 1e10)) 1e10))]
+    (when (>= (last x-initials) x-final)
+      (throw (ex-info "The final value of x must be greater than the initial values of x."
+                      {:type :ValueError})))
+    (when (<= step-size 0)
+      (throw (ex-info "Step size must be positive." {:type :ValueError})))
+    (when-not (every? (fn [[x0 x1]] (== (round10 (- x1 x0)) step-size))
+                      (map vector x-initials (rest x-initials)))
+      (throw (ex-info "x-values must be equally spaced according to step size."
+                      {:type :ValueError})))
+    nil))
 
-(defn AdamsBashforth-step-3 ">>> def f(x, y):\n...     return x + y\n>>> y = AdamsBashforth(f, [0, 0.2, 0.4], [0, 0, 0.04], 0.2, 1).step_3()\n>>> float(y[3])\n0.15533333333333332\n\n>>> AdamsBashforth(f, [0, 0.2], [0, 0], 0.2, 1).step_3()\nTraceback (most recent call last):\n    ...\nValueError: Insufficient initial points information."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-AdamsBashforth
+  "Constructor for AdamsBashforth.
 
-(defn AdamsBashforth-step-4 ">>> def f(x,y):\n...     return x + y\n>>> y = AdamsBashforth(\n...    f, [0, 0.2, 0.4, 0.6], [0, 0, 0.04, 0.128], 0.2, 1).step_4()\n>>> float(y[4])\n0.30699999999999994\n>>> float(y[5])\n0.5771083333333333\n\n>>> AdamsBashforth(f, [0, 0.2, 0.4], [0, 0, 0.04], 0.2, 1).step_4()\nTraceback (most recent call last):\n    ...\nValueError: Insufficient initial points information."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  func: An ordinary differential equation (ODE) as function of x and y.
+  x-initials: initial values of x.
+  y-initials: initial values of y.
+  step-size: the increment value of x.
+  x-final: the final value of x.
 
-(defn AdamsBashforth-step-5 ">>> def f(x,y):\n...     return x + y\n>>> y = AdamsBashforth(\n...     f, [0, 0.2, 0.4, 0.6, 0.8], [0, 0.02140, 0.02140, 0.22211, 0.42536],\n...     0.2, 1).step_5()\n>>> float(y[-1])\n0.05436839444444452\n\n>>> AdamsBashforth(f, [0, 0.2, 0.4], [0, 0, 0.04], 0.2, 1).step_5()\nTraceback (most recent call last):\n    ...\nValueError: Insufficient initial points information."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+  Returns the validated configuration record."
+  [func x-initials y-initials step-size x-final]
+  (let [self (->AdamsBashforth func (vec x-initials) (vec y-initials)
+                               step-size x-final)]
+    (AdamsBashforth-post-init self)
+    self))
 
-;; NOTE: AdamsBashforth.step_2 stubbed (np)
-;; NOTE: AdamsBashforth.step_3 stubbed (np)
-;; NOTE: AdamsBashforth.step_4 stubbed (np)
-;; NOTE: AdamsBashforth.step_5 stubbed (np)
+(defn- check-initial-count
+  [self expected-count]
+  (let [{:keys [x-initials y-initials]} self]
+    (when (or (not= expected-count (count x-initials))
+              (not= expected-count (count y-initials)))
+      (throw (ex-info "Insufficient initial points information."
+                      {:type :ValueError})))))
+
+(defn AdamsBashforth-step-2
+  "Solve with the 2-step Adams-Bashforth method.
+
+  Returns a vector with the solution of y at each nodal point."
+  [self]
+  (check-initial-count self 2)
+  (let [{:keys [func step-size x-final]} self
+        [x0 x1] (:x-initials self)
+        [y0 y1] (:y-initials self)
+        n (int (/ (- x-final x1) step-size))]
+    (loop [i 0
+           x0 (double x0)
+           x1 (double x1)
+           y (assoc (vec (repeat (+ n 2) 0.0)) 0 (double y0) 1 (double y1))]
+      (if (>= i n)
+        y
+        (recur (inc i)
+               x1
+               (+ x1 step-size)
+               (assoc y (+ i 2)
+                      (+ (nth y (inc i))
+                         (* (/ step-size 2)
+                            (- (* 3 (func x1 (nth y (inc i))))
+                               (func x0 (nth y i)))))))))))
+
+(defn AdamsBashforth-step-3
+  "Solve with the 3-step Adams-Bashforth method.
+
+  Returns a vector with the solution of y at each nodal point."
+  [self]
+  (check-initial-count self 3)
+  (let [{:keys [func step-size x-final]} self
+        [x0 x1 x2] (:x-initials self)
+        [y0 y1 y2] (:y-initials self)
+        n (int (/ (- x-final x2) step-size))]
+    (loop [i 0
+           x0 (double x0)
+           x1 (double x1)
+           x2 (double x2)
+           y (assoc (vec (repeat (+ n 4) 0.0))
+                    0 (double y0) 1 (double y1) 2 (double y2))]
+      (if (> i n)
+        y
+        (recur (inc i)
+               x1
+               x2
+               (+ x2 step-size)
+               (assoc y (+ i 3)
+                      (+ (nth y (+ i 2))
+                         (* (/ step-size 12)
+                            (+ (* 23 (func x2 (nth y (+ i 2))))
+                               (* -16 (func x1 (nth y (inc i))))
+                               (* 5 (func x0 (nth y i))))))))))))
+
+(defn AdamsBashforth-step-4
+  "Solve with the 4-step Adams-Bashforth method.
+
+  Returns a vector with the solution of y at each nodal point."
+  [self]
+  (check-initial-count self 4)
+  (let [{:keys [func step-size x-final]} self
+        [x0 x1 x2 x3] (:x-initials self)
+        [y0 y1 y2 y3] (:y-initials self)
+        n (int (/ (- x-final x3) step-size))]
+    (loop [i 0
+           x0 (double x0)
+           x1 (double x1)
+           x2 (double x2)
+           x3 (double x3)
+           y (assoc (vec (repeat (+ n 4) 0.0))
+                    0 (double y0) 1 (double y1) 2 (double y2) 3 (double y3))]
+      (if (>= i n)
+        y
+        (recur (inc i)
+               x1
+               x2
+               x3
+               (+ x3 step-size)
+               (assoc y (+ i 4)
+                      (+ (nth y (+ i 3))
+                         (* (/ step-size 24)
+                            (+ (* 55 (func x3 (nth y (+ i 3))))
+                               (* -59 (func x2 (nth y (+ i 2))))
+                               (* 37 (func x1 (nth y (inc i))))
+                               (* -9 (func x0 (nth y i))))))))))))
+
+(defn AdamsBashforth-step-5
+  "Solve with the 5-step Adams-Bashforth method.
+
+  Returns a vector with the solution of y at each nodal point."
+  [self]
+  (check-initial-count self 5)
+  (let [{:keys [func step-size x-final]} self
+        [x0 x1 x2 x3 x4] (:x-initials self)
+        [y0 y1 y2 y3 y4] (:y-initials self)
+        n (int (/ (- x-final x4) step-size))]
+    (loop [i 0
+           x0 (double x0)
+           x1 (double x1)
+           x2 (double x2)
+           x3 (double x3)
+           x4 (double x4)
+           y (assoc (vec (repeat (+ n 6) 0.0))
+                    0 (double y0) 1 (double y1) 2 (double y2)
+                    3 (double y3) 4 (double y4))]
+      (if (> i n)
+        y
+        (recur (inc i)
+               x1
+               x2
+               x3
+               x4
+               (+ x4 step-size)
+               (assoc y (+ i 5)
+                      (+ (nth y (+ i 4))
+                         (* (/ step-size 720)
+                            (+ (* 1901 (func x4 (nth y (+ i 4))))
+                               (* -2774 (func x3 (nth y (+ i 3))))
+                               (* -2616 (func x2 (nth y (+ i 2))))
+                               (* -1274 (func x1 (nth y (inc i))))
+                               (* 251 (func x0 (nth y i))))))))))))

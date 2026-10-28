@@ -1,9 +1,13 @@
 (ns clojure-algorithms.maths.kth-lexicographic-permutation-test
   (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
             [clojure-algorithms.maths.kth-lexicographic-permutation :as sut]))
 
 (deftest test-fn-kth-permutation-examples
   (is (approx [0 1 2 3 4] (sut/kth-permutation 0 5)))
   (is (approx [1 3 0 2] (sut/kth-permutation 10 4))))
+
+(deftest test-fn-kth-permutation-extra
+  (is (approx [2 1 0] (sut/kth-permutation 5 3)))
+  (is (approx [0 1 2] (sut/kth-permutation 0 3)))
+  (is (thrown? AssertionError (sut/kth-permutation 24 4)))
+  (is (thrown? AssertionError (sut/kth-permutation -1 4))))

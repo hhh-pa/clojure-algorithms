@@ -1,8 +1,14 @@
 (ns clojure-algorithms.maths.fast-inverse-sqrt
-  "Fast inverse square root (1/sqrt(x)) using the Quake III algorithm.\nReference: https://en.wikipedia.org/wiki/Fast_inverse_square_root\nAccuracy: https://en.wikipedia.org/wiki/Fast_inverse_square_root#Accuracy"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Fast inverse square root (1/sqrt(x)) using the Quake III algorithm.
+  Reference: https://en.wikipedia.org/wiki/Fast_inverse_square_root")
 
-(declare fast-inverse-sqrt)
-
-(defn fast-inverse-sqrt "Compute the fast inverse square root of a floating-point number using the famous\nQuake III algorithm.\n\n:param float number: Input number for which to calculate the inverse square root.\n:return float: The fast inverse square root of the input number.\n\nExample:\n>>> fast_inverse_sqrt(10)\n0.3156857923527257\n>>> fast_inverse_sqrt(4)\n0.49915357479239103\n>>> fast_inverse_sqrt(4.1)\n0.4932849504615651\n>>> fast_inverse_sqrt(0)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive number.\n>>> fast_inverse_sqrt(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive number.\n>>> from math import isclose, sqrt\n>>> all(isclose(fast_inverse_sqrt(i), 1 / sqrt(i), rel_tol=0.00132)\n...     for i in range(50, 60))\nTrue"
-  [number] (let [i (atom nil) y (atom nil)] (try (when (py-truthy (py-le number 0)) (throw (ex-info (py-str "Input must be a positive number.") {:type :ValueError}))) (reset! i (py-get (py-struct-unpack ">i" (py-struct-pack ">f" [number])) 0)) (reset! i (py-sub 1597463007 (.shiftRight (.toBigInteger (bigint @i)) (int 1)))) (reset! y (py-get (py-struct-unpack ">f" (py-struct-pack ">i" [@i])) 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul @y (py-sub 1.5 (py-mul (py-mul (py-mul 0.5 number) @y) @y)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn fast-inverse-sqrt
+  "Computes the fast inverse square root of the positive number `number`
+  using the Quake III bit-manipulation algorithm."
+  [number]
+  (when (<= number 0)
+    (throw (ex-info "Input must be a positive number." {:type :ValueError})))
+  (let [i (Float/floatToIntBits (float number))
+        i (- 0x5F3759DF (bit-shift-right i 1))
+        y (Float/intBitsToFloat (int i))]
+    (* y (- 1.5 (* 0.5 number y y)))))

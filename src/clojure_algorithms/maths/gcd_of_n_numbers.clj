@@ -1,13 +1,45 @@
 (ns clojure-algorithms.maths.gcd-of-n-numbers
-  "Gcd of N Numbers\nReference: https://en.wikipedia.org/wiki/Greatest_common_divisor"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Gcd of N Numbers
+Reference: https://en.wikipedia.org/wiki/Greatest_common_divisor")
 
-(declare get-factors get-greatest-common-divisor)
-
-(defn get-factors "this is a recursive function for get all factors of number\n>>> get_factors(45)\nCounter({3: 2, 5: 1})\n>>> get_factors(2520)\nCounter({2: 3, 3: 2, 5: 1, 7: 1})\n>>> get_factors(23)\nCounter({23: 1})\n>>> get_factors(0)\nTraceback (most recent call last):\n    ...\nTypeError: number must be integer and greater than zero\n>>> get_factors(-1)\nTraceback (most recent call last):\n    ...\nTypeError: number must be integer and greater than zero\n>>> get_factors(1.5)\nTraceback (most recent call last):\n    ...\nTypeError: number must be integer and greater than zero\n\nfactor can be all numbers from 2 to number that we check if number % factor == 0\nif it is equal to zero, we check again with number // factor\nelse we increase factor by one"
+(defn get-factors
+  "Return a map of prime factor to exponent for the positive integer number.
+A factor can be all numbers from 2 to number: if number % factor == 0,
+recur on number // factor, else increase factor by one."
   ([number] (get-factors number nil 2))
   ([number factors] (get-factors number factors 2))
-  ([number factors factor] (let [number (atom number) factors (atom factors)] (let [num (atom nil)] (try (reset! number (if (py-truthy (integer? @number)) @number nil)) (reset! num (if (py-truthy (integer? @number)) @number nil)) (if (py-truthy (let [__b1 (integer? @number)] (if (py-truthy __b1) (py-eq @number 1) __b1))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-counter {1 1})}))) (do (if (py-truthy (let [__b2 (integer? @number)] (if (py-truthy __b2) (py-gt @number 0) __b2))) (do (reset! number @num)) (do (throw (ex-info (py-str "number must be integer and greater than zero") {:type :TypeError})))))) (reset! factors (let [__b3 @factors] (if (py-truthy __b3) __b3 (py-counter [])))) (when (py-truthy (py-eq @number factor)) (swap! factors (fn [__c] (py-assoc-in __c [factor] (py-add (py-get-in __c [factor]) 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @factors}))) (when (py-truthy (py-gt (py-mod @number factor) 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (get-factors @number @factors (py-add factor 1))}))) (swap! factors (fn [__c] (py-assoc-in __c [factor] (py-add (py-get-in __c [factor]) 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (get-factors (py-floordiv @number factor) @factors factor)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([number factors factor]
+   (cond
+     (and (integer? number) (= number 1))
+     {1 1}
+     (not (and (integer? number) (pos? number)))
+     (throw (ex-info "number must be integer and greater than zero"
+                     {:type :TypeError}))
+     :else
+     (loop [n number f factor acc (if (seq factors) factors {})]
+       (cond
+         (= n f)
+         (update acc f (fnil inc 0))
+         (pos? (mod n f))
+         (recur n (inc f) acc)
+         :else
+         (recur (quot n f) f (update acc f (fnil inc 0))))))))
 
-(defn get-greatest-common-divisor "get gcd of n numbers:\n>>> get_greatest_common_divisor(18, 45)\n9\n>>> get_greatest_common_divisor(23, 37)\n1\n>>> get_greatest_common_divisor(2520, 8350)\n10\n>>> get_greatest_common_divisor(-10, 20)\nTraceback (most recent call last):\n    ...\nException: numbers must be integer and greater than zero\n>>> get_greatest_common_divisor(1.5, 2)\nTraceback (most recent call last):\n    ...\nException: numbers must be integer and greater than zero\n>>> get_greatest_common_divisor(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)\n1\n>>> get_greatest_common_divisor(\"1\", 2, 3, 4, 5, 6, 7, 8, 9, 10)\nTraceback (most recent call last):\n    ...\nException: numbers must be integer and greater than zero"
-  [& numbers] (let [factor (atom nil) factors (atom nil) m (atom nil) mult (atom nil) same-factors (atom nil)] (try (try (let [__d1 (vec (map get-factors numbers))] (reset! same-factors (nth __d1 0)) (reset! factors (vec (drop 1 __d1)))) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond (contains? #{:TypeError} __t) (do (let [e __eh] (throw (ex-info (py-str "numbers must be integer and greater than zero") {:type :Exception})))) :else (throw __eh)))))) (doseq [__i2 (py-iter @factors)] (reset! factor __i2) (swap! same-factors py-band @factor)) (reset! mult 1) (doseq [__i3 (py-iter (vec (for [[factor power] (py-iter (vec @same-factors))] (py-pow factor power))))] (reset! m __i3) (swap! mult py-mul @m)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @mult})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn get-greatest-common-divisor
+  "Get the gcd of n numbers via common prime factors (minimum exponents)."
+  [& numbers]
+  (when (empty? numbers)
+    (throw (ex-info "not enough values to unpack (expected at least 1, got 0)"
+                    {:type :ValueError})))
+  (let [all (try
+              (mapv get-factors numbers)
+              (catch clojure.lang.ExceptionInfo e
+                (if (= :TypeError (:type (ex-data e)))
+                  (throw (ex-info "numbers must be integer and greater than zero"
+                                  {:type :Exception}))
+                  (throw e))))
+        same (reduce (fn [a b]
+                       (into {} (for [[k v] a :when (contains? b k)]
+                                  [k (min v (get b k))])))
+                     all)]
+    (reduce *' 1 (map (fn [[f p]] (reduce *' 1 (repeat p f))) same))))

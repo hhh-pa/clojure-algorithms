@@ -1,11 +1,44 @@
 (ns clojure-algorithms.maths.spearman-rank-correlation-coefficient
-  "Port of maths/spearman_rank_correlation_coefficient.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Spearman's rank correlation coefficient."
+  (:import [java.math BigDecimal RoundingMode]))
 
-(declare assign-ranks calculate-spearman-rank-correlation)
+(defn assign-ranks
+  "Assigns ranks to elements in data; tied values share the average rank."
+  [data]
+  (let [n (count data)
+        ranked (vec (sort-by first (map-indexed (fn [idx v] [v idx]) data)))]
+    (loop [i 0 ranks (vec (repeat n 0.0))]
+      (if (>= i n)
+        ranks
+        (let [j (loop [j i]
+                  (if (and (< j (dec n))
+                           (== (first (ranked (inc j))) (first (ranked i))))
+                    (recur (inc j))
+                    j))
+              avg-rank (+ (/ (+ i j) 2.0) 1)]
+          (recur (inc j)
+                 (reduce (fn [r k] (assoc r (second (ranked k)) avg-rank))
+                         ranks
+                         (range i (inc j)))))))))
 
-(defn assign-ranks "Assigns ranks to elements in the array.\n\n:param data: List of floats.\n:return: List of floats representing the ranks.\n\nExample:\n>>> assign_ranks([3.2, 1.5, 4.0, 2.7, 5.1])\n[3.0, 1.0, 4.0, 2.0, 5.0]\n\n>>> assign_ranks([10.5, 8.1, 12.4, 9.3, 11.0])\n[3.0, 1.0, 5.0, 2.0, 4.0]\n\n>>> assign_ranks([1, 1, 1, 1])\n[2.5, 2.5, 2.5, 2.5]"
-  [data] (let [avg-rank (atom nil) i (atom nil) j (atom nil) k (atom nil) n (atom nil) ranked-data (atom nil) ranks (atom nil)] (try (reset! n (count data)) (reset! ranked-data (py-sorted (doall (for [[index value] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) data))] [value index])))) (reset! ranks (py-mul [0.0] @n)) (reset! i 0) (while (py-truthy (py-lt @i @n)) (reset! j @i) (while (py-truthy (let [__b1 (py-lt @j (py-sub @n 1))] (if (py-truthy __b1) (py-eq (py-get (py-get @ranked-data (py-add @j 1)) 0) (py-get (py-get @ranked-data @i) 0)) __b1))) (swap! j py-add 1)) (reset! avg-rank (py-add (py-div (py-add @i @j) 2.0) 1)) (doseq [__i2 (py-iter (range @i (py-add @j 1)))] (reset! k __i2) (swap! ranks (fn [__c] (py-assoc-in __c [(py-get (py-get @ranked-data @k) 1)] @avg-rank)))) (reset! i (py-add @j 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ranks})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- round1
+  "Round to one decimal with HALF_EVEN, matching Python's round(x, 1)."
+  [x]
+  (.doubleValue (.setScale (BigDecimal/valueOf (double x)) 1 RoundingMode/HALF_EVEN)))
 
-(defn calculate-spearman-rank-correlation "Calculates Spearman's rank correlation coefficient.\n\n:param variable_1: List of floats representing the first variable.\n:param variable_2: List of floats representing the second variable.\n:return: Spearman's rank correlation coefficient.\n:raises ValueError: If less than 2 data points are provided.\n\nExample Usage:\n\n>>> x = [1, 2, 3, 4, 5]\n>>> y = [5, 4, 3, 2, 1]\n>>> calculate_spearman_rank_correlation(x, y)\n-1.0\n\n>>> x = [1, 2, 3, 4, 5]\n>>> y = [2, 4, 6, 8, 10]\n>>> calculate_spearman_rank_correlation(x, y)\n1.0\n\n>>> x = [1, 2, 3, 4, 5]\n>>> y = [5, 1, 2, 9, 5]\n>>> calculate_spearman_rank_correlation(x, y)\n0.4\n\n>>> x = [5]\n>>> y = [9]\n>>> calculate_spearman_rank_correlation(x, y)\nTraceback (most recent call last):\n    ...\nValueError: Need at least 2 data points to calculate correlation"
-  [variable-1 variable-2] (let [d (atom nil) d-squared (atom nil) n (atom nil) rank-var1 (atom nil) rank-var2 (atom nil) rho (atom nil)] (try (reset! n (count variable-1)) (when (py-truthy (py-lt @n 2)) (throw (ex-info (py-str "Need at least 2 data points to calculate correlation") {:type :ValueError}))) (reset! rank-var1 (assign-ranks variable-1)) (reset! rank-var2 (assign-ranks variable-2)) (reset! d (vec (for [[rx ry] (py-iter (map vector @rank-var1 @rank-var2))] (py-sub rx ry)))) (reset! d-squared (reduce +' 0 (doall (for [di (py-iter @d)] (py-pow di 2))))) (reset! rho (py-sub 1 (py-div (py-mul 6 @d-squared) (py-mul @n (py-sub (py-pow @n 2) 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-round @rho 1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn calculate-spearman-rank-correlation
+  "Calculates Spearman's rank correlation coefficient of two variables."
+  [variable-1 variable-2]
+  (let [n (count variable-1)]
+    (when (< n 2)
+      (throw (ex-info "Need at least 2 data points to calculate correlation"
+                      {:type :ValueError})))
+    (let [rank-var1 (assign-ranks variable-1)
+          rank-var2 (assign-ranks variable-2)
+          d-squared (reduce + 0.0
+                            (map (fn [rx ry]
+                                   (let [d (- rx ry)]
+                                     (* d d)))
+                                 rank-var1 rank-var2))
+          rho (- 1 (/ (* 6 d-squared) (* n (dec (* n n)))))]
+      (round1 rho))))

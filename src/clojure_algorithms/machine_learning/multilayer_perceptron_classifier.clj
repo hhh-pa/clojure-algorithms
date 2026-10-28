@@ -1,111 +1,246 @@
 (ns clojure-algorithms.machine-learning.multilayer-perceptron-classifier
-  "Port of machine_learning/multilayer_perceptron_classifier.py" (:require [clojure-algorithms.runtime.python :refer :all]))
+  "Multi-layer perceptron classifier with forward/backward passes.
 
-(declare make-Dataloader Dataloader-get-train-test-data Dataloader-shuffle-data poly-get-inout-dim Dataloader-get-inout-dim Dataloader-one-hot-encode make-MLP MLP-get-inout-dim MLP-initialize MLP-relu MLP-relu-derivative MLP-forward MLP-back-prop MLP-update-weights MLP-update-learning-rate MLP-accuracy MLP-loss MLP-get-acc-loss MLP-train rng)
+  Matrices are vectors of row vectors. The MLP's intermediate forward-pass
+  cache lives in an atom (matching the upstream instance attribute), while
+  training returns an updated model map.")
 
-(defrecord Dataloader [X y class-weights])
+(def rng
+  "Shared random source (seeded, like the upstream module-level default_rng)."
+  (java.util.Random. 42))
 
-(defrecord MLP [learning-rate gamma epoch hidden-dim train-loss train-accuracy test-loss test-accuracy dataloader inter-variable weights1-list])
+;; ---------------------------------------------------------------------------
+;; matrix helpers
+;; ---------------------------------------------------------------------------
 
-(defn make-Dataloader "Constructor for Dataloader. DataLoader class for handling dataset, including data shuffling,\none-hot encoding, and train-test splitting.\n\nExample usage:\n>>> X = [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]]\n>>> y = [0, 1, 0, 0]\n>>> loader = Dataloader(X, y)\n>>> len(loader.get_train_test_data())  # Returns train and test data\n4\n>>> loader.one_hot_encode([0, 1, 0], 2)  # Returns one-hot encoded labels\narray([[0.99, 0.  ],\n       [0.  , 0.99],\n       [0.99, 0.  ]])\n>>> loader.get_inout_dim()\n(2, 3)\n>>> loader.one_hot_encode([0, 2], 3)\narray([[0.99, 0.  , 0.  ],\n       [0.  , 0.  , 0.99]])"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn- matmul
+  [a b]
+  (let [bt (apply mapv vector b)]
+    (mapv (fn [row] (mapv (fn [col] (reduce + (map * row col))) bt)) a)))
 
-(defn make-MLP "Constructor for MLP. A custom MLP class for implementing a simple multi-layer perceptron with\nforward propagation, backpropagation.\n\nAttributes:\n    learning_rate (float): Learning rate for gradient descent.\n    gamma (float): Parameter to control learning rate adjustment.\n    epoch (int): Number of epochs for training.\n    hidden_dim (int): Dimension of the hidden layer.\n    batch_size (int): Number of samples per mini-batch.\n    train_loss (List[float]): List to store training loss for each fold.\n    train_accuracy (List[float]): List to store training accuracy for each fold.\n    test_loss (List[float]): List to store test loss for each fold.\n    test_accuracy (List[float]): List to store test accuracy for each fold.\n    dataloader (Dataloader): DataLoader object for handling training data.\n    inter_variable (dict): Dictionary to store intermediate variables\n    for backpropagation.\n    weights1_list (List[Tuple[np.ndarray, np.ndarray]]):\n    List of weights for each fold.\n\nMethods:\n    get_inout_dim:obtain input dimension and output dimension.\n    relu: Apply the ReLU activation function.\n    relu_derivative: Compute the derivative of the ReLU function.\n    forward: Perform a forward pass through the network.\n    back_prop: Perform backpropagation to compute gradients.\n    update_weights: Update the weights using gradients.\n    update_learning_rate: Adjust the learning rate based on test accuracy.\n    accuracy: Compute accuracy of the model.\n    loss: Compute weighted MSE loss.\n    train: Train the MLP over multiple folds with early stopping."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn- transpose
+  [matrix]
+  (apply mapv vector matrix))
 
-(defmulti poly-get-inout-dim (fn [s & _] (class (if (instance? clojure.lang.Atom s) @s s))))
+(defn- elementwise
+  [f a b]
+  (mapv (fn [ra rb] (mapv f ra rb)) a b))
 
-(defn Dataloader-get-train-test-data "Splits the data into training and testing sets.\nHere, we manually split the data.\n\nReturns:\n    A tuple containing:\n    - Train data\n    - Train labels\n    - Test data\n    - Test labels"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn- deep-map
+  [f x]
+  (if (sequential? x) (mapv #(deep-map f %) x) (f x)))
 
-(defn Dataloader-shuffle-data "Shuffles the data randomly.\n\nArgs:\n    paired_data: List of tuples containing data and corresponding labels.\n\nReturns:\n    A shuffled list of data-label pairs."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn- argmax-first
+  [xs]
+  (first (keep-indexed (fn [i v] (when (= v (apply max xs)) i)) xs)))
 
-(defmethod poly-get-inout-dim Dataloader [& _] (throw (ex-info "requires numpy-attr:shape" {:type :UnsupportedOperation})))
+;; ---------------------------------------------------------------------------
+;; Dataloader
+;; ---------------------------------------------------------------------------
 
-(defn Dataloader-one-hot-encode "Perform one-hot encoding for the given labels.\n\nArgs:\n    labels: List of integer labels.\n    num_classes: Total number of classes for encoding.\n\nReturns:\n    A numpy array representing one-hot encoded labels."
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn make-Dataloader
+  "Loader over feature rows X with integer labels y."
+  [features labels]
+  {:kind :dataloader
+   :X (mapv vec features)
+   :y (vec labels)
+   :class-weights {0 1.0 1 1.0}})
 
-(defmethod poly-get-inout-dim MLP
-  ([self] (let [input-dim (atom nil) output-dim (atom nil)] (try (let [__d1 (vec (poly-get-inout-dim (atom (:dataloader @self))))] (reset! input-dim (nth __d1 0)) (reset! output-dim (nth __d1 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@input-dim @output-dim]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn Dataloader-get-train-test-data
+  "Manual split: first three rows train, last row test.
+  Returns [train-data train-labels test-data test-labels] with labels as
+  single-element vectors."
+  [loader]
+  (let [{:keys [X y]} loader]
+    [(vec (take 3 X))
+     (mapv vector (take 3 y))
+     [(nth X 3)]
+     [(vector (nth y 3))]]))
 
-(defn MLP-initialize "Initialize weights using He initialization.\n\n:return: Tuple of weights (w1, w2) for the network.\n\n>>> X = [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]]\n>>> y = [0, 1, 0, 0]\n>>> loader = Dataloader(X, y)\n>>> mlp = MLP(loader, 10, 0.1)\n>>> w1, w2 = mlp.initialize()\n>>> w1.shape\n(3, 2)\n>>> w2.shape\n(2, 3)"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn Dataloader-shuffle-data
+  "Return paired-data unchanged (the upstream shuffling is a no-op stub)."
+  [_loader paired-data]
+  paired-data)
 
-(defn MLP-relu "Apply the ReLU activation function element-wise.\n\n:param input_array: Input array.\n:return: Output array after applying ReLU.\n\n>>> mlp = MLP(None, 1, 0.1)\n>>> mlp.relu(np.array([[-1, 2], [3, -4]]))\narray([[0, 2],\n       [3, 0]])"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defmulti poly-get-inout-dim
+  "Input dimension and output dimension."
+  (fn [x] (:kind x)))
 
-(defn MLP-relu-derivative "Compute the derivative of the ReLU function.\n\n:param input_array: Input array.\n:return: Derivative of ReLU function element-wise.\n\n>>> mlp = MLP(None, 1, 0.01)\n>>> mlp.relu_derivative(np.array([[-1, 2], [3, -4]]))\narray([[0., 1.],\n       [1., 0.]])"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:astype; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:astype" {:type :UnsupportedOperation})))
-
-(defn MLP-forward "Performs a forward pass through the neural network with one hidden layer.\n\nArgs:\n    input_data: Input data, shape (batch_size, input_dim).\n    w1: Weight matrix for input to hidden layer,\n    shape (input_dim + 1, hidden_dim).\n    w2: Weight matrix for hidden to output layer,\n    shape (hidden_dim, output_dim).\n    no_gradient: If True, returns output without storing intermediates.\n\nReturns:\n    Output of the network after forward pass, shape (batch_size, output_dim).\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.1, hidden_dim=2)\n    >>> x = np.array([[1.0, 2.0, 1.0]])  # batch_size=1, input_dim=2 + bias\n    >>> w1 = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])\n    >>> w2 = np.array([[0.7, 0.8], [0.9, 1.0]])\n    >>> output = mlp.forward(x, w1, w2)\n    >>> output.shape\n    (1, 2)"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:dot; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:dot" {:type :UnsupportedOperation})))
-
-(defn MLP-back-prop "Performs backpropagation to compute gradients for the weights.\n\nArgs:\n    input_data: Input data, shape (batch_size, input_dim).\n    true_labels: True labels, shape (batch_size, output_dim).\n    w2: Weight matrix for hidden to output layer,\n    shape (hidden_dim, output_dim).\n\nReturns:\n    Tuple of gradients (grad_w1, grad_w2) for the weight matrices.\nExamples:\n    >>> mlp = MLP(None, 1, 0.1, hidden_dim=2)\n    >>> x = np.array([[1.0, 2.0, 1.0]])  # batch_size=1, input_dim=2 + bias\n    >>> y = np.array([[0.0, 1.0]])  # batch_size=1, output_dim=2\n    >>> w1 = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])\n    >>> w2 = np.array([[0.7, 0.8], [0.9, 1.0]])  # (hidden_dim=2, output_dim=2)\n    >>> _ = mlp.forward(x, w1, w2)  # Run forward to set inter_variable\n    >>> grad_w1, grad_w2 = mlp.back_prop(x, y, w2)\n    >>> grad_w1.shape\n    (3, 2)\n    >>> grad_w2.shape\n    (2, 2)"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:T,numpy-attr:dot,numpy-attr:reshape,numpy-attr:shape; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:T,numpy-attr:dot,numpy-attr:reshape,numpy-attr:shape" {:type :UnsupportedOperation})))
-
-(defn MLP-update-weights "Updates the weight matrices using the computed gradients and learning rate.\n\nArgs:\n    w1: Weight matrix for input to hidden layer,\n    shape (input_dim + 1, hidden_dim).\n    w2: Weight matrix for hidden to output layer,\n    shape (hidden_dim, output_dim).\n    grad_w1: Gradient for w1,\n    shape (input_dim + 1, hidden_dim).\n    grad_w2: Gradient for w2,\n    shape (hidden_dim, output_dim).\n    learning_rate: Learning rate for weight updates.\n\nReturns:\n    Updated weight matrices (w1, w2).\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.1)\n    >>> w1 = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])\n    >>> w2 = np.array([[0.7, 0.8], [0.9, 1.0]])\n    >>> grad_w1 = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])\n    >>> grad_w2 = np.array([[0.7, 0.8], [0.9, 1.0]])\n    >>> lr = 0.1\n    >>> new_w1, new_w2 = mlp.update_weights(w1, w2, grad_w1, grad_w2, lr)\n    >>> new_w1==np.array([[0.09, 0.18], [0.27, 0.36], [0.45, 0.54]])\n    array([[ True,  True],\n           [ True,  True],\n           [ True,  True]])\n    >>> new_w2==np.array([[0.63, 0.72], [0.81, 0.90]])\n    array([[ True,  True],\n           [ True,  True]])"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn MLP-update-learning-rate "Updates the learning rate by applying the decay factor gamma.\n\nArgs:\n    learning_rate: Current learning rate.\n\nReturns:\n    Updated learning rate.\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.1, gamma=0.9)\n    >>> round(mlp.update_learning_rate(0.1), 2)\n    0.09"
-  [self learning-rate] (py-mul learning-rate (:gamma @self)))
-
-(defn MLP-accuracy "Computes the accuracy of predictions by comparing predicted and true labels.\n\nArgs:\n    label: True labels, shape (batch_size, num_classes).\n    y_hat: Predicted outputs, shape (batch_size, num_classes).\n\nReturns:\n    Accuracy as a float between 0 and 1.\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.01)\n    >>> label = np.array([[1, 0], [0, 1], [1, 0]])\n    >>> y_hat = np.array([[0.9, 0.1], [0.2, 0.8], [0.6, 0.4]])\n    >>> mlp.accuracy(label, y_hat)\n    np.float64(1.0)"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:argmax,numpy-attr:mean; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:argmax,numpy-attr:mean" {:type :UnsupportedOperation})))
-
-(defn MLP-loss "Computes the mean squared error loss between predictions and true labels.\n\nArgs:\n    output: Predicted outputs, shape (batch_size, num_classes).\n    label: True labels, shape (batch_size, num_classes).\n\nReturns:\n    Mean squared error loss as a float.\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.1)\n    >>> output = np.array([[0.9, 0.1], [0.2, 0.8]])\n    >>> label = np.array([[1.0, 0.0], [0.0, 1.0]])\n    >>> round(mlp.loss(output, label), 3)\n    np.float64(0.025)"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:shape,numpy-attr:sum; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:shape,numpy-attr:sum" {:type :UnsupportedOperation})))
-
-(defn MLP-get-acc-loss "Returns the recorded test accuracy and test loss.\n\nReturns:\n    Tuple of (test_accuracy, test_loss) lists.\n\nExamples:\n    >>> mlp = MLP(None, 1, 0.1)\n    >>> mlp.test_accuracy = [0.8, 0.9]\n    >>> mlp.test_loss = [0.1, 0.05]\n    >>> acc, loss = mlp.get_acc_loss()\n    >>> acc\n    [0.8, 0.9]\n    >>> loss\n    [0.1, 0.05]"
-  [self] [(:test-accuracy @self) (:test-loss @self)])
-
-(defn MLP-train "Trains the MLP model using the provided dataloader\nfor multiple folds and epochs.\n\nSaves the best model parameters for each fold and records accuracy/loss.\n\nExamples:\n    >>> X = [[0.0, 0.0], [1.0, 1.0], [1.0, 0.0], [0.0, 1.0]]\n    >>> y = [0, 1, 0, 0]\n    >>> loader = Dataloader(X, y)\n    >>> mlp = MLP(loader, epoch=2, learning_rate=0.1, hidden_dim=2)\n    >>> mlp.train() # doctest: +ELLIPSIS\n    Test accuracy: ..."
-  [& _args]
-  ;; stub: original requires np,numpy-attr:shape; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:shape" {:type :UnsupportedOperation})))
+(defmethod poly-get-inout-dim :dataloader
+  [loader]
+  (let [[train-data train-labels _ _] (Dataloader-get-train-test-data loader)]
+    [(count (first train-data)) (count train-labels)]))
 
 (def Dataloader-get-inout-dim poly-get-inout-dim)
 
+(defn- as-label
+  [label]
+  (if (sequential? label) (first label) label))
+
+(defn Dataloader-one-hot-encode
+  "0.99 at each label index, else 0. Labels may be ints or 1-vectors."
+  [labels num-classes]
+  (mapv (fn [label]
+          (assoc (vec (repeat num-classes 0.0)) (as-label label) 0.99))
+        labels))
+
+;; ---------------------------------------------------------------------------
+;; MLP
+;; ---------------------------------------------------------------------------
+
+(defn make-MLP
+  "MLP over dataloader (may be nil until training) with epoch count,
+  learning rate, decay gamma and hidden dimension."
+  ([dataloader epoch learning-rate]
+   (make-MLP dataloader epoch learning-rate 1.0 2))
+  ([dataloader epoch learning-rate gamma hidden-dim]
+   {:kind :mlp
+    :learning-rate learning-rate
+    :gamma gamma
+    :epoch epoch
+    :hidden-dim hidden-dim
+    :train-loss []
+    :train-accuracy []
+    :test-loss []
+    :test-accuracy []
+    :dataloader dataloader
+    :inter-variable (atom {})
+    :weights1-list []}))
+
+(defmethod poly-get-inout-dim :mlp
+  [mlp]
+  (poly-get-inout-dim (:dataloader mlp)))
+
 (def MLP-get-inout-dim poly-get-inout-dim)
 
-(def rng nil)
+(defn MLP-initialize
+  "He-initialized [w1 w2] weight matrices."
+  [mlp]
+  (let [[in-dim out-dim] (poly-get-inout-dim mlp)
+        hidden (:hidden-dim mlp)
+        randn (fn [] (.nextGaussian ^java.util.Random rng))]
+    [(mapv (fn [_] (mapv (fn [_] (* (randn) (Math/sqrt (/ 2.0 in-dim))))
+                         (range hidden)))
+           (range (inc in-dim)))
+     (mapv (fn [_] (mapv (fn [_] (* (randn) (Math/sqrt (/ 2.0 hidden))))
+                         (range out-dim)))
+           (range hidden))]))
 
-;; NOTE: Dataloader __init__ stubbed (np)
-;; NOTE: Dataloader.get_train_test_data stubbed (np)
-;; NOTE: Dataloader.shuffle_data stubbed (np)
-;; NOTE: Dataloader.get_inout_dim stubbed (numpy-attr:shape)
-;; NOTE: Dataloader.one_hot_encode stubbed (np)
-;; NOTE: MLP __init__ stubbed (np)
-;; NOTE: MLP.initialize stubbed (np)
-;; NOTE: MLP.relu stubbed (np)
-;; NOTE: MLP.relu_derivative stubbed (np,numpy-attr:astype)
-;; NOTE: MLP.forward stubbed (np,numpy-attr:dot)
-;; NOTE: MLP.back_prop stubbed (np,numpy-attr:T,numpy-attr:dot,numpy-attr:reshape,numpy-attr:shape)
-;; NOTE: MLP.update_weights stubbed (np)
-;; NOTE: ... and 4 more
+(defn MLP-relu
+  "Elementwise max(0, x)."
+  [_mlp input-array]
+  (deep-map #(max 0 %) input-array))
+
+(defn MLP-relu-derivative
+  "Elementwise 1.0 where positive, else 0.0."
+  [_mlp input-array]
+  (deep-map #(if (pos? %) 1.0 0.0) input-array))
+
+(defn MLP-forward
+  "Forward pass; caches intermediates unless no-gradient is true.
+  Returns the output matrix."
+  ([mlp input-data w1 w2] (MLP-forward mlp input-data w1 w2 false))
+  ([mlp input-data w1 w2 no-gradient]
+   (let [z1 (matmul input-data w1)
+         a1 (MLP-relu mlp z1)
+         z2 (matmul a1 w2)
+         a2 z2]
+     (when-not no-gradient
+       (reset! (:inter-variable mlp) {:z1 z1 :a1 a1 :z2 z2 :a2 a2}))
+     a2)))
+
+(defn MLP-back-prop
+  "Gradients [grad-w1 grad-w2] from the cached forward pass."
+  [mlp input-data true-labels w2]
+  (let [{:keys [a1 z1 a2]} @(:inter-variable mlp)
+        batch-size (count input-data)
+        delta-k (elementwise - a2 true-labels)
+        delta-j (elementwise * (matmul delta-k (transpose w2))
+                             (MLP-relu-derivative mlp z1))
+        scale-down (fn [rows] (mapv (fn [row] (mapv #(/ % batch-size) row))
+                                    rows))
+        grad-w2 (scale-down (matmul (transpose a1) delta-k))
+        grad-w1 (scale-down (matmul (transpose input-data) delta-j))]
+    [grad-w1 grad-w2]))
+
+(defn MLP-update-weights
+  "Gradient step on both matrices; returns [w1 w2]."
+  [_mlp w1 w2 grad-w1 grad-w2 learning-rate]
+  [(elementwise (fn [w g] (- w (* learning-rate g))) w1 grad-w1)
+   (elementwise (fn [w g] (- w (* learning-rate g))) w2 grad-w2)])
+
+(defn MLP-update-learning-rate
+  "Decay the learning rate by gamma."
+  [mlp learning-rate]
+  (* learning-rate (:gamma mlp)))
+
+(defn MLP-accuracy
+  "Fraction of rows where predicted and true argmax agree."
+  [label y-hat]
+  (/ (double (count (filter true? (map #(= (argmax-first %1)
+                                           (argmax-first %2))
+                                       label y-hat))))
+     (count label)))
+
+(defn MLP-loss
+  "Half mean squared error between outputs and labels."
+  [output label]
+  (/ (double (reduce + (map #(let [d (- (double %1) (double %2))] (* d d))
+                            (mapcat identity output)
+                            (mapcat identity label))))
+     (* 2 (count label))))
+
+(defn MLP-get-acc-loss
+  "Recorded [test-accuracy test-loss]."
+  [mlp]
+  [(:test-accuracy mlp) (:test-loss mlp)])
+
+(defn MLP-train
+  "Train with mini-batches of 1, tracking test accuracy/loss per epoch.
+  Prints the mean test accuracy; returns the updated model."
+  [mlp]
+  (let [[train-data train-labels test-data test-labels]
+        (Dataloader-get-train-test-data (:dataloader mlp))
+        with-bias (fn [rows] (mapv #(conj (vec %) 1.0) rows))
+        train-data (with-bias train-data)
+        test-data (with-bias test-data)
+        [_ total-labels] (poly-get-inout-dim (:dataloader mlp))
+        train-labels (Dataloader-one-hot-encode train-labels total-labels)
+        test-labels (Dataloader-one-hot-encode test-labels total-labels)
+        [w1 w2] (MLP-initialize mlp)
+        batch-size 1]
+    (loop [epoch 0
+           w1 w1
+           w2 w2
+           learning-rate (:learning-rate mlp)
+           accuracies []
+           losses []]
+      (if (>= epoch (:epoch mlp))
+        (do (println (str "Test accuracy: "
+                          (/ (double (reduce + accuracies))
+                             (count accuracies))))
+            (assoc mlp :test-accuracy accuracies :test-loss losses))
+        (let [[w1 w2] (loop [k 0
+                             w1 w1
+                             w2 w2]
+                        (if (>= k (count train-data))
+                          [w1 w2]
+                          (let [batch-imgs (subvec train-data k
+                                                   (min (+ k batch-size)
+                                                        (count train-data)))
+                                batch-labels (subvec train-labels k
+                                                     (min (+ k batch-size)
+                                                          (count train-labels)))]
+                            (MLP-forward mlp batch-imgs w1 w2 false)
+                            (let [[grad-w1 grad-w2] (MLP-back-prop
+                                                     mlp batch-imgs
+                                                     batch-labels w2)
+                                  [w1 w2] (MLP-update-weights mlp w1 w2 grad-w1
+                                                              grad-w2
+                                                              learning-rate)]
+                              (recur (+ k batch-size) w1 w2)))))
+              test-output (MLP-forward mlp test-data w1 w2 true)]
+          (recur (inc epoch) w1 w2
+                 (MLP-update-learning-rate mlp learning-rate)
+                 (conj accuracies (MLP-accuracy test-labels test-output))
+                 (conj losses (MLP-loss test-output test-labels))))))))

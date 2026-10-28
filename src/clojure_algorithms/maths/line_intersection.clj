@@ -1,15 +1,51 @@
 (ns clojure-algorithms.maths.line-intersection
-  "Port of maths/line_intersection.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Port of maths/line_intersection.py")
 
-(declare determinant line-coefficients segment-intersection)
+(defn determinant
+  "Calculates the determinant of a 2x2 matrix:
 
-(defn determinant "Calculates the determinant of a 2x2 matrix:\n\n| m00  m01 |\n| m10  m11 |\n\nArgs:\n    m00 (float): Element in the first row, first column.\n    m01 (float): Element in the first row, second column.\n    m10 (float): Element in the second row, first column.\n    m11 (float): Element in the second row, second column.\n\nReturns:\n    float: The determinant of the matrix.\n\nExamples:\n    # Determinant of the identity matrix (should be 1)\n    >>> determinant(1, 0, 0, 1)\n    1\n\n    # Determinant of a matrix with two equal rows (should be 0)\n    >>> determinant(1, 2, 1, 2)\n    0\n\n    # Determinant of a matrix with a negative determinant\n    >>> determinant(1, 2, 3, 4)\n    -2\n\n    # Determinant of a matrix with larger numbers\n    >>> determinant(10, 20, 30, 40)\n    -200"
-  [m00 m01 m10 m11] (py-sub (py-mul m00 m11) (py-mul m10 m01)))
+| m00  m01 |
+| m10  m11 |"
+  [m00 m01 m10 m11]
+  (- (* m00 m11) (* m10 m01)))
 
-(defn line-coefficients "Computes the coefficients A, B, C of the line equation Ax + By + C = 0\nfrom two points.\n\nArgs:\n    p1 (List[float] | tuple): First point (x, y).\n    p2 (List[float] | tuple): Second point (x, y).\n\nReturns:\n    tuple: Coefficients (A, B, C) of the line equation.\n\nExamples:\n    # Vertical line (x = constant)\n    >>> line_coefficients([1, 0], [1, 2])\n    (1, 0, 1)\n\n    # Horizontal line (y = constant)\n    >>> line_coefficients([0, 1], [2, 1])\n    (0.0, -1, 1.0)\n\n    # Diagonal line (positive slope)\n    >>> line_coefficients([0, 0], [1, 1])\n    (1.0, -1, 0.0)\n\n    # Diagonal line (negative slope)\n    >>> line_coefficients([0, 1], [1, 0])\n    (-1.0, -1, 1.0)"
-  [p1 p2] (let [a (atom nil) b (atom nil) c (atom nil)] (try (if (py-truthy (py-eq (py-get p1 0) (py-get p2 0))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [1 0 (py-get p1 0)]}))) (do (reset! a (py-div (py-sub (py-get p2 1) (py-get p1 1)) (py-sub (py-get p2 0) (py-get p1 0)))) (reset! b (py-neg 1)) (reset! c (py-sub (py-get p2 1) (py-mul @a (py-get p2 0)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@a @b @c]})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn line-coefficients
+  "Computes the coefficients [A B C] of the line equation Ax + By + C = 0
+from two points."
+  [p1 p2]
+  (if (= (nth p1 0) (nth p2 0))
+    [1 0 (nth p1 0)]
+    (let [a (/ (double (- (nth p2 1) (nth p1 1)))
+               (double (- (nth p2 0) (nth p1 0))))
+          b -1
+          c (- (nth p2 1) (* a (nth p2 0)))]
+      [a b c])))
 
-(defn segment-intersection "Finds the intersection point of two line segments or lines, if it exists.\n\nArgs:\n    v1 (List[float] | tuple): First point of the first segment (x, y).\n    v2 (List[float] | tuple): Second point of the first segment (x, y).\n    v1_prime (List[float] | tuple): First point of the second segment (x, y).\n    v2_prime (List[float] | tuple): Second point of the second segment (x, y).\n    as_segments (bool):\n        treat the inputs as line segments (True)\n        or as infinite lines (False).\n\nReturns:\n    List[float] | None:\n        Returns the intersection point [x, y] if existent, otherwise None.\n\nReferences:\n    Cramer's rule: https://en.wikipedia.org/wiki/Cramer%27s_rule\n\nExamples:\n    >>> segment_intersection([0, 0], [1, 1], [1, 0], [0, 1])\n    [0.5, 0.5]\n\n    # No intersection\n    >>> segment_intersection([0, 0], [1, 1], [2, 2], [3, 3]) is None\n    True\n\n    # Parallel lines\n    >>> segment_intersection([0, 0], [0, 1], [1, 0], [1, 1]) is None\n    True\n\n    # Intersecting infinite lines\n    >>> segment_intersection([0, 0], [1, 1], [1, 0], [0, 1], as_segments=False)\n    [0.5, 0.5]\n\n    # Parallel infinite lines (ignoring segment boundaries)\n    >>> segment_intersection([0, 0], [1, 1], [2, 2], [3, 3], False) is None\n    True"
-  ([v1 v2 v1-prime v2-prime] (segment-intersection v1 v2 v1-prime v2-prime true))
-  ([v1 v2 v1-prime v2-prime as-segments] (let [a (atom nil) a-prime (atom nil) b (atom nil) b-prime (atom nil) c (atom nil) c-prime (atom nil) d (atom nil) dx (atom nil) dy (atom nil) x (atom nil) y (atom nil)] (try (let [__d1 (vec (line-coefficients v1 v2))] (reset! a (nth __d1 0)) (reset! b (nth __d1 1)) (reset! c (nth __d1 2))) (let [__d2 (vec (line-coefficients v1-prime v2-prime))] (reset! a-prime (nth __d2 0)) (reset! b-prime (nth __d2 1)) (reset! c-prime (nth __d2 2))) (reset! d (determinant @a @b @a-prime @b-prime)) (when (py-truthy (py-eq @d 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (reset! dx (determinant (py-neg @c) @b (py-neg @c-prime) @b-prime)) (reset! dy (determinant @a (py-neg @c) @a-prime (py-neg @c-prime))) (let [__d3 (vec [(py-div @dx @d) (py-div @dy @d)])] (reset! x (nth __d3 0)) (reset! y (nth __d3 1))) (if (py-truthy as-segments) (do (when (py-truthy (let [__b18 (let [__c4 (py-min [(py-get v1 0) (py-get v2 0)]) __c5 @x __c6 (py-max [(py-get v1 0) (py-get v2 0)])] (and (py-le __c4 __c5) (py-le __c5 __c6)))] (if (py-truthy __b18) (let [__b17 (let [__c7 (py-min [(py-get v1-prime 0) (py-get v2-prime 0)]) __c8 @x __c9 (py-max [(py-get v1-prime 0) (py-get v2-prime 0)])] (and (py-le __c7 __c8) (py-le __c8 __c9)))] (if (py-truthy __b17) (let [__b16 (let [__c10 (py-min [(py-get v1 1) (py-get v2 1)]) __c11 @y __c12 (py-max [(py-get v1 1) (py-get v2 1)])] (and (py-le __c10 __c11) (py-le __c11 __c12)))] (if (py-truthy __b16) (let [__c13 (py-min [(py-get v1-prime 1) (py-get v2-prime 1)]) __c14 @y __c15 (py-max [(py-get v1-prime 1) (py-get v2-prime 1)])] (and (py-le __c13 __c14) (py-le __c14 __c15))) __b16)) __b17)) __b18))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@x @y]}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@x @y]})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- within-bounds?
+  "Checks that point [x y] lies within both segments' bounding boxes."
+  [x y v1 v2 v1-prime v2-prime]
+  (and (<= (min (nth v1 0) (nth v2 0)) x (max (nth v1 0) (nth v2 0)))
+       (<= (min (nth v1-prime 0) (nth v2-prime 0)) x
+           (max (nth v1-prime 0) (nth v2-prime 0)))
+       (<= (min (nth v1 1) (nth v2 1)) y (max (nth v1 1) (nth v2 1)))
+       (<= (min (nth v1-prime 1) (nth v2-prime 1)) y
+           (max (nth v1-prime 1) (nth v2-prime 1)))))
+
+(defn segment-intersection
+  "Finds the intersection point of two line segments or lines, if it exists.
+Treats the inputs as segments when as-segments is true (the default), or as
+infinite lines when false. Returns [x y], or nil when there is no (unique)
+intersection. Uses Cramer's rule:
+https://en.wikipedia.org/wiki/Cramer%27s_rule"
+  ([v1 v2 v1-prime v2-prime]
+   (segment-intersection v1 v2 v1-prime v2-prime true))
+  ([v1 v2 v1-prime v2-prime as-segments]
+   (let [[a b c] (line-coefficients v1 v2)
+         [a-prime b-prime c-prime] (line-coefficients v1-prime v2-prime)
+         d (determinant a b a-prime b-prime)]
+     (when-not (zero? d)
+       (let [x (/ (double (determinant (- c) b (- c-prime) b-prime)) (double d))
+             y (/ (double (determinant a (- c) a-prime (- c-prime))) (double d))]
+         (when (or (not as-segments)
+                   (within-bounds? x y v1 v2 v1-prime v2-prime))
+           [x y]))))))

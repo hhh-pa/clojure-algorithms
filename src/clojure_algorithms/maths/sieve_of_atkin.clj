@@ -1,8 +1,46 @@
 (ns clojure-algorithms.maths.sieve-of-atkin
-  "Sieve of Atkin algorithm for finding all prime numbers up to a given limit.\n\nThe Sieve of Atkin is a modern variant of the ancient Sieve of Eratosthenes\nthat is optimized for finding primes. It has better theoretical asymptotic\ncomplexity, especially for large ranges.  This is the basic, non-segmented\nform.\n\nTime Complexity: O(n / log log n)\nSpace Complexity: O(n)\n\nReference: https://en.wikipedia.org/wiki/Sieve_of_Atkin"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Sieve of Atkin algorithm for finding all prime numbers up to a given limit.
 
-(declare sieve-of-atkin)
+The Sieve of Atkin is a modern variant of the ancient Sieve of Eratosthenes
+that is optimized for finding primes. It has better theoretical asymptotic
+complexity, especially for large ranges. This is the basic, non-segmented
+form.
 
-(defn sieve-of-atkin "Generate all prime numbers up to a given limit using the Sieve of Atkin.\n\nThe Sieve of Atkin is an optimized version of the Sieve of Eratosthenes.\nIt uses a different set of quadratic forms to identify potential primes.\n\nArgs:\n    limit: Upper bound for finding primes (inclusive)\n\nReturns:\n    List of prime numbers up to the given limit\n\nRaises:\n    ValueError: If limit is negative\n\nExamples:\n    >>> sieve_of_atkin(30)\n    [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]\n    >>> sieve_of_atkin(10)\n    [2, 3, 5, 7]\n    >>> sieve_of_atkin(2)\n    [2]\n    >>> sieve_of_atkin(1)\n    []\n    >>> sieve_of_atkin(0)\n    []\n    >>> sieve_of_atkin(-5)\n    Traceback (most recent call last):\n    ...\n    ValueError: -5: Invalid input, please enter a non-negative integer."
-  [limit] (let [i (atom nil) msg (atom nil) n (atom nil) primes (atom nil) r (atom nil) sieve (atom nil) sqrt-limit (atom nil) square (atom nil) x (atom nil) y (atom nil)] (try (when (py-truthy (py-lt limit 0)) (reset! msg (str (py-str limit) ": Invalid input, please enter a non-negative integer.")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (py-lt limit 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (reset! sieve (py-mul [false] (py-add limit 1))) (when (py-truthy (py-ge limit 2)) (swap! sieve (fn [__c] (py-assoc-in __c [2] true)))) (when (py-truthy (py-ge limit 3)) (swap! sieve (fn [__c] (py-assoc-in __c [3] true)))) (reset! sqrt-limit (py-add (py-int (Math/sqrt limit) nil) 1)) (doseq [__i1 (py-iter (range 1 @sqrt-limit))] (reset! x __i1) (doseq [__i2 (py-iter (range 1 @sqrt-limit))] (reset! y __i2) (reset! n (py-add (py-mul (py-mul 4 @x) @x) (py-mul @y @y))) (when (py-truthy (let [__b4 (py-le @n limit)] (if (py-truthy __b4) (let [__b3 (py-eq (py-mod @n 12) 1)] (if (py-truthy __b3) __b3 (py-eq (py-mod @n 12) 5))) __b4))) (swap! sieve (fn [__c] (py-assoc-in __c [@n] (not (py-truthy (py-get @sieve @n))))))) (reset! n (py-add (py-mul (py-mul 3 @x) @x) (py-mul @y @y))) (when (py-truthy (let [__b5 (py-le @n limit)] (if (py-truthy __b5) (py-eq (py-mod @n 12) 7) __b5))) (swap! sieve (fn [__c] (py-assoc-in __c [@n] (not (py-truthy (py-get @sieve @n))))))) (when (py-truthy (py-gt @x @y)) (reset! n (py-sub (py-mul (py-mul 3 @x) @x) (py-mul @y @y))) (when (py-truthy (let [__b6 (py-le @n limit)] (if (py-truthy __b6) (py-eq (py-mod @n 12) 11) __b6))) (swap! sieve (fn [__c] (py-assoc-in __c [@n] (not (py-truthy (py-get @sieve @n)))))))))) (doseq [__i7 (py-iter (range 5 @sqrt-limit))] (reset! r __i7) (when (py-truthy (py-get @sieve @r)) (reset! square (py-mul @r @r)) (doseq [__i8 (py-iter (range @square (py-add limit 1) @square))] (reset! i __i8) (swap! sieve (fn [__c] (py-assoc-in __c [@i] false)))))) (reset! primes []) (doseq [__i9 (py-iter (range 2 (py-add limit 1)))] (reset! i __i9) (when (py-truthy (py-get @sieve @i)) (swap! primes conj @i))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @primes})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Time Complexity: O(n / log log n)
+Space Complexity: O(n)
+
+Reference: https://en.wikipedia.org/wiki/Sieve_of_Atkin")
+
+(defn sieve-of-atkin
+  "Generate all prime numbers up to limit (inclusive) using the Sieve of Atkin."
+  [limit]
+  (when (neg? limit)
+    (throw (ex-info (str limit ": Invalid input, please enter a non-negative integer.")
+                    {:type :ValueError})))
+  (if (< limit 2)
+    []
+    (let [sieve (boolean-array (inc limit) false)
+          sqrt-limit (inc (long (Math/sqrt limit)))]
+      (aset sieve 2 true)
+      (when (>= limit 3)
+        (aset sieve 3 true))
+      (doseq [x (range 1 sqrt-limit)
+              y (range 1 sqrt-limit)]
+        (let [n (+ (* 4 x x) (* y y))]
+          (when (and (<= n limit) (or (= (mod n 12) 1) (= (mod n 12) 5)))
+            (aset sieve n (not (aget sieve n)))))
+        (let [n (+ (* 3 x x) (* y y))]
+          (when (and (<= n limit) (= (mod n 12) 7))
+            (aset sieve n (not (aget sieve n)))))
+        (when (> x y)
+          (let [n (- (* 3 x x) (* y y))]
+            (when (and (<= n limit) (= (mod n 12) 11))
+              (aset sieve n (not (aget sieve n)))))))
+      (doseq [r (range 5 sqrt-limit)
+              :when (aget sieve r)]
+        (let [square (* r r)]
+          (loop [i square]
+            (when (<= i limit)
+              (aset sieve i false)
+              (recur (+ i square))))))
+      (filterv #(aget sieve %) (range 2 (inc limit))))))

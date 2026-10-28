@@ -1,9 +1,76 @@
 (ns clojure-algorithms.maths.numerical-analysis.nth-root
-  "Approximate the nth root of a real number using Newton's Method.\n\nThe nth root of a real number R can be computed with Newton's method,\nwhich starts with an initial guess x_0 and then iterates using the\nrecurrence relation:\n\nx_{k + 1} = x_k - ((x_k)**n - R)/(n*(x_k)**(n-1))\n\nThe recurrence relation can be rewritten for computational efficiency:\n\nx_{k + 1} = (n-1)/n*x_k + R/(n*(x_k)**(n-1))\n\nGiven a tolerance TOL, a stopping criterion can be set as:\n\nabs(x_{k + 1} - x_k) < TOL\n\nReferences:\n- https://en.wikipedia.org/wiki/Nth_root#Using_Newton's_method\n- Sauer, T. (2011): Numerical analysis.\n    USA. Addison-Wesley Publishing Company."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Approximate the nth root of a real number using Newton's Method.
 
-(declare nth-root)
+The nth root of a real number R can be computed with Newton's method,
+which starts with an initial guess x_0 and then iterates using the
+recurrence relation:
 
-(defn nth-root "Approximate the nth root of the radicand for the given index\n\nArgs:\n    radicand: number from which the root is taken\n    index: positive integer which is the degree of the root\n    tolerance: positive real number that establishes the stopping criterion\n\nReturns:\n    new_approximation: approximation of the nth root of the radicand for the\n    given index\n\nRaises:\n    TypeError: radicand is not a real number\n    TypeError: index is not an integer\n    ValueError: index is not a positive integer\n    TypeError: tolerance is not a real number\n    ValueError: tolerance is not a positive real number\n    ValueError: math domain error\n\n>>> round(nth_root(9, 2),1)\n3.0\n\n>>> int(round(nth_root(-8, 3, 0.001)))\n-2\n\n>>> int(round(nth_root(256, 4, 0.001)))\n4\n\n>>> round(nth_root(2, 2), 5)\n1.41421\n\n>>> round(nth_root(0.25, 2, 0.00000001), 1)\n0.5\n\n>>> round(nth_root(-8/27, 3, 0.0000001), 5)\n-0.66667\n\n>>> nth_root(0, 2, 0.1)\n0.0\n\n>>> nth_root(0.0, 5)\n0.0\n\n>>> all(abs(nth_root(k, k, 0.00000001) - k**(1/k)) <= 1e-10 for k in range(1,10))\nTrue\n\n>>> nth_root('invalid input', 3, 0.0001)\nTraceback (most recent call last):\n    ...\nTypeError: radicand must be a real number, not a str\n\n>>> nth_root(4, 0.5, 0.0001)\nTraceback (most recent call last):\n    ...\nTypeError: index must be an integer, not a float\n\n>>> nth_root(16, -4, 0.001)\nTraceback (most recent call last):\n    ...\nValueError: index must be a positive integer, -4 <= 0\n\n>>> nth_root(4, 2, '0.000001')\nTraceback (most recent call last):\n    ...\nTypeError: tolerance must be a real number, not str\n\n>>> nth_root(9, 2, -0.01)\nTraceback (most recent call last):\n    ...\nValueError: tolerance must be a positive real number, -0.01 <= 0\n\n>>> nth_root(-256, 4, 0.0001)\nTraceback (most recent call last):\n    ...\nValueError: math domain error, radicand must be nonnegative for even index"
+x_{k + 1} = x_k - ((x_k)**n - R)/(n*(x_k)**(n-1))
+
+The recurrence relation can be rewritten for computational efficiency:
+
+x_{k + 1} = (n-1)/n*x_k + R/(n*(x_k)**(n-1))
+
+Given a tolerance TOL, a stopping criterion can be set as:
+
+abs(x_{k + 1} - x_k) < TOL
+
+References:
+- https://en.wikipedia.org/wiki/Nth_root#Using_Newton's_method
+- Sauer, T. (2011): Numerical analysis.
+    USA. Addison-Wesley Publishing Company.")
+
+(defn- type-name
+  [v]
+  (cond (string? v) "str"
+        (integer? v) "int"
+        (float? v) "float"
+        (boolean? v) "bool"
+        (nil? v) "NoneType"
+        :else (.getSimpleName (class v))))
+
+(defn nth-root
+  "Approximate the nth root of radicand for the given index.
+
+  tolerance establishes the stopping criterion (default 0.0001).
+  Throws ex-info with :type :TypeError for non-numeric radicand, non-integer
+  index, or non-numeric tolerance, and with :type :ValueError for a
+  non-positive index, a non-positive tolerance, or a negative radicand with
+  an even index."
   ([radicand index] (nth-root radicand index 0.0001))
-  ([radicand index tolerance] (let [error-message (atom nil) first-summand (atom nil) new-approximation (atom nil) old-approximation (atom nil) second-summand (atom nil)] (try (when (py-truthy (not (py-truthy (or (integer? radicand) (number? radicand))))) (reset! error-message (str "radicand must be a real number, not a " (py-str (:--name-- (py-type radicand))))) (throw (ex-info (py-str @error-message) {:type :TypeError}))) (when (py-truthy (not (py-truthy (integer? index)))) (reset! error-message (str "index must be an integer, not a " (py-str (:--name-- (py-type index))))) (throw (ex-info (py-str @error-message) {:type :TypeError}))) (when (py-truthy (py-le index 0)) (reset! error-message (str "index must be a positive integer, " (py-str index) " <= 0")) (throw (ex-info (py-str @error-message) {:type :ValueError}))) (when (py-truthy (not (py-truthy (or (integer? tolerance) (number? tolerance))))) (reset! error-message (str "tolerance must be a real number, not " (py-str (:--name-- (py-type tolerance))))) (throw (ex-info (py-str @error-message) {:type :TypeError}))) (when (py-truthy (py-le tolerance 0)) (reset! error-message (str "tolerance must be a positive real number, " (py-str tolerance) " <= 0")) (throw (ex-info (py-str @error-message) {:type :ValueError}))) (when (py-truthy (let [__b1 (py-lt radicand 0)] (if (py-truthy __b1) (py-eq (py-mod index 2) 0) __b1))) (reset! error-message "math domain error, radicand must be nonnegative for even index") (throw (ex-info (py-str @error-message) {:type :ValueError}))) (when (py-truthy (py-eq radicand 0.0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0.0}))) (reset! new-approximation radicand) (reset! old-approximation (py-add (py-add @new-approximation tolerance) 0.1)) (while (py-truthy (py-le tolerance (py-abs (py-sub @old-approximation @new-approximation)))) (reset! old-approximation @new-approximation) (reset! first-summand (py-mul (py-div (py-sub index 1) index) @old-approximation)) (reset! second-summand (py-div radicand (py-mul index (py-pow @old-approximation (py-sub index 1))))) (reset! new-approximation (py-add @first-summand @second-summand))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @new-approximation})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([radicand index tolerance]
+   (when-not (or (integer? radicand) (float? radicand))
+     (throw (ex-info (str "radicand must be a real number, not a "
+                          (type-name radicand))
+                     {:type :TypeError})))
+   (when-not (integer? index)
+     (throw (ex-info (str "index must be an integer, not a "
+                          (type-name index))
+                     {:type :TypeError})))
+   (when (<= index 0)
+     (throw (ex-info (str "index must be a positive integer, " index " <= 0")
+                     {:type :ValueError})))
+   (when-not (or (integer? tolerance) (float? tolerance))
+     (throw (ex-info (str "tolerance must be a real number, not "
+                          (type-name tolerance))
+                     {:type :TypeError})))
+   (when (<= tolerance 0)
+     (throw (ex-info (str "tolerance must be a positive real number, "
+                          tolerance " <= 0")
+                     {:type :ValueError})))
+   (when (and (neg? radicand) (even? index))
+     (throw (ex-info "math domain error, radicand must be nonnegative for even index"
+                     {:type :ValueError})))
+   (if (zero? radicand)
+     0.0
+     (let [tol (double tolerance)]
+       (loop [new-approx (double radicand)
+              old-approx (+ (double radicand) tol 0.1)]
+         (if (< (Math/abs (- old-approx new-approx)) tol)
+           new-approx
+           (let [first-summand (* (/ (double (dec index)) (double index))
+                                  new-approx)
+                 second-summand (/ (double radicand)
+                                   (* (double index)
+                                      (Math/pow new-approx (dec index))))]
+             (recur (+ first-summand second-summand) new-approx))))))))

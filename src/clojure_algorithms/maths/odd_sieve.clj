@@ -1,8 +1,15 @@
 (ns clojure-algorithms.maths.odd-sieve
-  "Port of maths/odd_sieve.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Odd sieve of Eratosthenes.
+https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes")
 
-(declare odd-sieve)
-
-(defn odd-sieve "Returns the prime numbers < `num`. The prime numbers are calculated using an\nodd sieve implementation of the Sieve of Eratosthenes algorithm\n(see for reference https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes).\n\n>>> odd_sieve(2)\n[]\n>>> odd_sieve(3)\n[2]\n>>> odd_sieve(10)\n[2, 3, 5, 7]\n>>> odd_sieve(20)\n[2, 3, 5, 7, 11, 13, 17, 19]"
-  [num] (let [i (atom nil) i-squared (atom nil) sieve (atom nil)] (try (when (py-truthy (py-le num 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (when (py-truthy (py-eq num 3)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [2]}))) (reset! sieve (py-mul (if (integer? (vec "\u0001")) (vec (repeat (vec "\u0001") 0)) (vec (vec "\u0001"))) (py-sub (.shiftRight (.toBigInteger (bigint num)) (int 1)) 1))) (doseq [__i1 (py-iter (range 3 (py-add (py-int (Math/sqrt num) nil) 1) 2))] (reset! i __i1) (when (py-truthy (py-get @sieve (py-sub (.shiftRight (.toBigInteger (bigint @i)) (int 1)) 1))) (reset! i-squared (py-pow @i 2)) (swap! sieve (fn [__c] (py-assoc-in __c [[:slice (py-sub (.shiftRight (.toBigInteger (bigint @i-squared)) (int 1)) 1) nil @i]] (repeat (py-ceil (py-div (py-sub num @i-squared) (.shiftLeft (.toBigInteger (bigint @i)) (int 1)))) 0)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (concat (list 2) (seq (py-list (map first (filter (fn [[__d __s]] (py-truthy __s)) (map vector (range 3 num 2) @sieve)))))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn odd-sieve
+  "Returns the prime numbers below num, sieving over odd candidates only."
+  [num]
+  (if (<= num 2)
+    []
+    (loop [candidates (vec (range 3 num 2)), primes [2]]
+      (if (empty? candidates)
+        primes
+        (let [p (first candidates)]
+          (recur (vec (remove #(zero? (mod % p)) (rest candidates)))
+                 (conj primes p)))))))

@@ -1,8 +1,10 @@
 (ns clojure-algorithms.maths.perfect-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.perfect-number :as sut]))
+
+(defn- err-type [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e (:type (ex-data e)))))
 
 (deftest test-fn-perfect-examples
   (is (= true (boolean (sut/perfect 6))))
@@ -31,7 +33,9 @@
   (is (thrown? Exception (sut/perfect "123")))
   (is (thrown? Exception (sut/perfect "Hello")))
   (is (thrown? Exception (sut/perfect [6])))
-  (is (thrown? Exception (sut/perfect nil))))
+  (is (thrown? Exception (sut/perfect nil)))
+  (is (= :ValueError (err-type #(sut/perfect 12.34))))
+  (is (= :ValueError (err-type #(sut/perfect nil)))))
 
 (deftest test-fn-perfect-optimized-examples
   (is (= true (boolean (sut/perfect-optimized 6))))
@@ -40,18 +44,24 @@
   (is (= false (boolean (sut/perfect-optimized 12))))
   (is (= false (boolean (sut/perfect-optimized 1))))
   (is (= false (boolean (sut/perfect-optimized 0))))
-  (is (= false (boolean (sut/perfect-optimized -1)))))
+  (is (= false (boolean (sut/perfect-optimized -1))))
+  (is (= true (boolean (sut/perfect-optimized 33550336))))
+  (is (= :ValueError (err-type #(sut/perfect-optimized 6.0)))))
 
 (deftest test-fn-find-perfect-numbers-examples
   (is (approx [6] (sut/find-perfect-numbers 10)))
   (is (approx [6 28] (sut/find-perfect-numbers 30)))
   (is (approx [6 28 496] (sut/find-perfect-numbers 500)))
   (is (approx [] (sut/find-perfect-numbers 0)))
-  (is (approx [] (sut/find-perfect-numbers 1))))
+  (is (approx [] (sut/find-perfect-numbers 1)))
+  (is (= :ValueError (err-type #(sut/find-perfect-numbers -1))))
+  (is (= :ValueError (err-type #(sut/find-perfect-numbers 2.5)))))
 
 (deftest test-fn-get-divisors-examples
   (is (approx [1 2 3] (sut/get-divisors 6)))
   (is (approx [1 2 4 7 14] (sut/get-divisors 28)))
   (is (approx [1 2 3 4 6] (sut/get-divisors 12)))
   (is (approx [] (sut/get-divisors 1)))
-  (is (approx [1] (sut/get-divisors 7))))
+  (is (approx [1] (sut/get-divisors 7)))
+  (is (= :ValueError (err-type #(sut/get-divisors 0))))
+  (is (= :ValueError (err-type #(sut/get-divisors -3)))))

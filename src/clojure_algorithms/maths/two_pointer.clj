@@ -1,8 +1,30 @@
 (ns clojure-algorithms.maths.two-pointer
-  "Given a sorted array of integers, return indices of the two numbers such\nthat they add up to a specific target using the two pointers technique.\n\nYou may assume that each input would have exactly one solution, and you\nmay not use the same element twice.\n\nThis is an alternative solution of the two-sum problem, which uses a\nmap to solve the problem. Hence can not solve the issue if there is a\nconstraint not use the same index twice. [1]\n\nExample:\nGiven nums = [2, 7, 11, 15], target = 9,\n\nBecause nums[0] + nums[1] = 2 + 7 = 9,\nreturn [0, 1].\n\n[1]: https://github.com/TheAlgorithms/Python/blob/master/other/two_sum.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Given a sorted array of integers, return indices of the two numbers such
+  that they add up to a specific target using the two pointers technique.
 
-(declare two-pointer)
+  You may assume that each input would have exactly one solution, and you
+  may not use the same element twice.
 
-(defn two-pointer ">>> two_pointer([2, 7, 11, 15], 9)\n[0, 1]\n>>> two_pointer([2, 7, 11, 15], 17)\n[0, 3]\n>>> two_pointer([2, 7, 11, 15], 18)\n[1, 2]\n>>> two_pointer([2, 7, 11, 15], 26)\n[2, 3]\n>>> two_pointer([1, 3, 3], 6)\n[1, 2]\n>>> two_pointer([2, 7, 11, 15], 8)\n[]\n>>> two_pointer([3 * i for i in range(10)], 19)\n[]\n>>> two_pointer([1, 2, 3], 6)\n[]"
-  [nums target] (let [i (atom nil) j (atom nil)] (try (reset! i 0) (reset! j (py-sub (count nums) 1)) (while (py-truthy (py-lt @i @j)) (if (py-truthy (py-eq (py-add (py-get nums @i) (py-get nums @j)) target)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@i @j]}))) (do (if (py-truthy (py-lt (py-add (py-get nums @i) (py-get nums @j)) target)) (do (reset! i (py-add @i 1))) (do (reset! j (py-sub @j 1))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  This is an alternative solution of the two-sum problem, which uses a
+  map to solve the problem. Hence can not solve the issue if there is a
+  constraint not use the same index twice. [1]
+
+  Example:
+  Given nums = [2, 7, 11, 15], target = 9,
+
+  Because nums[0] + nums[1] = 2 + 7 = 9,
+  return [0, 1].
+
+  [1]: https://github.com/TheAlgorithms/Python/blob/master/other/two_sum.py")
+
+(defn two-pointer
+  "Returns the indices of the two numbers adding up to target,
+  or an empty vector when there is no such pair."
+  [nums target]
+  (loop [i 0 j (dec (count nums))]
+    (if (>= i j)
+      []
+      (let [s (+ (nth nums i) (nth nums j))]
+        (cond (= s target) [i j]
+              (< s target) (recur (inc i) j)
+              :else (recur i (dec j)))))))

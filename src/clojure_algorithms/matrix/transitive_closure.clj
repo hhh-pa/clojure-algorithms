@@ -1,8 +1,22 @@
 (ns clojure-algorithms.matrix.transitive-closure
-  "https://en.wikipedia.org/wiki/Transitive_closure#In_graph_theory\nhttps://en.wikipedia.org/wiki/Floyd%E2%80%93Warshall_algorithm"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Transitive closure of a directed graph via Floyd-Warshall.
+  https://en.wikipedia.org/wiki/Transitive_closure#In_graph_theory")
 
-(declare transitive-closure)
-
-(defn transitive-closure "Compute the transitive closure of a directed graph using the\nFloyd-Warshall algorithm.\n\nArgs:\n    graph: Adjacency matrix representation of the graph.\n\nReturns:\n    Transitive closure matrix.\n\n>>> graph = [\n...     [0, 1, 1, 0],\n...     [0, 0, 1, 0],\n...     [1, 0, 0, 1],\n...     [0, 0, 0, 0]\n... ]\n>>> transitive_closure(graph)  # doctest: +NORMALIZE_WHITESPACE\n[[1, 1, 1, 1],\n [1, 1, 1, 1],\n [1, 1, 1, 1],\n [0, 0, 0, 1]]"
-  [graph] (let [ans (atom nil) i (atom nil) j (atom nil) k (atom nil) width (atom nil)] (try (reset! width (count graph)) (reset! ans (vec (for [i (py-iter (range @width))] (vec (for [j (py-iter (range @width))] (py-get (py-get graph i) j)))))) (doseq [__i1 (py-iter (range @width))] (reset! i __i1) (swap! ans (fn [__c] (py-assoc-in __c [@i @i] 1)))) (doseq [__i2 (py-iter (range @width))] (reset! k __i2) (doseq [__i3 (py-iter (range @width))] (reset! i __i3) (doseq [__i4 (py-iter (range @width))] (reset! j __i4) (when (py-truthy (let [__b5 (py-eq (py-get (py-get @ans @i) @k) 1)] (if (py-truthy __b5) (py-eq (py-get (py-get @ans @k) @j) 1) __b5))) (swap! ans (fn [__c] (py-assoc-in __c [@i @j] 1))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn transitive-closure
+  "Returns the transitive closure of the adjacency matrix graph."
+  [graph]
+  (let [width (count graph)
+        ans (vec (map-indexed (fn [i row] (assoc (vec row) i 1)) graph))]
+    (reduce (fn [ans k]
+              (reduce (fn [ans i]
+                        (reduce (fn [ans j]
+                                  (if (and (= 1 (get-in ans [i k]))
+                                           (= 1 (get-in ans [k j])))
+                                    (assoc-in ans [i j] 1)
+                                    ans))
+                                ans
+                                (range width)))
+                      ans
+                      (range width)))
+            ans
+            (range width))))

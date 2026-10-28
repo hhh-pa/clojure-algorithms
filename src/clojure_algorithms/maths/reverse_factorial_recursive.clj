@@ -1,9 +1,17 @@
 (ns clojure-algorithms.maths.reverse-factorial-recursive
-  "Port of maths/reverse_factorial_recursive.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Find x such that x! equals a given value.")
 
-(declare reverse-factorial-recursive)
-
-(defn reverse-factorial-recursive "Return x such that x! == value, otherwise return -1.\n\nThe function divides `value` by 1, 2, 3, ... recursively. If the repeated\ndivision reduces `value` exactly to 1, the factorial root x is\n(current_divisor - 1). If the division ever has a remainder, no integer x\nexists and the function returns -1.\n\nParameters\n----------\nvalue: The positive integer to test (candidate factorial value).\ncurrent_divisor: The current divisor used while reducing `value` (default is 1).\n\nReturns\n-------\nThe factorial root (x) if x! == value, otherwise -1.\n\nExamples\n--------\n>>> reverse_factorial_recursive(120)\n5\n>>> reverse_factorial_recursive(24)\n4\n>>> reverse_factorial_recursive(150)\n-1\n>>> reverse_factorial_recursive(1)\n1\n>>> reverse_factorial_recursive(2)\n2"
+(defn reverse-factorial-recursive
+  "Return x such that x! == value, otherwise return -1."
   ([value] (reverse-factorial-recursive value 1))
-  ([value current-divisor] (try (when (py-truthy (not (py-truthy (integer? value)))) (throw (ex-info (py-str "value must be an integer") {:type :TypeError}))) (when (py-truthy (not (py-truthy (integer? current-divisor)))) (throw (ex-info (py-str "current_divisor must be an integer") {:type :TypeError}))) (when (py-truthy (py-lt value 1)) (throw (ex-info (py-str "value must be a positive integer") {:type :ValueError}))) (when (py-truthy (let [__b1 (py-eq value 1)] (if (py-truthy __b1) (py-eq current-divisor 1) __b1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (when (py-truthy (py-eq value 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-sub current-divisor 1)}))) (when (py-truthy (not (py-eq (py-mod value current-divisor) 0))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-neg 1)}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (reverse-factorial-recursive (py-floordiv value current-divisor) (py-add current-divisor 1))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  ([value current-divisor]
+   (when (not (integer? value))
+     (throw (ex-info "value must be an integer" {:type :TypeError})))
+   (when (not (integer? current-divisor))
+     (throw (ex-info "current_divisor must be an integer" {:type :TypeError})))
+   (when (< value 1)
+     (throw (ex-info "value must be a positive integer" {:type :ValueError})))
+   (cond (and (= value 1) (= current-divisor 1)) 1
+         (= value 1) (dec current-divisor)
+         (not (zero? (mod value current-divisor))) -1
+         :else (recur (quot value current-divisor) (inc current-divisor)))))

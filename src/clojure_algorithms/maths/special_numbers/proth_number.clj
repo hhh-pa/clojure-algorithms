@@ -1,11 +1,54 @@
 (ns clojure-algorithms.maths.special-numbers.proth-number
-  "Calculate the nth Proth number\nSource:\n    https://handwiki.org/wiki/Proth_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Calculate the nth Proth number
+Source:
+    https://handwiki.org/wiki/Proth_number")
 
-(declare proth is-proth-number)
+(defn- pow-int
+  "Integer power: base**exp computed with exact integer arithmetic."
+  [base exp]
+  (reduce *' 1 (repeat exp base)))
 
-(defn proth ":param number: nth number to calculate in the sequence\n:return: the nth number in Proth number\nNote: indexing starts at 1 i.e. proth(1) gives the first Proth number of 3\n>>> proth(6)\n25\n>>> proth(0)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=0] must be > 0\n>>> proth(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=-1] must be > 0\n>>> proth(6.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=6.0] must be an integer"
-  [number] (let [--v (atom nil) block (atom nil) block-index (atom nil) increment (atom nil) msg (atom nil) proth-index (atom nil) proth-list (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (reset! msg (str "Input value of [number=" (py-str number) "] must be > 0")) (throw (ex-info (py-str @msg) {:type :ValueError}))) (if (py-truthy (py-eq number 1)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value 3}))) (do (if (py-truthy (py-eq number 2)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value 5}))) (do (reset! block-index (py-add (py-int (py-log (py-floordiv number 3) 2) nil) 2)) (reset! proth-list [3 5]) (reset! proth-index 2) (reset! increment 3) (doseq [__i1 (py-iter (range 1 @block-index))] (reset! block __i1) (doseq [__i2 (py-iter (range @increment))] (reset! --v __i2) (swap! proth-list conj (py-add (py-pow 2 (py-add @block 1)) (py-get @proth-list (py-sub @proth-index 1)))) (swap! proth-index py-add 1)) (swap! increment py-mul 2)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @proth-list (py-sub number 1))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- floor-log2
+  "Floor of the base-2 logarithm of the positive integer x."
+  [x]
+  (dec (.bitLength (java.math.BigInteger/valueOf (long x)))))
 
-(defn is-proth-number ":param number: positive integer number\n:return: true if number is a Proth number, false otherwise\n>>> is_proth_number(1)\nFalse\n>>> is_proth_number(2)\nFalse\n>>> is_proth_number(3)\nTrue\n>>> is_proth_number(4)\nFalse\n>>> is_proth_number(5)\nTrue\n>>> is_proth_number(34)\nFalse\n>>> is_proth_number(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input value of [number=-1] must be > 0\n>>> is_proth_number(6.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=6.0] must be an integer"
-  [number] (let [number (atom number)] (let [message (atom nil) n (atom nil)] (try (when (py-truthy (not (py-truthy (integer? @number)))) (reset! message (str "Input value of [number=" (py-str (pr-str @number)) "] must be an integer")) (throw (ex-info (py-str @message) {:type :TypeError}))) (when (py-truthy (py-le @number 0)) (reset! message (str "Input value of [number=" (py-str (pr-str @number)) "] must be > 0")) (throw (ex-info (py-str @message) {:type :ValueError}))) (when (py-truthy (py-eq @number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (swap! number py-sub 1) (reset! n 0) (while (py-truthy (py-eq (py-mod @number 2) 0)) (swap! n py-add 1) (swap! number py-floordiv 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-lt @number (py-pow 2 @n))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- check-positive-int!
+  "Throws :TypeError/:ValueError ex-infos unless v is an integer above 0."
+  [v]
+  (when-not (integer? v)
+    (throw (ex-info (str "Input value of [number=" v "] must be an integer")
+                    {:type :TypeError})))
+  (when (< v 1)
+    (throw (ex-info (str "Input value of [number=" v "] must be > 0")
+                    {:type :ValueError}))))
+
+(defn proth
+  "Returns the nth Proth number. Indexing starts at 1, so (proth 1) is the
+first Proth number, 3."
+  [number]
+  (check-positive-int! number)
+  (if (<= number 2)
+    (nth [3 5] (dec number))
+    (let [block-index (+ 2 (floor-log2 (quot number 3)))]
+      (loop [block 1, proth-list [3 5], increment 3]
+        (if (>= block block-index)
+          (nth proth-list (dec number))
+          (recur (inc block)
+                 (reduce (fn [lst _]
+                           (conj lst (+' (pow-int 2 (inc block)) (peek lst))))
+                         proth-list
+                         (range increment))
+                 (* 2 increment)))))))
+
+(defn is-proth-number
+  "Returns true if `number` is a Proth number."
+  [number]
+  (check-positive-int! number)
+  (if (= number 1)
+    false
+    (let [[odd-part n] (loop [m (dec number), n 0]
+                         (if (even? m)
+                           (recur (quot m 2) (inc n))
+                           [m n]))]
+      (< odd-part (pow-int 2 n)))))

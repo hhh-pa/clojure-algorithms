@@ -1,14 +1,52 @@
 (ns clojure-algorithms.maths.josephus-problem
-  "The Josephus problem is a famous theoretical problem related to a certain\ncounting-out game. This module provides functions to solve the Josephus problem\nfor num_people and a step_size.\n\nThe Josephus problem is defined as follows:\n- num_people are standing in a circle.\n- Starting with a specified person, you count around the circle,\n  skipping a fixed number of people (step_size).\n- The person at which you stop counting is eliminated from the circle.\n- The counting continues until only one person remains.\n\nFor more information about the Josephus problem, refer to:\nhttps://en.wikipedia.org/wiki/Josephus_problem"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "The Josephus problem is a famous theoretical problem related to a certain
+  counting-out game. This module provides functions to solve the Josephus
+  problem for num_people and a step_size.
 
-(declare josephus-recursive find-winner josephus-iterative)
+  The Josephus problem is defined as follows:
+  - num_people are standing in a circle.
+  - Starting with a specified person, you count around the circle,
+    skipping a fixed number of people (step_size).
+  - The person at which you stop counting is eliminated from the circle.
+  - The counting continues until only one person remains.
 
-(defn josephus-recursive "Solve the Josephus problem for num_people and a step_size recursively.\n\nArgs:\n    num_people: A positive integer representing the number of people.\n    step_size: A positive integer representing the step size for elimination.\n\nReturns:\n    The position of the last person remaining.\n\nRaises:\n    ValueError: If num_people or step_size is not a positive integer.\n\nExamples:\n    >>> josephus_recursive(7, 3)\n    3\n    >>> josephus_recursive(10, 2)\n    4\n    >>> josephus_recursive(0, 2)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(1.9, 2)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(-2, 2)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(7, 0)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(7, -2)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(1_000, 0.01)\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer.\n    >>> josephus_recursive(\"cat\", \"dog\")\n    Traceback (most recent call last):\n        ...\n    ValueError: num_people or step_size is not a positive integer."
-  [num-people step-size] (try (when (py-truthy (let [__b3 (not (py-truthy (integer? num-people)))] (if (py-truthy __b3) __b3 (let [__b2 (not (py-truthy (integer? step-size)))] (if (py-truthy __b2) __b2 (let [__b1 (py-le num-people 0)] (if (py-truthy __b1) __b1 (py-le step-size 0)))))))) (throw (ex-info (py-str "num_people or step_size is not a positive integer.") {:type :ValueError}))) (when (py-truthy (py-eq num-people 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mod (py-add (josephus-recursive (py-sub num-people 1) step-size) step-size) num-people)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  For more information about the Josephus problem, refer to:
+  https://en.wikipedia.org/wiki/Josephus_problem")
 
-(defn find-winner "Find the winner of the Josephus problem for num_people and a step_size.\n\nArgs:\n    num_people (int): Number of people.\n    step_size (int): Step size for elimination.\n\nReturns:\n    int: The position of the last person remaining (1-based index).\n\nExamples:\n    >>> find_winner(7, 3)\n    4\n    >>> find_winner(10, 2)\n    5"
-  [num-people step-size] (py-add (josephus-recursive num-people step-size) 1))
+(defn- check-positive-ints
+  [num-people step-size]
+  (when-not (and (integer? num-people) (integer? step-size)
+                 (pos? num-people) (pos? step-size))
+    (throw (ex-info "num_people or step_size is not a positive integer."
+                    {:type :ValueError}))))
 
-(defn josephus-iterative "Solve the Josephus problem for num_people and a step_size iteratively.\n\nArgs:\n    num_people (int): The number of people in the circle.\n    step_size (int): The number of steps to take before eliminating someone.\n\nReturns:\n    int: The position of the last person standing.\n\nExamples:\n    >>> josephus_iterative(5, 2)\n    3\n    >>> josephus_iterative(7, 3)\n    4"
-  [num-people step-size] (let [circle (atom nil) current (atom nil)] (try (reset! circle (py-list (range 1 (py-add num-people 1)))) (reset! current 0) (while (py-truthy (py-gt (count @circle) 1)) (reset! current (py-mod (py-sub (py-add @current step-size) 1) (count @circle))) (swap! circle py-pop-rest @current)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @circle 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn josephus-recursive
+  "Solves the Josephus problem for num_people and a step_size recursively.
+  Returns the position of the last person remaining (0-based index)."
+  [num-people step-size]
+  (check-positive-ints num-people step-size)
+  ;; Same recurrence as upstream (f(1) = 0;
+  ;; f(n) = (f(n-1) + step_size) % n), evaluated bottom-up.
+  (loop [i 1 acc 0]
+    (if (> i num-people)
+      acc
+      (recur (inc i) (mod (+ acc step-size) i)))))
+
+(defn find-winner
+  "Finds the winner of the Josephus problem for num_people and a step_size.
+  Returns the position of the last person remaining (1-based index)."
+  [num-people step-size]
+  (inc (josephus-recursive num-people step-size)))
+
+(defn josephus-iterative
+  "Solves the Josephus problem for num_people and a step_size iteratively.
+  Returns the position of the last person standing (1-based index)."
+  [num-people step-size]
+  (loop [circle (vec (range 1 (inc num-people)))
+         current 0]
+    (if (<= (count circle) 1)
+      (nth circle 0)
+      (let [current (mod (+ current step-size -1) (count circle))]
+        (recur (vec (concat (subvec circle 0 current)
+                            (subvec circle (inc current))))
+               current)))))

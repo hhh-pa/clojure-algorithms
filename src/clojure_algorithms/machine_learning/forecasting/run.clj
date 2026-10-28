@@ -1,39 +1,124 @@
 (ns clojure-algorithms.machine-learning.forecasting.run
-  "this is code for forecasting\nbut I modified it and used it for safety checker of data\nfor ex: you have an online shop and for some reason some data are\nmissing (the amount of data that u expected are not supposed to be)\n        then we can use it\n*ps : 1. ofc we can use normal statistic method but in this case\n         the data is quite absurd and only a little^^\n      2. ofc u can use this and modified it for forecasting purpose\n         for the next 3 months sales or something,\n         u can just adjust it for ur own purpose"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Forecasting voters plus a data safety checker.
 
-(declare linear-regression-prediction sarimax-predictor support-vector-regressor random-forest-regressor interquartile-range-checker data-safety-checker)
+  The linear-regression voter (normal equations), the interquartile-range
+  checker and the safety checker are genuinely portable and fully ported.
+  The SARIMAX, SVR and random-forest voters need statsmodels/sklearn and
+  are honestly stubbed.")
 
-(defn linear-regression-prediction "First method: linear regression\ninput : training data (date, total_user, total_event) in list of float\noutput : list of total user prediction in float\n>>> n = linear_regression_prediction([2,3,4,5], [5,3,4,6], [3,1,2,4], [2,1], [2,2])\n>>> bool(abs(n - 5.0) < 1e-6)  # Checking precision because of floating point errors\nTrue"
+(defn- unsupported!
+  [needs]
+  (throw (ex-info (str "requires " needs) {:type :UnsupportedOperation})))
+
+(defn- solve-linear
+  "Solve Ax = b by Gauss-Jordan elimination with partial pivoting."
+  [a b]
+  (let [n (count a)
+        aug (mapv #(vec %1) (map #(conj (vec %1) (double %2)) a b))]
+    (loop [m aug
+           col 0]
+      (if (>= col n)
+        (mapv #(nth % n) m)
+        (let [pivot (apply max-key #(Math/abs (double (nth (nth m %) col)))
+                           (range col n))
+              m (assoc m col (nth m pivot) pivot (nth m col))
+              piv (nth (nth m col) col)
+              m (assoc m col (mapv #(/ % piv) (nth m col)))
+              m (reduce (fn [m r]
+                          (if (= r col)
+                            m
+                            (let [factor (nth (nth m r) col)]
+                              (assoc m r (mapv #(- %1 (* factor %2))
+                                               (nth m r) (nth m col))))))
+                        m (range n))]
+          (recur m (inc col)))))))
+
+(defn- mat-transpose
+  [rows]
+  (apply mapv vector rows))
+
+(defn- mat-mat
+  [a b]
+  (let [bt (mat-transpose b)]
+    (mapv (fn [row] (mapv (fn [col] (reduce + (map * row col))) bt)) a)))
+
+(defn- mat-vec
+  [a v]
+  (mapv #(reduce + (map * % v)) a))
+
+(defn linear-regression-prediction
+  "OLS forecast via the normal equations beta = (X'X)^-1 X'y on rows
+  [1 date event].
+
+  NOTE: like the upstream code, the forecast adds the raw test event count
+  (test_mtch[0] + beta[2]) instead of multiplying by beta[2]. Preserved."
+  [train-dt train-usr train-mtch test-dt test-mtch]
+  (let [x (mapv (fn [i dt] [1.0 (double dt) (double (nth train-mtch i))])
+                (range) train-dt)
+        xt (mat-transpose x)
+        beta (solve-linear (mat-mat xt x) (mat-vec xt (mapv double train-usr)))]
+    (Math/abs (+ (nth beta 0)
+                 (* (double (first test-dt)) (nth beta 1))
+                 (double (first test-mtch))
+                 (nth beta 2)))))
+
+(defn sarimax-predictor
+  "STUB: needs statsmodels (SARIMAX state-space fitting)."
   [& _args]
-  ;; stub: original requires np,numpy-attr:dot,numpy-attr:transpose; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:dot,numpy-attr:transpose" {:type :UnsupportedOperation})))
+  (unsupported! "SARIMAX"))
 
-(defn sarimax-predictor "second method: Sarimax\nsarimax is a statistic method which using previous input\nand learn its pattern to predict future data\ninput : training data (total_user, with exog data = total_event) in list of float\noutput : list of total user prediction in float\n>>> sarimax_predictor([4,2,6,8], [3,1,2,4], [2])\n6.6666671111109626"
+(defn support-vector-regressor
+  "STUB: needs sklearn (SVR with RBF kernel)."
   [& _args]
-  ;; stub: original requires SARIMAX; pure-Clojure port not applicable
-  (throw (ex-info "requires SARIMAX" {:type :UnsupportedOperation})))
+  (unsupported! "SVR"))
 
-(defn support-vector-regressor "Third method: Support vector regressor\nsvr is quite the same with svm(support vector machine)\nit uses the same principles as the SVM for classification,\nwith only a few minor differences and the only different is that\nit suits better for regression purpose\ninput : training data (date, total_user, total_event) in list of float\nwhere x = list of set (date and total event)\noutput : list of total user prediction in float\n>>> support_vector_regressor([[5,2],[1,5],[6,2]], [[3,2]], [2,1,4])\n1.634932078116079"
+(defn random-forest-regressor
+  "STUB: needs sklearn (RandomForestRegressor)."
   [& _args]
-  ;; stub: original requires SVR; pure-Clojure port not applicable
-  (throw (ex-info "requires SVR" {:type :UnsupportedOperation})))
+  (unsupported! "RandomForestRegressor"))
 
-(defn random-forest-regressor "Fourth method: Random Forest Regressor\nRandom Forest is an ensemble learning method for regression that operates\nby constructing a multitude of decision trees at training time and outputting\nthe mean prediction of the individual trees.\n\nIt is more robust than a single decision tree and less prone to overfitting.\nGood for capturing nonlinear relationships in data.\n\ninput : training data (date, total_event) in list of float\nwhere x = list of set (date and total event)\noutput : list of total user prediction in float\n\n>>> random_forest_regressor([[5,2],[1,5],[6,2]], [[3,2]], [2,1,4])\n1.95"
-  [& _args]
-  ;; stub: original requires RandomForestRegressor; pure-Clojure port not applicable
-  (throw (ex-info "requires RandomForestRegressor" {:type :UnsupportedOperation})))
+(defn- percentile
+  "p-th percentile by linear interpolation (like np.percentile default)."
+  [sorted-xs p]
+  (let [n (count sorted-xs)
+        rank (* (/ p 100.0) (dec n))
+        lo (int (Math/floor rank))
+        hi (int (Math/ceil rank))]
+    (+ (nth sorted-xs lo) (* (- rank lo) (- (nth sorted-xs hi)
+                                            (nth sorted-xs lo))))))
 
-(defn interquartile-range-checker "Optional method: interquatile range\ninput : list of total user in float\noutput : low limit of input in float\nthis method can be used to check whether some data is outlier or not\n>>> interquartile_range_checker([1,2,3,4,5,6,7,8,9,10])\n2.8"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
+(defn interquartile-range-checker
+  "Low outlier fence: Q1 - 0.1 * IQR of the training values."
+  [train-user]
+  (let [sorted-xs (vec (sort train-user))
+        q1 (percentile sorted-xs 25)
+        q3 (percentile sorted-xs 75)]
+    (double (- q1 (* (- q3 q1) 0.1)))))
 
-(defn data-safety-checker "Used to review all the votes (list result prediction)\nand compare it to the actual result.\ninput : list of predictions\noutput : print whether it's safe or not\n>>> data_safety_checker([2, 3, 4], 5.0)\nFalse"
-  [list-vote actual-result] (let [i (atom nil) not-safe (atom nil) safe (atom nil)] (try (reset! safe 0) (reset! not-safe 0) (when (py-truthy (not (py-truthy (number? actual-result)))) (throw (ex-info (py-str "Actual result should be float. Value passed is a list") {:type :TypeError}))) (doseq [__i1 (py-iter list-vote)] (reset! i __i1) (if (py-truthy (py-gt @i actual-result)) (do (reset! safe (py-add @not-safe 1))) (do (if (py-truthy (py-le (py-abs (py-sub (py-abs @i) (py-abs actual-result))) 0.1)) (do (swap! safe py-add 1)) (do (swap! not-safe py-add 1)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-gt @safe @not-safe)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn data-safety-checker
+  "True when the predicted votes agree with the actual result.
+  Throws :TypeError unless actual-result is a float.
 
-;; NOTE: linear_regression_prediction stubbed (np,numpy-attr:dot,numpy-attr:transpose)
-;; NOTE: sarimax_predictor stubbed (SARIMAX)
-;; NOTE: support_vector_regressor stubbed (SVR)
-;; NOTE: random_forest_regressor stubbed (RandomForestRegressor)
-;; NOTE: interquartile_range_checker stubbed (np)
+  NOTE: like the upstream code, an over-predicting vote sets
+  safe = not-safe + 1 instead of incrementing safe. Preserved."
+  [list-vote actual-result]
+  (when-not (or (instance? Double actual-result)
+                (instance? Float actual-result))
+    (throw (ex-info "Actual result should be float. Value passed is a list"
+                    {:type :TypeError})))
+  (loop [votes list-vote
+         safe 0
+         not-safe 0]
+    (if (empty? votes)
+      (> safe not-safe)
+      (let [i (first votes)]
+        (cond (> i actual-result)
+              (recur (rest votes) (inc not-safe) not-safe)
+
+              (<= (Math/abs (- (Math/abs (double i))
+                               (Math/abs actual-result)))
+                  0.1)
+              (recur (rest votes) (inc safe) not-safe)
+
+              :else
+              (recur (rest votes) safe (inc not-safe)))))))

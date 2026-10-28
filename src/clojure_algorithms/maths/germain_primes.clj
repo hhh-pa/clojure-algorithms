@@ -1,11 +1,44 @@
 (ns clojure-algorithms.maths.germain-primes
-  "A Sophie Germain prime is any prime p, where 2p + 1 is also prime.\nThe second number, 2p + 1 is called a safe prime.\n\nExamples of Germain primes include: 2, 3, 5, 11, 23\n\nTheir corresponding safe primes: 5, 7, 11, 23, 47\nhttps://en.wikipedia.org/wiki/Safe_and_Sophie_Germain_primes"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set] [clojure-algorithms.maths.prime-check :as m1]))
+  "A Sophie Germain prime is any prime p, where 2p + 1 is also prime.
+The second number, 2p + 1 is called a safe prime.
 
-(declare is-germain-prime is-safe-prime)
+Examples of Germain primes include: 2, 3, 5, 11, 23.
 
-(defn is-germain-prime "Checks if input number and 2*number + 1 are prime.\n\n>>> is_germain_prime(3)\nTrue\n>>> is_germain_prime(11)\nTrue\n>>> is_germain_prime(4)\nFalse\n>>> is_germain_prime(23)\nTrue\n>>> is_germain_prime(13)\nFalse\n>>> is_germain_prime(20)\nFalse\n>>> is_germain_prime('abc')\nTraceback (most recent call last):\n    ...\nTypeError: Input value must be a positive integer. Input value: abc"
-  [number] (let [msg (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? number)))] (if (py-truthy __b1) __b1 (py-lt number 1)))) (reset! msg (str "Input value must be a positive integer. Input value: " (py-str number))) (throw (ex-info (py-str @msg) {:type :TypeError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (let [__b2 (m1/is-prime number)] (if (py-truthy __b2) (m1/is-prime (py-add (py-mul 2 number) 1)) __b2))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Their corresponding safe primes: 5, 7, 11, 23, 47.
+https://en.wikipedia.org/wiki/Safe_and_Sophie_Germain_primes")
 
-(defn is-safe-prime "Checks if input number and (number - 1)/2 are prime.\nThe smallest safe prime is 5, with the Germain prime is 2.\n\n>>> is_safe_prime(5)\nTrue\n>>> is_safe_prime(11)\nTrue\n>>> is_safe_prime(1)\nFalse\n>>> is_safe_prime(2)\nFalse\n>>> is_safe_prime(3)\nFalse\n>>> is_safe_prime(47)\nTrue\n>>> is_safe_prime('abc')\nTraceback (most recent call last):\n    ...\nTypeError: Input value must be a positive integer. Input value: abc"
-  [number] (let [msg (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? number)))] (if (py-truthy __b1) __b1 (py-lt number 1)))) (reset! msg (str "Input value must be a positive integer. Input value: " (py-str number))) (throw (ex-info (py-str @msg) {:type :TypeError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (let [__b3 (py-eq (py-mod (py-sub number 1) 2) 0)] (if (py-truthy __b3) (let [__b2 (m1/is-prime number)] (if (py-truthy __b2) (m1/is-prime (py-floordiv (py-sub number 1) 2)) __b2)) __b3))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- prime?
+  "Primality test in O(sqrt(n)). All primes are of the form 6k +/- 1."
+  [n]
+  (cond
+    (< n 4) (> n 1)
+    (or (even? n) (zero? (mod n 3))) false
+    :else (let [limit (Math/sqrt (double n))]
+            (loop [i 5]
+              (cond
+                (> i limit) true
+                (or (zero? (mod n i)) (zero? (mod n (+ i 2)))) false
+                :else (recur (+ i 6)))))))
+
+(defn- check-positive-int
+  "Validates the argument for the Germain prime functions."
+  [number]
+  (when (or (not (integer? number)) (< number 1))
+    (throw (ex-info (str "Input value must be a positive integer. Input value: "
+                         number)
+                    {:type :TypeError}))))
+
+(defn is-germain-prime
+  "Checks if input number and 2*number + 1 are prime."
+  [number]
+  (check-positive-int number)
+  (and (prime? number) (prime? (inc (* 2 number)))))
+
+(defn is-safe-prime
+  "Checks if input number and (number - 1)/2 are prime.
+The smallest safe prime is 5, with the Germain prime 2."
+  [number]
+  (check-positive-int number)
+  (and (zero? (mod (dec number) 2))
+       (prime? number)
+       (prime? (quot (dec number) 2))))

@@ -1,11 +1,38 @@
 (ns clojure-algorithms.maths.series.arithmetic
-  "Arithmetic mean\nReference: https://en.wikipedia.org/wiki/Arithmetic_mean\n\nArithmetic series\nReference: https://en.wikipedia.org/wiki/Arithmetic_series\n(The URL above will redirect you to arithmetic progression)"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Arithmetic mean
+Reference: https://en.wikipedia.org/wiki/Arithmetic_mean
 
-(declare is-arithmetic-series arithmetic-mean)
+Arithmetic series
+Reference: https://en.wikipedia.org/wiki/Arithmetic_series
+(The URL above will redirect you to arithmetic progression)")
 
-(defn is-arithmetic-series "checking whether the input series is arithmetic series or not\n>>> is_arithmetic_series([2, 4, 6])\nTrue\n>>> is_arithmetic_series([3, 6, 12, 24])\nFalse\n>>> is_arithmetic_series([1, 2, 3])\nTrue\n>>> is_arithmetic_series(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [2, 4, 6]\n>>> is_arithmetic_series([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list"
-  [series] (let [common-diff (atom nil) index (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [2, 4, 6]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (reset! common-diff (py-sub (py-get series 1) (py-get series 0))) (doseq [__i1 (py-iter (range (py-sub (count series) 1)))] (reset! index __i1) (when (py-truthy (not (py-eq (py-sub (py-get series (py-add @index 1)) (py-get series @index)) @common-diff))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-arithmetic-series
+  "Return true when series is an arithmetic series.
 
-(defn arithmetic-mean "return the arithmetic mean of series\n\n>>> arithmetic_mean([2, 4, 6])\n4.0\n>>> arithmetic_mean([3, 6, 9, 12])\n7.5\n>>> arithmetic_mean(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [2, 4, 6]\n>>> arithmetic_mean([4, 8, 1])\n4.333333333333333\n>>> arithmetic_mean([1, 2, 3])\n2.0\n>>> arithmetic_mean([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list"
-  [series] (let [answer (atom nil) val (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [2, 4, 6]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (reset! answer 0) (doseq [__i1 (py-iter series)] (reset! val __i1) (swap! answer py-add @val)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div @answer (count series))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Throws ex-info with :type :ValueError when series is not sequential or is
+  empty."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [2, 4, 6]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (if (= 1 (count series))
+    true
+    (let [common-diff (- (nth series 1) (nth series 0))]
+      (every? (fn [index]
+                (= (- (nth series (inc index)) (nth series index)) common-diff))
+              (range (dec (count series)))))))
+
+(defn arithmetic-mean
+  "Return the arithmetic mean of series.
+
+  Throws ex-info with :type :ValueError when series is not sequential or is
+  empty."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [2, 4, 6]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (/ (double (reduce + series)) (count series)))

@@ -1,8 +1,24 @@
 (ns clojure-algorithms.maths.binomial-coefficient
-  "Port of maths/binomial_coefficient.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Binomial coefficient via Pascal's triangle.")
 
-(declare binomial-coefficient)
-
-(defn binomial-coefficient "Find binomial coefficient using Pascal's triangle.\n\nCalculate C(n, r) using Pascal's triangle.\n\n:param n: The total number of items.\n:param r: The number of items to choose.\n:return: The binomial coefficient C(n, r).\n\n>>> binomial_coefficient(10, 5)\n252\n>>> binomial_coefficient(10, 0)\n1\n>>> binomial_coefficient(0, 10)\n1\n>>> binomial_coefficient(10, 10)\n1\n>>> binomial_coefficient(5, 2)\n10\n>>> binomial_coefficient(5, 6)\n0\n>>> binomial_coefficient(3, 5)\n0\n>>> binomial_coefficient(-2, 3)\nTraceback (most recent call last):\n    ...\nValueError: n and r must be non-negative integers\n>>> binomial_coefficient(5, -1)\nTraceback (most recent call last):\n    ...\nValueError: n and r must be non-negative integers\n>>> binomial_coefficient(10.1, 5)\nTraceback (most recent call last):\n    ...\nTypeError: 'float' object cannot be interpreted as an integer\n>>> binomial_coefficient(10, 5.1)\nTraceback (most recent call last):\n    ...\nTypeError: 'float' object cannot be interpreted as an integer"
-  [n r] (let [c (atom nil) i (atom nil) j (atom nil)] (try (when (py-truthy (let [__b1 (py-lt n 0)] (if (py-truthy __b1) __b1 (py-lt r 0)))) (throw (ex-info (py-str "n and r must be non-negative integers") {:type :ValueError}))) (when (py-truthy (py-in 0 [n r])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (reset! c (vec (for [i (py-iter (range (py-add r 1)))] 0))) (swap! c (fn [__c] (py-assoc-in __c [0] 1))) (doseq [__i2 (py-iter (range 1 (py-add n 1)))] (reset! i __i2) (reset! j (py-min [@i r])) (while (py-truthy (py-gt @j 0)) (swap! c (fn [__c] (py-assoc-in __c [@j] (py-add (py-get-in __c [@j]) (py-get @c (py-sub @j 1)))))) (swap! j py-sub 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @c r)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn binomial-coefficient
+  "Calculate C(n, r) using Pascal's triangle."
+  [n r]
+  (when (or (and (number? n) (neg? n)) (and (number? r) (neg? r)))
+    (throw (ex-info "n and r must be non-negative integers" {:type :ValueError})))
+  (when (or (not (integer? n)) (not (integer? r)))
+    (throw (ex-info "'float' object cannot be interpreted as an integer"
+                    {:type :TypeError})))
+  (if (or (zero? n) (zero? r))
+    1
+    (let [final-row (loop [i 1
+                           c (assoc (vec (repeat (inc r) 0)) 0 1)]
+                      (if (> i n)
+                        c
+                        (recur (inc i)
+                               (loop [j (min i r) c c]
+                                 (if (<= j 0)
+                                   c
+                                   (recur (dec j)
+                                          (assoc c j (+ (nth c j) (nth c (dec j))))))))))]
+      (nth final-row r))))

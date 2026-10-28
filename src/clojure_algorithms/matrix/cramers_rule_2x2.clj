@@ -1,8 +1,29 @@
 (ns clojure-algorithms.matrix.cramers-rule-2x2
-  "Port of matrix/cramers_rule_2x2.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Solves a 2x2 system of linear equations with Cramer's rule.")
 
-(declare cramers-rule-2x2)
-
-(defn cramers-rule-2x2 "Solves the system of linear equation in 2 variables.\n:param: equation1: list of 3 numbers\n:param: equation2: list of 3 numbers\n:return: String of result\ninput format : [a1, b1, d1], [a2, b2, d2]\ndeterminant = [[a1, b1], [a2, b2]]\ndeterminant_x = [[d1, b1], [d2, b2]]\ndeterminant_y = [[a1, d1], [a2, d2]]\n\n>>> cramers_rule_2x2([2, 3, 0], [5, 1, 0])\n(0.0, 0.0)\n>>> cramers_rule_2x2([0, 4, 50], [2, 0, 26])\n(13.0, 12.5)\n>>> cramers_rule_2x2([11, 2, 30], [1, 0, 4])\n(4.0, -7.0)\n>>> cramers_rule_2x2([4, 7, 1], [1, 2, 0])\n(2.0, -1.0)\n\n>>> cramers_rule_2x2([1, 2, 3], [2, 4, 6])\nTraceback (most recent call last):\n    ...\nValueError: Infinite solutions. (Consistent system)\n>>> cramers_rule_2x2([1, 2, 3], [2, 4, 7])\nTraceback (most recent call last):\n    ...\nValueError: No solution. (Inconsistent system)\n>>> cramers_rule_2x2([1, 2, 3], [11, 22])\nTraceback (most recent call last):\n    ...\nValueError: Please enter a valid equation.\n>>> cramers_rule_2x2([0, 1, 6], [0, 0, 3])\nTraceback (most recent call last):\n    ...\nValueError: No solution. (Inconsistent system)\n>>> cramers_rule_2x2([0, 0, 6], [0, 0, 3])\nTraceback (most recent call last):\n    ...\nValueError: Both a & b of two equations can't be zero.\n>>> cramers_rule_2x2([1, 2, 3], [1, 2, 3])\nTraceback (most recent call last):\n    ...\nValueError: Infinite solutions. (Consistent system)\n>>> cramers_rule_2x2([0, 4, 50], [0, 3, 99])\nTraceback (most recent call last):\n    ...\nValueError: No solution. (Inconsistent system)"
-  [equation1 equation2] (let [a1 (atom nil) a2 (atom nil) b1 (atom nil) b2 (atom nil) c1 (atom nil) c2 (atom nil) determinant (atom nil) determinant-x (atom nil) determinant-y (atom nil) x (atom nil) y (atom nil)] (try (when (py-truthy (not (py-truthy (let [__c1 (count equation1) __c2 (count equation2) __c3 3] (and (py-eq __c1 __c2) (py-eq __c2 __c3)))))) (throw (ex-info (py-str "Please enter a valid equation.") {:type :ValueError}))) (when (py-truthy (let [__c4 (py-get equation1 0) __c5 (py-get equation1 1) __c6 (py-get equation2 0) __c7 (py-get equation2 1) __c8 0] (and (py-eq __c4 __c5) (py-eq __c5 __c6) (py-eq __c6 __c7) (py-eq __c7 __c8)))) (throw (ex-info (py-str "Both a & b of two equations can't be zero.") {:type :ValueError}))) (let [__d9 (vec equation1)] (reset! a1 (nth __d9 0)) (reset! b1 (nth __d9 1)) (reset! c1 (nth __d9 2))) (let [__d10 (vec equation2)] (reset! a2 (nth __d10 0)) (reset! b2 (nth __d10 1)) (reset! c2 (nth __d10 2))) (reset! determinant (py-sub (py-mul @a1 @b2) (py-mul @a2 @b1))) (reset! determinant-x (py-sub (py-mul @c1 @b2) (py-mul @c2 @b1))) (reset! determinant-y (py-sub (py-mul @a1 @c2) (py-mul @a2 @c1))) (when (py-truthy (py-eq @determinant 0)) (when (py-truthy (let [__c11 @determinant-x __c12 @determinant-y __c13 0] (and (py-eq __c11 __c12) (py-eq __c12 __c13)))) (throw (ex-info (py-str "Infinite solutions. (Consistent system)") {:type :ValueError}))) (throw (ex-info (py-str "No solution. (Inconsistent system)") {:type :ValueError}))) (if (py-truthy (let [__c14 @determinant-x __c15 @determinant-y __c16 0] (and (py-eq __c14 __c15) (py-eq __c15 __c16)))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [0.0 0.0]}))) (do (reset! x (py-div @determinant-x @determinant)) (reset! y (py-div @determinant-y @determinant)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@x @y]})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn cramers-rule-2x2
+  "Solves the system given as [a1 b1 d1] and [a2 b2 d2].
+  Returns [x y] as doubles."
+  [equation1 equation2]
+  (when-not (= 3 (count equation1) (count equation2))
+    (throw (ex-info "Please enter a valid equation." {:type :ValueError})))
+  (when (and (zero? (nth equation1 0)) (zero? (nth equation1 1))
+             (zero? (nth equation2 0)) (zero? (nth equation2 1)))
+    (throw (ex-info "Both a & b of two equations can't be zero."
+                    {:type :ValueError})))
+  (let [[a1 b1 c1] equation1
+        [a2 b2 c2] equation2
+        determinant (- (* a1 b2) (* a2 b1))
+        determinant-x (- (* c1 b2) (* c2 b1))
+        determinant-y (- (* a1 c2) (* a2 c1))]
+    (cond (and (zero? determinant) (zero? determinant-x) (zero? determinant-y))
+          (throw (ex-info "Infinite solutions. (Consistent system)"
+                          {:type :ValueError}))
+          (zero? determinant)
+          (throw (ex-info "No solution. (Inconsistent system)"
+                          {:type :ValueError}))
+          (and (zero? determinant-x) (zero? determinant-y))
+          [0.0 0.0]
+          :else
+          [(double (/ determinant-x determinant))
+           (double (/ determinant-y determinant))])))

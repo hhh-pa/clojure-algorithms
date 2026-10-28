@@ -1,11 +1,32 @@
 (ns clojure-algorithms.maths.interquartile-range
-  "An implementation of interquartile range (IQR) which is a measure of statistical\ndispersion, which is the spread of the data.\n\nThe function takes the list of numeric values as input and returns the IQR.\n\nScript inspired by this Wikipedia article:\nhttps://en.wikipedia.org/wiki/Interquartile_range"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "An implementation of interquartile range (IQR) which is a measure of statistical
+dispersion, which is the spread of the data.
 
-(declare find-median interquartile-range)
+The function takes the list of numeric values as input and returns the IQR.
 
-(defn find-median "This is the implementation of the median.\n:param nums: The list of numeric nums\n:return: Median of the list\n>>> find_median(nums=([1, 2, 2, 3, 4]))\n2\n>>> find_median(nums=([1, 2, 2, 3, 4, 4]))\n2.5\n>>> find_median(nums=([-1, 2, 0, 3, 4, -4]))\n1.5\n>>> find_median(nums=([1.1, 2.2, 2, 3.3, 4.4, 4]))\n2.65"
-  [nums] (let [div (atom nil) mod-v (atom nil)] (try (let [__d1 (vec [(py-floordiv (count nums) 2) (py-mod (count nums) 2)])] (reset! div (nth __d1 0)) (reset! mod-v (nth __d1 1))) (when (py-truthy @mod-v) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get nums @div)}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-add (py-get nums @div) (py-get nums (py-sub @div 1))) 2)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Script inspired by this Wikipedia article:
+https://en.wikipedia.org/wiki/Interquartile_range")
 
-(defn interquartile-range "Return the interquartile range for a list of numeric values.\n:param nums: The list of numeric values.\n:return: interquartile range\n\n>>> interquartile_range(nums=[4, 1, 2, 3, 2])\n2.0\n>>> interquartile_range(nums = [-2, -7, -10, 9, 8, 4, -67, 45])\n17.0\n>>> interquartile_range(nums = [-2.1, -7.1, -10.1, 9.1, 8.1, 4.1, -67.1, 45.1])\n17.2\n>>> interquartile_range(nums = [0, 0, 0, 0, 0])\n0.0\n>>> interquartile_range(nums=[])\nTraceback (most recent call last):\n...\nValueError: The list is empty. Provide a non-empty list."
-  [nums] (let [nums (atom nums)] (let [div (atom nil) half-length (atom nil) length (atom nil) mod-v (atom nil) q1 (atom nil) q3 (atom nil)] (try (when (py-truthy (not (py-truthy @nums))) (throw (ex-info (py-str "The list is empty. Provide a non-empty list.") {:type :ValueError}))) (reset! nums (py-sorted @nums)) (reset! length (count @nums)) (let [__d1 (vec [(py-floordiv @length 2) (py-mod @length 2)])] (reset! div (nth __d1 0)) (reset! mod-v (nth __d1 1))) (reset! q1 (find-median (py-slice @nums nil @div nil))) (reset! half-length (reduce +' 0 [@div @mod-v])) (reset! q3 (find-median (py-slice @nums @half-length @length nil))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-sub @q3 @q1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn find-median
+  "Median of nums. For an even count, the average of the two middle values
+(as a double); for an odd count, the middle value as-is."
+  [nums]
+  (let [v (vec nums)
+        div (quot (count v) 2)]
+    (if (odd? (count v))
+      (nth v div)
+      (/ (+ (double (nth v div)) (double (nth v (dec div)))) 2.0))))
+
+(defn interquartile-range
+  "Return the interquartile range (q3 - q1) for a list of numeric values."
+  [nums]
+  (when (empty? nums)
+    (throw (ex-info "The list is empty. Provide a non-empty list."
+                    {:type :ValueError})))
+  (let [sorted (sort nums)
+        length (count sorted)
+        div (quot length 2)
+        md (mod length 2)
+        q1 (find-median (take div sorted))
+        q3 (find-median (drop (+ div md) sorted))]
+    (- q3 q1)))

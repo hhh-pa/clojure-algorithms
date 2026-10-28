@@ -1,8 +1,32 @@
 (ns clojure-algorithms.maths.special-numbers.ugly-numbers
-  "Ugly numbers are numbers whose only prime factors are 2, 3 or 5. The sequence\n1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, … shows the first 11 ugly numbers. By convention,\n1 is included.\nGiven an integer n, we have to find the nth ugly number.\n\nFor more details, refer this article\nhttps://www.geeksforgeeks.org/ugly-numbers/"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Ugly numbers are numbers whose only prime factors are 2, 3 or 5. The sequence
+1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, ... shows the first 11 ugly numbers. By convention,
+1 is included.
+Given an integer n, we have to find the nth ugly number.
 
-(declare ugly-numbers)
+For more details, refer this article
+https://www.geeksforgeeks.org/ugly-numbers/")
 
-(defn ugly-numbers "Returns the nth ugly number.\n>>> ugly_numbers(100)\n1536\n>>> ugly_numbers(0)\n1\n>>> ugly_numbers(20)\n36\n>>> ugly_numbers(-5)\n1\n>>> ugly_numbers(-5.5)\nTraceback (most recent call last):\n    ...\nTypeError: 'float' object cannot be interpreted as an integer"
-  [n] (let [--v (atom nil) i2 (atom nil) i3 (atom nil) i5 (atom nil) next-2 (atom nil) next-3 (atom nil) next-5 (atom nil) next-num (atom nil) ugly-nums (atom nil)] (try (reset! ugly-nums [1]) (let [__d1 (vec [0 0 0])] (reset! i2 (nth __d1 0)) (reset! i3 (nth __d1 1)) (reset! i5 (nth __d1 2))) (reset! next-2 (py-mul (py-get @ugly-nums @i2) 2)) (reset! next-3 (py-mul (py-get @ugly-nums @i3) 3)) (reset! next-5 (py-mul (py-get @ugly-nums @i5) 5)) (doseq [__i2 (py-iter (range 1 n))] (reset! --v __i2) (reset! next-num (py-min [@next-2 @next-3 @next-5])) (swap! ugly-nums conj @next-num) (when (py-truthy (py-eq @next-num @next-2)) (swap! i2 py-add 1) (reset! next-2 (py-mul (py-get @ugly-nums @i2) 2))) (when (py-truthy (py-eq @next-num @next-3)) (swap! i3 py-add 1) (reset! next-3 (py-mul (py-get @ugly-nums @i3) 3))) (when (py-truthy (py-eq @next-num @next-5)) (swap! i5 py-add 1) (reset! next-5 (py-mul (py-get @ugly-nums @i5) 5)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-get @ugly-nums (py-neg 1))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn ugly-numbers
+  "Returns the nth ugly number (1-indexed; by convention the 0th and negative
+positions also yield 1). Throws an ex-info with :type :TypeError when n is
+not an integer."
+  [n]
+  (when-not (integer? n)
+    (throw (ex-info (str "'" (cond
+                               (float? n) "float"
+                               (string? n) "str"
+                               :else "object")
+                         "' object cannot be interpreted as an integer")
+                    {:type :TypeError})))
+  (loop [ugly [1], i2 0, i3 0, i5 0]
+    (if (>= (count ugly) (max n 1))
+      (peek ugly)
+      (let [next-2 (* (nth ugly i2) 2)
+            next-3 (* (nth ugly i3) 3)
+            next-5 (* (nth ugly i5) 5)
+            next-num (min next-2 next-3 next-5)]
+        (recur (conj ugly next-num)
+               (if (= next-num next-2) (inc i2) i2)
+               (if (= next-num next-3) (inc i3) i3)
+               (if (= next-num next-5) (inc i5) i5))))))

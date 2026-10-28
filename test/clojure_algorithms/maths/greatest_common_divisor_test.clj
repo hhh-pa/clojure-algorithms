@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.greatest-common-divisor-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.greatest-common-divisor :as sut]))
 
 (deftest test-fn-greatest-common-divisor-examples

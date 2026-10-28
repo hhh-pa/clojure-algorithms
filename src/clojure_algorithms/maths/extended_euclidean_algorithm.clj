@@ -1,11 +1,41 @@
 (ns clojure-algorithms.maths.extended-euclidean-algorithm
-  "Extended Euclidean Algorithm.\n\nFinds 2 numbers a and b such that it satisfies\nthe equation am + bn = gcd(m, n) (a.k.a Bezout's Identity)\n\nhttps://en.wikipedia.org/wiki/Extended_Euclidean_algorithm"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Extended Euclidean Algorithm.
+Finds 2 numbers a and b such that it satisfies
+the equation am + bn = gcd(m, n) (a.k.a Bezout's Identity).
+https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm")
 
-(declare extended-euclidean-algorithm main)
+(defn- floordiv
+  "Floor division, matching Python's // operator."
+  [a b]
+  (let [q (quot a b)]
+    (if (and (not (zero? (rem a b))) (not= (neg? a) (neg? b)))
+      (dec q)
+      q)))
 
-(defn extended-euclidean-algorithm "Extended Euclidean Algorithm.\n\nFinds 2 numbers a and b such that it satisfies\nthe equation am + bn = gcd(m, n) (a.k.a Bezout's Identity)\n\n>>> extended_euclidean_algorithm(1, 24)\n(1, 0)\n\n>>> extended_euclidean_algorithm(8, 14)\n(2, -1)\n\n>>> extended_euclidean_algorithm(240, 46)\n(-9, 47)\n\n>>> extended_euclidean_algorithm(1, -4)\n(1, 0)\n\n>>> extended_euclidean_algorithm(-2, -4)\n(-1, 0)\n\n>>> extended_euclidean_algorithm(0, -4)\n(0, -1)\n\n>>> extended_euclidean_algorithm(2, 0)\n(1, 0)"
-  [a b] (let [coeff-a (atom nil) coeff-b (atom nil) old-coeff-a (atom nil) old-coeff-b (atom nil) old-remainder (atom nil) quotient (atom nil) remainder (atom nil)] (try (if (py-truthy (py-eq (py-abs a) 1)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [a 0]}))) (do (when (py-truthy (py-eq (py-abs b) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [0 b]}))))) (let [__d1 (vec [a b])] (reset! old-remainder (nth __d1 0)) (reset! remainder (nth __d1 1))) (let [__d2 (vec [1 0])] (reset! old-coeff-a (nth __d2 0)) (reset! coeff-a (nth __d2 1))) (let [__d3 (vec [0 1])] (reset! old-coeff-b (nth __d3 0)) (reset! coeff-b (nth __d3 1))) (while (py-truthy (not (py-eq @remainder 0))) (reset! quotient (py-floordiv @old-remainder @remainder)) (let [__d4 (vec [@remainder (py-sub @old-remainder (py-mul @quotient @remainder))])] (reset! old-remainder (nth __d4 0)) (reset! remainder (nth __d4 1))) (let [__d5 (vec [@coeff-a (py-sub @old-coeff-a (py-mul @quotient @coeff-a))])] (reset! old-coeff-a (nth __d5 0)) (reset! coeff-a (nth __d5 1))) (let [__d6 (vec [@coeff-b (py-sub @old-coeff-b (py-mul @quotient @coeff-b))])] (reset! old-coeff-b (nth __d6 0)) (reset! coeff-b (nth __d6 1)))) (when (py-truthy (py-lt a 0)) (reset! old-coeff-a (py-neg @old-coeff-a))) (when (py-truthy (py-lt b 0)) (reset! old-coeff-b (py-neg @old-coeff-b))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@old-coeff-a @old-coeff-b]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn extended-euclidean-algorithm
+  "Extended Euclidean Algorithm. Finds [x y] such that
+x * a + y * b = gcd(a, b) (Bezout's Identity)."
+  [a b]
+  (cond
+    (= (abs a) 1) [a 0]
+    (= (abs b) 1) [0 b]
+    :else
+    (loop [old-r a, r b, old-x 1, x 0, old-y 0, y 1]
+      (if (zero? r)
+        [(if (neg? a) (-' old-x) old-x)
+         (if (neg? b) (-' old-y) old-y)]
+        (let [q (floordiv old-r r)]
+          (recur r (-' old-r (*' q r))
+                 x (-' old-x (*' q x))
+                 y (-' old-y (*' q y))))))))
 
-(defn main "Call Extended Euclidean Algorithm."
-  [] (let [a (atom nil) b (atom nil)] (try (when (py-truthy (py-lt (count (vec *command-line-args*)) 3)) (println (clojure.string/join " " [(py-str "2 integer arguments required")])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 1}))) (reset! a (py-int (py-get (vec *command-line-args*) 1) nil)) (reset! b (py-int (py-get (vec *command-line-args*) 2) nil)) (println (clojure.string/join " " [(py-str (extended-euclidean-algorithm @a @b))])) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn main
+  "Call Extended Euclidean Algorithm."
+  []
+  (let [args *command-line-args*]
+    (if (< (count args) 2)
+      (do (println "2 integer arguments required") 1)
+      (let [a (Long/parseLong (nth args 0))
+            b (Long/parseLong (nth args 1))]
+        (println (extended-euclidean-algorithm a b))
+        0))))

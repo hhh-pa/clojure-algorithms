@@ -1,8 +1,20 @@
 (ns clojure-algorithms.maths.special-numbers.spy-number
-  "== Spy Number ==\n spy number is defined as a positive integer where the\n sum of its digits equals the product of its digits.\n\nExamples of Spy Numbers: 22,123,1124,...\nhttps://www.scribd.com/document/895653665/Interesting-Number-Programs"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Spy Number ==
+ spy number is defined as a positive integer where the
+ sum of its digits equals the product of its digits.
 
-(declare is-spy-number)
+Examples of Spy Numbers: 22,123,1124,...
+https://www.scribd.com/document/895653665/Interesting-Number-Programs")
 
-(defn is-spy-number "This functions takes an integer number as input.\nreturns True if the number is spy.\n>>> is_spy_number(-1)\nFalse\n>>> is_spy_number(0)\nFalse\n>>> is_spy_number(22)\nTrue\n>>> is_spy_number(1124)\nTrue\n>>> is_spy_number(124)\nFalse\n>>> is_spy_number(5.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=5.0] must be an integer"
-  [number] (let [number (atom number)] (let [digit (atom nil) digit-mul (atom nil) digit-sum (atom nil) msg (atom nil)] (try (when (py-truthy (not (py-truthy (integer? @number)))) (reset! msg (str "Input value of [number=" (py-str @number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-le @number 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! digit-sum 0) (reset! digit-mul 1) (while (py-truthy (py-gt @number 0)) (reset! digit (py-mod @number 10)) (swap! digit-sum py-add @digit) (swap! digit-mul py-mul @digit) (swap! number py-floordiv 10)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq @digit-sum @digit-mul)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn is-spy-number
+  "Returns true if `number` is a spy number: the sum of its digits equals the
+product of its digits. Returns false for integers below 1. Throws an ex-info
+with :type :TypeError when `number` is not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (if (<= number 0)
+    false
+    (let [digits (map #(Character/digit ^char % 10) (str number))]
+      (= (reduce + 0 digits) (reduce * 1 digits)))))

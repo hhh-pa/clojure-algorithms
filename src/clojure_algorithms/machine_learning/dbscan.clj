@@ -1,14 +1,77 @@
 (ns clojure-algorithms.machine-learning.dbscan
-  "DBSCAN (Density-Based Spatial Clustering of Applications with Noise)\n\nA density-based clustering algorithm that groups together points that are\nclosely packed together, while marking points in low-density regions as outliers.\n\nUnlike K-Means, DBSCAN:\n- Does NOT require specifying the number of clusters in advance\n- Can find clusters of arbitrary shapes\n- Is robust to outliers (labels them as noise, cluster id = -1)\n\nKey Parameters:\n    epsilon (eps): The maximum distance between two points to be considered neighbors\n    min_points: Minimum number of points to form a dense region (core point)\n\nPoint Types:\n    - Core point:    Has at least `min_points` neighbors within `epsilon` distance\n    - Border point:  Within `epsilon` of a core point, but has fewer than\n                     `min_points` neighbors\n    - Noise point:   Neither core nor border — labeled as -1\n\nTime Complexity:  O(n²) with brute-force neighbor search\nSpace Complexity: O(n)\n\nReferences:\n    - https://en.wikipedia.org/wiki/DBSCAN\n    - Ester, M., et al. \"A density-based algorithm for discovering clusters.\"\n      KDD 1996. https://dl.acm.org/doi/10.5555/3001460.3001507"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "DBSCAN (Density-Based Spatial Clustering of Applications with Noise).
 
-(declare euclidean-distance get-neighbors dbscan)
+  Groups together closely packed points while marking low-density points as
+  noise (label -1). Unlike K-Means it needs no advance cluster count, finds
+  arbitrarily shaped clusters and is robust to outliers.
 
-(defn euclidean-distance "Compute the Euclidean distance between two points in n-dimensional space.\n\n>>> euclidean_distance([0.0, 0.0], [3.0, 4.0])\n5.0\n>>> euclidean_distance([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])\n0.0\n>>> euclidean_distance([0.0], [5.0])\n5.0\n>>> euclidean_distance([0.0, 0.0], [1.0])\nTraceback (most recent call last):\n    ...\nValueError: Both points must have the same number of dimensions."
-  [point-a point-b] (try (when (py-truthy (not (py-eq (count point-a) (count point-b)))) (throw (ex-info (py-str "Both points must have the same number of dimensions.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-pow (reduce +' 0 (doall (for [[a b] (py-iter (map vector point-a point-b))] (py-pow (py-sub a b) 2)))) 0.5)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  References:
+  https://en.wikipedia.org/wiki/DBSCAN
+  Ester, M., et al. \"A density-based algorithm for discovering clusters.\"
+  KDD 1996.")
 
-(defn get-neighbors "Return indices of all points within epsilon distance of data[point_index].\n\n>>> data = [[0.0, 0.0], [0.1, 0.1], [5.0, 5.0]]\n>>> get_neighbors(data, 0, 0.5)\n[0, 1]\n>>> get_neighbors(data, 2, 0.5)\n[2]\n>>> get_neighbors(data, 0, 10.0)\n[0, 1, 2]"
-  [data point-index epsilon] (vec (for [[index point] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) data)) :when (py-truthy (py-le (euclidean-distance (py-get data point-index) point) epsilon))] index)))
+(defn euclidean-distance
+  "Euclidean distance between two n-dimensional points.
+  Throws :ValueError when the points have different dimensions."
+  [point-a point-b]
+  (when (not= (count point-a) (count point-b))
+    (throw (ex-info "Both points must have the same number of dimensions."
+                    {:type :ValueError})))
+  (Math/sqrt (reduce + (map #(let [d (- (double %1) (double %2))] (* d d))
+                            point-a point-b))))
 
-(defn dbscan "Perform DBSCAN clustering on a dataset.\n\nArgs:\n    data:       List of n-dimensional data points, e.g. [[x1,y1], [x2,y2], ...]\n    epsilon:    Maximum distance between two points to be considered neighbors.\n                Must be greater than 0.\n    min_points: Minimum number of neighbors (including self) to be a core point.\n                Must be at least 1.\n\nReturns:\n    A list of integer cluster labels, one per input point.\n    Noise points are labeled -1.\n    Cluster IDs start from 0.\n\nRaises:\n    ValueError: If data is empty.\n    ValueError: If epsilon is not positive.\n    ValueError: If min_points is less than 1.\n\nExample — two well-separated clusters:\n>>> data = [\n...     [1.0, 1.0], [1.1, 1.0], [1.0, 1.1],\n...     [9.0, 9.0], [9.1, 9.0], [9.0, 9.1],\n... ]\n>>> labels = dbscan(data, epsilon=0.5, min_points=2)\n>>> len(set(labels))  # two clusters\n2\n>>> labels[0] == labels[1] == labels[2]  # first three in same cluster\nTrue\n>>> labels[3] == labels[4] == labels[5]  # last three in same cluster\nTrue\n>>> labels[0] != labels[3]               # different clusters\nTrue\n\nExample — isolated noise point:\n>>> data = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1], [99.0, 99.0]]\n>>> labels = dbscan(data, epsilon=0.5, min_points=2)\n>>> labels[3]  # noise\n-1\n>>> labels[0] == labels[1] == labels[2]  # one cluster\nTrue\n\nExample — all points are noise (min_points too high):\n>>> data = [[0.0, 0.0], [5.0, 5.0]]\n>>> dbscan(data, epsilon=0.3, min_points=5)\n[-1, -1]\n\nExample — single cluster (all points close together):\n>>> data = [[0.0, 0.0], [0.1, 0.0], [0.0, 0.1], [0.1, 0.1]]\n>>> labels = dbscan(data, epsilon=0.5, min_points=2)\n>>> len(set(labels))\n1\n>>> -1 not in labels\nTrue\n\nExample — invalid inputs:\n>>> dbscan([], epsilon=0.5, min_points=2)\nTraceback (most recent call last):\n    ...\nValueError: Data must not be empty.\n>>> dbscan([[1.0, 2.0]], epsilon=0.0, min_points=2)\nTraceback (most recent call last):\n    ...\nValueError: Epsilon must be greater than 0.\n>>> dbscan([[1.0, 2.0]], epsilon=0.5, min_points=0)\nTraceback (most recent call last):\n    ...\nValueError: min_points must be at least 1."
-  [data epsilon min-points] (let [current-cluster-id (atom nil) current-neighbors (atom nil) current-point (atom nil) labels (atom nil) neighbor (atom nil) neighbors (atom nil) point-index (atom nil) seeds (atom nil)] (try (when (py-truthy (not (py-truthy data))) (throw (ex-info (py-str "Data must not be empty.") {:type :ValueError}))) (when (py-truthy (py-le epsilon 0)) (throw (ex-info (py-str "Epsilon must be greater than 0.") {:type :ValueError}))) (when (py-truthy (py-lt min-points 1)) (throw (ex-info (py-str "min_points must be at least 1.") {:type :ValueError}))) (reset! labels (py-mul [(py-neg 1)] (count data))) (reset! current-cluster-id 0) (doseq [__i1 (py-iter (range (count data)))] (try (reset! point-index __i1) (when (py-truthy (not (py-eq (py-get @labels @point-index) (py-neg 1)))) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (reset! neighbors (get-neighbors data @point-index epsilon)) (when (py-truthy (py-lt (count @neighbors) min-points)) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (swap! labels (fn [__c] (py-assoc-in __c [@point-index] @current-cluster-id))) (reset! seeds (vec (for [n (py-iter @neighbors) :when (py-truthy (not (py-eq n @point-index)))] n))) (while (py-truthy @seeds) (try (let [__p2 (py-pop2 @seeds nil)] (reset! seeds (second __p2)) (reset! current-point (first __p2))) (when (py-truthy (let [__b3 (not (py-eq (py-get @labels @current-point) (py-neg 1)))] (if (py-truthy __b3) (not (py-eq (py-get @labels @current-point) @current-cluster-id)) __b3))) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (swap! labels (fn [__c] (py-assoc-in __c [@current-point] @current-cluster-id))) (reset! current-neighbors (get-neighbors data @current-point epsilon)) (when (py-truthy (py-ge (count @current-neighbors) min-points)) (doseq [__i4 (py-iter @current-neighbors)] (reset! neighbor __i4) (when (py-truthy (py-eq (py-get @labels @neighbor) (py-neg 1))) (swap! seeds conj @neighbor)))) (catch clojure.lang.ExceptionInfo __e (if (:__continue__ (ex-data __e)) nil (throw __e))))) (swap! current-cluster-id py-add 1) (catch clojure.lang.ExceptionInfo __e (if (:__continue__ (ex-data __e)) nil (throw __e))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @labels})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn get-neighbors
+  "Indices of all points within epsilon distance of (nth data point-index),
+  including point-index itself."
+  [data point-index epsilon]
+  (let [origin (nth data point-index)]
+    (vec (keep-indexed (fn [i point]
+                         (when (<= (euclidean-distance origin point) epsilon) i))
+                       data))))
+
+(defn- expand-cluster
+  "Grow the cluster started at point-index; returns updated labels."
+  [data labels point-index neighbors cluster-id epsilon min-points]
+  (loop [labels (assoc labels point-index cluster-id)
+         seeds (vec (remove #(= % point-index) neighbors))]
+    (if (empty? seeds)
+      labels
+      (let [current (peek seeds)
+            seeds (pop seeds)
+            label (nth labels current)]
+        (if (and (not= label -1) (not= label cluster-id))
+          (recur labels seeds)
+          (let [labels (assoc labels current cluster-id)
+                current-neighbors (get-neighbors data current epsilon)]
+            (recur labels
+                   (if (>= (count current-neighbors) min-points)
+                     (into seeds (filter #(= (nth labels %) -1)
+                                         current-neighbors))
+                     seeds))))))))
+
+(defn dbscan
+  "Cluster data with DBSCAN. Returns one integer label per point; noise is -1
+  and cluster ids start at 0.
+
+  Throws :ValueError when data is empty, epsilon is not positive, or
+  min-points is less than 1."
+  [data epsilon min-points]
+  (when (empty? data)
+    (throw (ex-info "Data must not be empty." {:type :ValueError})))
+  (when (<= epsilon 0)
+    (throw (ex-info "Epsilon must be greater than 0." {:type :ValueError})))
+  (when (< min-points 1)
+    (throw (ex-info "min_points must be at least 1." {:type :ValueError})))
+  (loop [labels (vec (repeat (count data) -1))
+         cluster-id 0
+         point-index 0]
+    (if (>= point-index (count data))
+      labels
+      (let [neighbors (get-neighbors data point-index epsilon)]
+        (if (or (not= (nth labels point-index) -1)
+                (< (count neighbors) min-points))
+          (recur labels cluster-id (inc point-index))
+          (recur (expand-cluster data labels point-index neighbors cluster-id
+                                 epsilon min-points)
+                 (inc cluster-id)
+                 (inc point-index)))))))

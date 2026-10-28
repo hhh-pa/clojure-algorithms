@@ -1,11 +1,85 @@
 (ns clojure-algorithms.maths.tonelli-shanks
-  "Tonelli-Shanks algorithm for modular square roots.\n\nGiven an odd prime modulus ``prime`` and an integer ``residue``, find an\ninteger ``root`` such that ``root ** 2 ≡ residue (mod prime)``, or report that\nno square root exists.\n\nThe algorithm is efficient when ``prime ≡ 3 (mod 4)`` (a single\nexponentiation) and uses the full Tonelli-Shanks procedure for\n``prime ≡ 1 (mod 4)``.\n\nhttps://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Tonelli-Shanks algorithm for modular square roots.
 
-(declare legendre-symbol tonelli-shanks)
+Given an odd prime modulus prime and an integer residue, find an
+integer root such that root^2 = residue (mod prime), or report that
+no square root exists.
 
-(defn legendre-symbol "Compute the Legendre symbol (residue / prime).\n\nReturns 1 if residue is a quadratic residue modulo prime (and residue\nis not divisible by prime), -1 if it is a non-residue, and 0 if\nresidue ≡ 0 (mod prime).\n\n>>> legendre_symbol(2, 7)\n1\n>>> legendre_symbol(3, 7)\n-1\n>>> legendre_symbol(14, 7)\n0\n>>> legendre_symbol(5, 11)\n1"
-  [residue prime] (let [symbol-v (atom nil)] (try (when (py-truthy (let [__b1 (py-le prime 2)] (if (py-truthy __b1) __b1 (py-eq (py-mod prime 2) 0)))) (throw (ex-info (py-str "prime must be an odd prime") {:type :ValueError}))) (reset! symbol-v (py-powmod (py-mod residue prime) (py-floordiv (py-sub prime 1) 2) prime)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-eq @symbol-v (py-sub prime 1))) (py-neg 1) @symbol-v)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm")
 
-(defn tonelli-shanks "Return a modular square root of ``residue`` modulo odd prime ``prime``.\n\nIf both roots exist, the smaller non-negative representative is returned.\nRaises ValueError when ``residue`` is not a quadratic residue, or when\n``prime`` is not a valid odd prime modulus for this routine.\n\n>>> tonelli_shanks(5, 41)\n13\n>>> pow(13, 2, 41)\n5\n>>> tonelli_shanks(2, 7)\n3\n>>> pow(3, 2, 7)\n2\n>>> tonelli_shanks(10, 13)\n6\n>>> tonelli_shanks(0, 11)\n0\n>>> tonelli_shanks(8, 17)\n5\n>>> pow(5, 2, 17)\n8\n>>> tonelli_shanks(3, 7)\nTraceback (most recent call last):\n    ...\nValueError: 3 is not a quadratic residue modulo 7\n>>> tonelli_shanks(5, 4)\nTraceback (most recent call last):\n    ...\nValueError: prime must be an odd prime\n>>> tonelli_shanks(5, 1)\nTraceback (most recent call last):\n    ...\nValueError: prime must be an odd prime"
-  [residue prime] (let [residue (atom residue)] (let [candidate-i (atom nil) exponent-q (atom nil) least-i (atom nil) message (atom nil) modular-b (atom nil) modular-c (atom nil) modular-r (atom nil) modular-t (atom nil) non-residue (atom nil) power-of-two-s (atom nil) remaining-s (atom nil) root (atom nil) symbol-v (atom nil) test-power (atom nil)] (try (when (py-truthy (let [__b1 (py-le prime 2)] (if (py-truthy __b1) __b1 (py-eq (py-mod prime 2) 0)))) (throw (ex-info (py-str "prime must be an odd prime") {:type :ValueError}))) (swap! residue py-mod prime) (when (py-truthy (py-eq @residue 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 0}))) (reset! symbol-v (legendre-symbol @residue prime)) (when (py-truthy (not (py-eq @symbol-v 1))) (reset! message (str (py-str @residue) " is not a quadratic residue modulo " (py-str prime))) (throw (ex-info (py-str @message) {:type :ValueError}))) (when (py-truthy (py-eq (py-mod prime 4) 3)) (reset! root (py-powmod @residue (py-floordiv (py-add prime 1) 4) prime)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-min [@root (py-sub prime @root)])}))) (reset! exponent-q (py-sub prime 1)) (reset! power-of-two-s 0) (while (py-truthy (py-eq (py-mod @exponent-q 2) 0)) (swap! exponent-q py-floordiv 2) (swap! power-of-two-s py-add 1)) (reset! non-residue 2) (while (py-truthy (not (py-eq (legendre-symbol @non-residue prime) (py-neg 1)))) (swap! non-residue py-add 1)) (reset! modular-c (py-powmod @non-residue @exponent-q prime)) (reset! modular-r (py-powmod @residue (py-floordiv (py-add @exponent-q 1) 2) prime)) (reset! modular-t (py-powmod @residue @exponent-q prime)) (reset! remaining-s @power-of-two-s) (while (py-truthy (not (py-eq @modular-t 1))) (reset! test-power @modular-t) (reset! least-i 0) (let [__nb3 (atom true)] (try (doseq [__i2 (py-iter (range 1 @remaining-s))] (reset! candidate-i __i2) (reset! test-power (py-powmod @test-power 2 prime)) (when (py-truthy (py-eq @test-power 1)) (reset! least-i @candidate-i) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) (reset! __nb3 false) (throw __e)))) (when @__nb3 (reset! message (str (py-str @residue) " is not a quadratic residue modulo " (py-str prime))) (throw (ex-info (py-str @message) {:type :ValueError})))) (reset! modular-b (py-powmod @modular-c (.shiftLeft (.toBigInteger (bigint 1)) (int (py-sub (py-sub @remaining-s @least-i) 1))) prime)) (reset! modular-r (py-mod (py-mul @modular-r @modular-b) prime)) (reset! modular-c (py-powmod @modular-b 2 prime)) (reset! modular-t (py-mod (py-mul @modular-t @modular-c) prime)) (reset! remaining-s @least-i)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-min [@modular-r (py-sub prime @modular-r)])})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- mod-pow
+  "Binary modular exponentiation: (base ** exp) % m."
+  [base exp m]
+  (loop [b (mod base m), e exp, r 1]
+    (if (zero? e)
+      r
+      (recur (mod (*' b b) m)
+             (quot e 2)
+             (if (odd? e) (mod (*' r b) m) r)))))
+
+(defn- check-odd-prime
+  "Validates the prime modulus for the Tonelli-Shanks routines."
+  [prime]
+  (when (or (<= prime 2) (even? prime))
+    (throw (ex-info "prime must be an odd prime" {:type :ValueError}))))
+
+(defn legendre-symbol
+  "Compute the Legendre symbol (residue / prime). Returns 1 if residue is
+a quadratic residue modulo prime (and not divisible by prime), -1 if it
+is a non-residue, and 0 if residue = 0 (mod prime)."
+  [residue prime]
+  (check-odd-prime prime)
+  (let [symbol (mod-pow (mod residue prime) (quot (dec prime) 2) prime)]
+    (if (= symbol (dec prime)) -1 symbol)))
+
+(defn- least-i
+  "Finds the least i in [1, s) with t^(2^i) = 1 (mod prime), or nil."
+  [t s prime]
+  (loop [test-power t, i 1]
+    (cond
+      (>= i s) nil
+      (= (mod-pow test-power 2 prime) 1) i
+      :else (recur (mod-pow test-power 2 prime) (inc i)))))
+
+(defn tonelli-shanks
+  "Return a modular square root of residue modulo the odd prime prime.
+When both roots exist, the smaller non-negative representative is returned.
+Raises an error when residue is not a quadratic residue, or when prime
+is not a valid odd prime modulus for this routine."
+  [residue prime]
+  (check-odd-prime prime)
+  (let [residue (mod residue prime)]
+    (if (zero? residue)
+      0
+      (do
+        (when (not= (legendre-symbol residue prime) 1)
+          (throw (ex-info (str residue " is not a quadratic residue modulo "
+                               prime)
+                          {:type :ValueError})))
+        (if (= (mod prime 4) 3)
+          (let [root (mod-pow residue (quot (inc prime) 4) prime)]
+            (min root (- prime root)))
+          (let [[q s] (loop [q (dec prime), s 0]
+                        (if (even? q)
+                          (recur (quot q 2) (inc s))
+                          [q s]))
+                z (first (filter #(= (legendre-symbol % prime) -1)
+                                 (iterate inc 2)))]
+            (loop [c (mod-pow z q prime)
+                   r (mod-pow residue (quot (inc q) 2) prime)
+                   t (mod-pow residue q prime)
+                   s s]
+              (if (= t 1)
+                (min r (- prime r))
+                (let [i (least-i t s prime)]
+                  (when (nil? i)
+                    (throw (ex-info (str residue
+                                         " is not a quadratic residue modulo "
+                                         prime)
+                                    {:type :ValueError})))
+                  (let [b (mod-pow c (bit-shift-left 1 (- s i 1)) prime)
+                        b2 (mod (*' b b) prime)]
+                    (recur b2
+                           (mod (*' r b) prime)
+                           (mod (*' t b2) prime)
+                           i)))))))))))

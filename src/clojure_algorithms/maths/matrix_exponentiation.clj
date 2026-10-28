@@ -1,40 +1,89 @@
 (ns clojure-algorithms.maths.matrix-exponentiation
-  "Matrix Exponentiation is a technique to solve linear recurrences in logarithmic time.\nYou read more about it here:\nhttps://zobayer.blogspot.com/2010/11/matrix-exponentiation.html\nhttps://www.hackerearth.com/practice/notes/matrix-exponentiation-1/"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
-
-(declare modular-exponentiation fibonacci-with-matrix-exponentiation simple-fibonacci matrix-exponentiation-time simple-fibonacci-time main make-Matrix Matrix-mul)
+  "Matrix Exponentiation is a technique to solve linear recurrences in
+  logarithmic time.")
 
 (defrecord Matrix [t n])
 
-(defn make-Matrix "Constructor for Matrix."
-  [arg] (let [self (atom {})] (try (if (py-truthy (sequential? arg)) (do (swap! self (fn [__c] (py-assoc-in __c [:t] arg))) (swap! self (fn [__c] (py-assoc-in __c [:n] (count arg))))) (do (swap! self (fn [__c] (py-assoc-in __c [:n] arg))) (swap! self (fn [__c] (py-assoc-in __c [:t] (vec (for [--v (py-iter (range (:n @self)))] (vec (for [--v (py-iter (range (:n @self)))] 0))))))))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->Matrix @self)))
+(defn make-Matrix
+  "Build a Matrix: either identical to the nested vector provided, or a zero
+  square matrix of the given size."
+  [arg]
+  (if (sequential? arg)
+    (->Matrix (mapv vec arg) (count arg))
+    (->Matrix (vec (repeat arg (vec (repeat arg 0)))) arg)))
 
 (defn Matrix-mul
-  [self b] (let [i (atom nil) j (atom nil) k (atom nil) matrix (atom nil)] (try (reset! matrix (make-Matrix (:n @self))) (doseq [__i1 (py-iter (range (:n @self)))] (reset! i __i1) (doseq [__i2 (py-iter (range (:n @self)))] (reset! j __i2) (doseq [__i3 (py-iter (range (:n @self)))] (reset! k __i3) (swap! matrix (fn [__c] (py-assoc-in __c [:t @i @j] (py-add (py-get-in __c [:t @i @j]) (py-mul (py-get (py-get (:t @self) @i) @k) (py-get (py-get (:t b) @k) @j))))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @matrix})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Multiply two square matrices."
+  [a b]
+  (let [n (:n a)
+        ta (:t a)
+        tb (:t b)]
+    (->Matrix (vec (for [i (range n)]
+                     (vec (for [j (range n)]
+                            (reduce +' (map *' (nth ta i)
+                                            (map #(nth % j) tb)))))))
+              n)))
 
 (defn modular-exponentiation
-  [a b] (let [a (atom a) b (atom b)] (let [matrix (atom nil)] (try (reset! matrix (make-Matrix [[1 0] [0 1]])) (while (py-truthy (py-gt @b 0)) (when (py-truthy (py-band @b 1)) (swap! matrix py-mul @a)) (swap! a py-mul @a) (swap! b (fn [__o] (.shiftRight (.toBigInteger (bigint __o)) (int 1))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @matrix})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  "Raise matrix a to the b-th power by squaring."
+  [a b]
+  (loop [matrix (make-Matrix [[1 0] [0 1]])
+         a a
+         b b]
+    (if (<= b 0)
+      matrix
+      (recur (if (odd? b) (Matrix-mul matrix a) matrix)
+             (Matrix-mul a a)
+             (bit-shift-right b 1)))))
 
-(defn fibonacci-with-matrix-exponentiation "Returns the nth number of the Fibonacci sequence that\nstarts with f1 and f2\nUses the matrix exponentiation\n>>> fibonacci_with_matrix_exponentiation(1, 5, 6)\n5\n>>> fibonacci_with_matrix_exponentiation(2, 10, 11)\n11\n>>> fibonacci_with_matrix_exponentiation(13, 0, 1)\n144\n>>> fibonacci_with_matrix_exponentiation(10, 5, 9)\n411\n>>> fibonacci_with_matrix_exponentiation(9, 2, 3)\n89"
-  [n f1 f2] (let [matrix (atom nil)] (try (if (py-truthy (py-eq n 1)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value f1}))) (do (when (py-truthy (py-eq n 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value f2}))))) (reset! matrix (make-Matrix [[1 1] [1 0]])) (reset! matrix (modular-exponentiation @matrix (py-sub n 2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-add (py-mul f2 (py-get (py-get (:t @matrix) 0) 0)) (py-mul f1 (py-get (py-get (:t @matrix) 0) 1)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn fibonacci-with-matrix-exponentiation
+  "Returns the nth number of the Fibonacci sequence starting with f1 and f2,
+  using matrix exponentiation."
+  [n f1 f2]
+  (cond (= n 1) f1
+        (= n 2) f2
+        :else (let [matrix (modular-exponentiation (make-Matrix [[1 1] [1 0]])
+                                                   (- n 2))]
+                (+' (*' f2 (get-in (:t matrix) [0 0]))
+                    (*' f1 (get-in (:t matrix) [0 1]))))))
 
-(defn simple-fibonacci "Returns the nth number of the Fibonacci sequence that\nstarts with f1 and f2\nUses the definition\n>>> simple_fibonacci(1, 5, 6)\n5\n>>> simple_fibonacci(2, 10, 11)\n11\n>>> simple_fibonacci(13, 0, 1)\n144\n>>> simple_fibonacci(10, 5, 9)\n411\n>>> simple_fibonacci(9, 2, 3)\n89"
-  [n f1 f2] (let [n (atom n) f1 (atom f1) f2 (atom f2)] (try (if (py-truthy (py-eq @n 1)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value @f1}))) (do (when (py-truthy (py-eq @n 2)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @f2}))))) (swap! n py-sub 2) (while (py-truthy (py-gt @n 0)) (let [__d1 (vec [(py-add @f1 @f2) @f2])] (reset! f2 (nth __d1 0)) (reset! f1 (nth __d1 1))) (swap! n py-sub 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @f2})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn simple-fibonacci
+  "Returns the nth number of the Fibonacci sequence starting with f1 and f2,
+  using the definition."
+  [n f1 f2]
+  (cond (= n 1) f1
+        (= n 2) f2
+        :else (loop [n (- n 2)
+                     f1 f1
+                     f2 f2]
+                (if (<= n 0)
+                  f2
+                  (recur (dec n) f2 (+' f1 f2))))))
 
 (defn matrix-exponentiation-time
-  [& _args]
-  ;; stub: original requires timeit; pure-Clojure port not applicable
-  (throw (ex-info "requires timeit" {:type :UnsupportedOperation})))
+  "Benchmark fibonacci-with-matrix-exponentiation over 100 random inputs."
+  []
+  (let [start (System/nanoTime)]
+    (dotimes [_ 100]
+      (fibonacci-with-matrix-exponentiation (inc (rand-int 70000)) 1 1))
+    (let [exec-time (/ (double (- (System/nanoTime) start)) 1e9)]
+      (println "With matrix exponentiation the average execution time is "
+               (/ exec-time 100))
+      exec-time)))
 
 (defn simple-fibonacci-time
-  [& _args]
-  ;; stub: original requires timeit; pure-Clojure port not applicable
-  (throw (ex-info "requires timeit" {:type :UnsupportedOperation})))
+  "Benchmark simple-fibonacci over 100 random inputs."
+  []
+  (let [start (System/nanoTime)]
+    (dotimes [_ 100]
+      (simple-fibonacci (inc (rand-int 70000)) 1 1))
+    (let [exec-time (/ (double (- (System/nanoTime) start)) 1e9)]
+      (println "Without matrix exponentiation the average execution time is "
+               (/ exec-time 100))
+      exec-time)))
 
 (defn main
-  [] (matrix-exponentiation-time) (simple-fibonacci-time) nil)
-
-(defmethod py-dunder [:mul Matrix] [_ a b] (Matrix-mul (atom a) b))
-
-;; NOTE: matrix_exponentiation_time stubbed (timeit)
-;; NOTE: simple_fibonacci_time stubbed (timeit)
+  []
+  (matrix-exponentiation-time)
+  (simple-fibonacci-time)
+  nil)

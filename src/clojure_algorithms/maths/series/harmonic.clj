@@ -1,11 +1,45 @@
 (ns clojure-algorithms.maths.series.harmonic
-  "Harmonic mean\nReference: https://en.wikipedia.org/wiki/Harmonic_mean\n\nHarmonic series\nReference: https://en.wikipedia.org/wiki/Harmonic_series(mathematics)"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Harmonic mean
+Reference: https://en.wikipedia.org/wiki/Harmonic_mean
 
-(declare is-harmonic-series harmonic-mean)
+Harmonic series
+Reference: https://en.wikipedia.org/wiki/Harmonic_series(mathematics)")
 
-(defn is-harmonic-series "checking whether the input series is arithmetic series or not\n>>> is_harmonic_series([ 1, 2/3, 1/2, 2/5, 1/3])\nTrue\n>>> is_harmonic_series([ 1, 2/3, 2/5, 1/3])\nFalse\n>>> is_harmonic_series([1, 2, 3])\nFalse\n>>> is_harmonic_series([1/2, 1/3, 1/4])\nTrue\n>>> is_harmonic_series([2/5, 2/10, 2/15, 2/20, 2/25])\nTrue\n>>> is_harmonic_series(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [1, 2/3, 2]\n>>> is_harmonic_series([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list\n>>> is_harmonic_series([0])\nTraceback (most recent call last):\n    ...\nValueError: Input series cannot have 0 as an element\n>>> is_harmonic_series([1,2,0,6])\nTraceback (most recent call last):\n    ...\nValueError: Input series cannot have 0 as an element"
-  [series] (let [common-diff (atom nil) i (atom nil) index (atom nil) rec-series (atom nil) series-len (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [1, 2/3, 2]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (when (py-truthy (let [__b1 (py-eq (count series) 1)] (if (py-truthy __b1) (not (py-eq (py-get series 0) 0)) __b1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (reset! rec-series []) (reset! series-len (count series)) (doseq [__i2 (py-iter (range @series-len))] (reset! i __i2) (when (py-truthy (py-eq (py-get series @i) 0)) (throw (ex-info (py-str "Input series cannot have 0 as an element") {:type :ValueError}))) (swap! rec-series conj (py-div 1 (py-get series @i)))) (reset! common-diff (py-sub (py-get @rec-series 1) (py-get @rec-series 0))) (doseq [__i3 (py-iter (range 2 @series-len))] (reset! index __i3) (when (py-truthy (not (py-eq (py-sub (py-get @rec-series @index) (py-get @rec-series (py-sub @index 1))) @common-diff))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-harmonic-series
+  "Return true when series is a harmonic series.
 
-(defn harmonic-mean "return the harmonic mean of series\n\n>>> harmonic_mean([1, 4, 4])\n2.0\n>>> harmonic_mean([3, 6, 9, 12])\n5.759999999999999\n>>> harmonic_mean(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [2, 4, 6]\n>>> harmonic_mean([1, 2, 3])\n1.6363636363636365\n>>> harmonic_mean([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list"
-  [series] (let [answer (atom nil) val (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [2, 4, 6]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (reset! answer 0) (doseq [__i1 (py-iter series)] (reset! val __i1) (swap! answer py-add (py-div 1 @val))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (count series) @answer)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Throws ex-info with :type :ValueError when series is not sequential, is
+  empty, or contains 0."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [1, 2/3, 2]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (if (and (= 1 (count series)) (not= 0 (first series)))
+    true
+    (let [rec-series (mapv (fn [v]
+                             (when (= 0 v)
+                               (throw (ex-info "Input series cannot have 0 as an element"
+                                               {:type :ValueError})))
+                             (/ 1.0 (double v)))
+                           series)
+          common-diff (- (nth rec-series 1) (nth rec-series 0))]
+      (every? (fn [index]
+                (= (- (nth rec-series index)
+                      (nth rec-series (dec index)))
+                   common-diff))
+              (range 2 (count series))))))
+
+(defn harmonic-mean
+  "Return the harmonic mean of series.
+
+  Throws ex-info with :type :ValueError when series is not sequential or is
+  empty."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [2, 4, 6]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (/ (double (count series)) (reduce + (map #(/ 1.0 (double %)) series))))

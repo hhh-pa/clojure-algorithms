@@ -1,59 +1,192 @@
 (ns clojure-algorithms.maths.volume
-  "Find the volume of various shapes.\n\n* https://en.wikipedia.org/wiki/Volume\n* https://en.wikipedia.org/wiki/Spherical_cap"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Find the volume of various shapes.
 
-(declare vol-cube vol-spherical-cap vol-spheres-intersect vol-spheres-union vol-cuboid vol-cone vol-right-circ-cone vol-prism vol-pyramid vol-sphere vol-hemisphere vol-circular-cylinder vol-hollow-circular-cylinder vol-conical-frustum vol-torus vol-octahedron vol-icosahedron main)
+  * https://en.wikipedia.org/wiki/Volume
+  * https://en.wikipedia.org/wiki/Spherical_cap")
 
-(defn vol-cube "Calculate the Volume of a Cube.\n\n>>> vol_cube(1)\n1.0\n>>> vol_cube(3)\n27.0\n>>> vol_cube(0)\n0.0\n>>> vol_cube(1.6)\n4.096000000000001\n>>> vol_cube(-1)\nTraceback (most recent call last):\n    ...\nValueError: vol_cube() only accepts non-negative values"
-  [side-length] (try (when (py-truthy (py-lt side-length 0)) (throw (ex-info (py-str "vol_cube() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-pow side-length 3)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-cube
+  "Calculate the Volume of a Cube."
+  [side-length]
+  (when (neg? side-length)
+    (throw (ex-info "vol_cube() only accepts non-negative values"
+                    {:type :ValueError})))
+  (Math/pow side-length 3))
 
-(defn vol-spherical-cap "Calculate the volume of the spherical cap.\n\n>>> vol_spherical_cap(1, 2)\n5.235987755982988\n>>> vol_spherical_cap(1.6, 2.6)\n16.621119532592402\n>>> vol_spherical_cap(0, 0)\n0.0\n>>> vol_spherical_cap(-1, 2)\nTraceback (most recent call last):\n    ...\nValueError: vol_spherical_cap() only accepts non-negative values\n>>> vol_spherical_cap(1, -2)\nTraceback (most recent call last):\n    ...\nValueError: vol_spherical_cap() only accepts non-negative values"
-  [height radius] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt radius 0)))) (throw (ex-info (py-str "vol_spherical_cap() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul (py-mul (py-div 1 3) Math/PI) (py-pow height 2)) (py-sub (py-mul 3 radius) height))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-spherical-cap
+  "Calculate the volume of the spherical cap."
+  [height radius]
+  (when (or (neg? height) (neg? radius))
+    (throw (ex-info "vol_spherical_cap() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* (/ 1 3.0) Math/PI (Math/pow height 2) (- (* 3 radius) height)))
 
-(defn vol-spheres-intersect "Calculate the volume of the intersection of two spheres.\n\nThe intersection is composed by two spherical caps and therefore its volume is the\nsum of the volumes of the spherical caps.\nFirst, it calculates the heights :math:`(h_1, h_2)` of the spherical caps,\nthen the two volumes and it returns the sum.\nThe height formulas are\n\n.. math::\n    h_1 = \\frac{(radius_1 - radius_2 + centers\\_distance)\n                \\cdot (radius_1 + radius_2 - centers\\_distance)}\n               {2 \\cdot centers\\_distance}\n\n    h_2 = \\frac{(radius_2 - radius_1 + centers\\_distance)\n                \\cdot (radius_2 + radius_1 - centers\\_distance)}\n               {2 \\cdot centers\\_distance}\n\nif `centers_distance` is 0 then it returns the volume of the smallers sphere\n\n:return: ``vol_spherical_cap`` (:math:`h_1`, :math:`radius_2`)\n         + ``vol_spherical_cap`` (:math:`h_2`, :math:`radius_1`)\n\n>>> vol_spheres_intersect(2, 2, 1)\n21.205750411731103\n>>> vol_spheres_intersect(2.6, 2.6, 1.6)\n40.71504079052372\n>>> vol_spheres_intersect(0, 0, 0)\n0.0\n>>> vol_spheres_intersect(-2, 2, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_spheres_intersect() only accepts non-negative values\n>>> vol_spheres_intersect(2, -2, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_spheres_intersect() only accepts non-negative values\n>>> vol_spheres_intersect(2, 2, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_spheres_intersect() only accepts non-negative values"
-  [radius-1 radius-2 centers-distance] (let [h1 (atom nil) h2 (atom nil)] (try (when (py-truthy (let [__b2 (py-lt radius-1 0)] (if (py-truthy __b2) __b2 (let [__b1 (py-lt radius-2 0)] (if (py-truthy __b1) __b1 (py-lt centers-distance 0)))))) (throw (ex-info (py-str "vol_spheres_intersect() only accepts non-negative values") {:type :ValueError}))) (when (py-truthy (py-eq centers-distance 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vol-sphere (py-min [radius-1 radius-2]))}))) (reset! h1 (py-div (py-mul (py-add (py-sub radius-1 radius-2) centers-distance) (py-sub (py-add radius-1 radius-2) centers-distance)) (py-mul 2 centers-distance))) (reset! h2 (py-div (py-mul (py-add (py-sub radius-2 radius-1) centers-distance) (py-sub (py-add radius-2 radius-1) centers-distance)) (py-mul 2 centers-distance))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-add (vol-spherical-cap @h1 radius-2) (vol-spherical-cap @h2 radius-1))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn vol-sphere
+  "Calculate the Volume of a Sphere."
+  [radius]
+  (when (neg? radius)
+    (throw (ex-info "vol_sphere() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* (/ 4 3.0) Math/PI (Math/pow radius 3)))
 
-(defn vol-spheres-union "Calculate the volume of the union of two spheres that possibly intersect.\n\nIt is the sum of sphere :math:`A` and sphere :math:`B` minus their intersection.\nFirst, it calculates the volumes :math:`(v_1, v_2)` of the spheres,\nthen the volume of the intersection :math:`i` and\nit returns the sum :math:`v_1 + v_2 - i`.\nIf `centers_distance` is 0 then it returns the volume of the larger sphere\n\n:return: ``vol_sphere`` (:math:`radius_1`) + ``vol_sphere`` (:math:`radius_2`)\n         - ``vol_spheres_intersect``\n         (:math:`radius_1`, :math:`radius_2`, :math:`centers\\_distance`)\n\n>>> vol_spheres_union(2, 2, 1)\n45.814892864851146\n>>> vol_spheres_union(1.56, 2.2, 1.4)\n48.77802773671288\n>>> vol_spheres_union(0, 2, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_spheres_union() only accepts non-negative values, non-zero radius\n>>> vol_spheres_union('1.56', '2.2', '1.4')\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'str' and 'int'\n>>> vol_spheres_union(1, None, 1)\nTraceback (most recent call last):\n    ...\nTypeError: '<=' not supported between instances of 'NoneType' and 'int'"
-  [radius-1 radius-2 centers-distance] (try (when (py-truthy (let [__b2 (py-le radius-1 0)] (if (py-truthy __b2) __b2 (let [__b1 (py-le radius-2 0)] (if (py-truthy __b1) __b1 (py-lt centers-distance 0)))))) (throw (ex-info (py-str "vol_spheres_union() only accepts non-negative values, non-zero radius") {:type :ValueError}))) (when (py-truthy (py-eq centers-distance 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vol-sphere (py-max [radius-1 radius-2]))}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-sub (py-add (vol-sphere radius-1) (vol-sphere radius-2)) (vol-spheres-intersect radius-1 radius-2 centers-distance))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-spheres-intersect
+  "Calculate the volume of the intersection of two spheres."
+  [radius-1 radius-2 centers-distance]
+  (when (or (neg? radius-1) (neg? radius-2) (neg? centers-distance))
+    (throw (ex-info "vol_spheres_intersect() only accepts non-negative values"
+                    {:type :ValueError})))
+  (if (zero? centers-distance)
+    (vol-sphere (min radius-1 radius-2))
+    (let [h1 (/ (* (+ (- radius-1 radius-2) centers-distance)
+                   (- (+ radius-1 radius-2) centers-distance))
+                (* 2 (double centers-distance)))
+          h2 (/ (* (+ (- radius-2 radius-1) centers-distance)
+                   (- (+ radius-2 radius-1) centers-distance))
+                (* 2 (double centers-distance)))]
+      (+ (vol-spherical-cap h1 radius-2) (vol-spherical-cap h2 radius-1)))))
 
-(defn vol-cuboid "Calculate the Volume of a Cuboid.\n\n:return: multiple of `width`, `length` and `height`\n\n>>> vol_cuboid(1, 1, 1)\n1.0\n>>> vol_cuboid(1, 2, 3)\n6.0\n>>> vol_cuboid(1.6, 2.6, 3.6)\n14.976\n>>> vol_cuboid(0, 0, 0)\n0.0\n>>> vol_cuboid(-1, 2, 3)\nTraceback (most recent call last):\n    ...\nValueError: vol_cuboid() only accepts non-negative values\n>>> vol_cuboid(1, -2, 3)\nTraceback (most recent call last):\n    ...\nValueError: vol_cuboid() only accepts non-negative values\n>>> vol_cuboid(1, 2, -3)\nTraceback (most recent call last):\n    ...\nValueError: vol_cuboid() only accepts non-negative values"
-  [width height length] (try (when (py-truthy (let [__b2 (py-lt width 0)] (if (py-truthy __b2) __b2 (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt length 0)))))) (throw (ex-info (py-str "vol_cuboid() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-float (py-mul (py-mul width height) length))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-spheres-union
+  "Calculate the volume of the union of two spheres that possibly intersect."
+  [radius-1 radius-2 centers-distance]
+  (when (or (not (number? radius-1))
+            (not (number? radius-2))
+            (not (number? centers-distance)))
+    (throw (ex-info "'<=' not supported between instances of non-numeric and numeric types"
+                    {:type :TypeError})))
+  (when (or (<= radius-1 0) (<= radius-2 0) (neg? centers-distance))
+    (throw (ex-info (str "vol_spheres_union() only accepts non-negative values, "
+                         "non-zero radius")
+                    {:type :ValueError})))
+  (if (zero? centers-distance)
+    (vol-sphere (max radius-1 radius-2))
+    (- (+ (vol-sphere radius-1) (vol-sphere radius-2))
+       (vol-spheres-intersect radius-1 radius-2 centers-distance))))
 
-(defn vol-cone "| Calculate the Volume of a Cone.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Cone\n\n:return: :math:`\\frac{1}{3} \\cdot area\\_of\\_base \\cdot height`\n\n>>> vol_cone(10, 3)\n10.0\n>>> vol_cone(1, 1)\n0.3333333333333333\n>>> vol_cone(1.6, 1.6)\n0.8533333333333335\n>>> vol_cone(0, 0)\n0.0\n>>> vol_cone(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_cone() only accepts non-negative values\n>>> vol_cone(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_cone() only accepts non-negative values"
-  [area-of-base height] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt area-of-base 0)))) (throw (ex-info (py-str "vol_cone() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul area-of-base height) 3.0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-cuboid
+  "Calculate the Volume of a Cuboid."
+  [width height length]
+  (when (or (neg? width) (neg? height) (neg? length))
+    (throw (ex-info "vol_cuboid() only accepts non-negative values"
+                    {:type :ValueError})))
+  (double (* width height length)))
 
-(defn vol-right-circ-cone "| Calculate the Volume of a Right Circular Cone.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Cone\n\n:return: :math:`\\frac{1}{3} \\cdot \\pi \\cdot radius^2 \\cdot height`\n\n>>> vol_right_circ_cone(2, 3)\n12.566370614359172\n>>> vol_right_circ_cone(0, 0)\n0.0\n>>> vol_right_circ_cone(1.6, 1.6)\n4.289321169701265\n>>> vol_right_circ_cone(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_right_circ_cone() only accepts non-negative values\n>>> vol_right_circ_cone(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_right_circ_cone() only accepts non-negative values"
-  [radius height] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt radius 0)))) (throw (ex-info (py-str "vol_right_circ_cone() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul (py-mul Math/PI (py-pow radius 2)) height) 3.0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-cone
+  "Calculate the Volume of a Cone."
+  [area-of-base height]
+  (when (or (neg? height) (neg? area-of-base))
+    (throw (ex-info "vol_cone() only accepts non-negative values"
+                    {:type :ValueError})))
+  (/ (* area-of-base height) 3.0))
 
-(defn vol-prism "| Calculate the Volume of a Prism.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Prism_(geometry)\n\n:return: :math:`V = B \\cdot h`\n\n>>> vol_prism(10, 2)\n20.0\n>>> vol_prism(11, 1)\n11.0\n>>> vol_prism(1.6, 1.6)\n2.5600000000000005\n>>> vol_prism(0, 0)\n0.0\n>>> vol_prism(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_prism() only accepts non-negative values\n>>> vol_prism(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_prism() only accepts non-negative values"
-  [area-of-base height] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt area-of-base 0)))) (throw (ex-info (py-str "vol_prism() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-float (py-mul area-of-base height))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-right-circ-cone
+  "Calculate the Volume of a Right Circular Cone."
+  [radius height]
+  (when (or (neg? height) (neg? radius))
+    (throw (ex-info "vol_right_circ_cone() only accepts non-negative values"
+                    {:type :ValueError})))
+  (/ (* Math/PI (Math/pow radius 2) height) 3.0))
 
-(defn vol-pyramid "| Calculate the Volume of a Pyramid.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Pyramid_(geometry)\n\n:return: :math:`\\frac{1}{3} \\cdot B \\cdot h`\n\n>>> vol_pyramid(10, 3)\n10.0\n>>> vol_pyramid(1.5, 3)\n1.5\n>>> vol_pyramid(1.6, 1.6)\n0.8533333333333335\n>>> vol_pyramid(0, 0)\n0.0\n>>> vol_pyramid(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_pyramid() only accepts non-negative values\n>>> vol_pyramid(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_pyramid() only accepts non-negative values"
-  [area-of-base height] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt area-of-base 0)))) (throw (ex-info (py-str "vol_pyramid() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul area-of-base height) 3.0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-prism
+  "Calculate the Volume of a Prism."
+  [area-of-base height]
+  (when (or (neg? height) (neg? area-of-base))
+    (throw (ex-info "vol_prism() only accepts non-negative values"
+                    {:type :ValueError})))
+  (double (* area-of-base height)))
 
-(defn vol-sphere "| Calculate the Volume of a Sphere.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Sphere\n\n:return: :math:`\\frac{4}{3} \\cdot \\pi \\cdot r^3`\n\n>>> vol_sphere(5)\n523.5987755982989\n>>> vol_sphere(1)\n4.1887902047863905\n>>> vol_sphere(1.6)\n17.15728467880506\n>>> vol_sphere(0)\n0.0\n>>> vol_sphere(-1)\nTraceback (most recent call last):\n    ...\nValueError: vol_sphere() only accepts non-negative values"
-  [radius] (try (when (py-truthy (py-lt radius 0)) (throw (ex-info (py-str "vol_sphere() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul (py-div 4 3) Math/PI) (py-pow radius 3))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-pyramid
+  "Calculate the Volume of a Pyramid."
+  [area-of-base height]
+  (when (or (neg? height) (neg? area-of-base))
+    (throw (ex-info "vol_pyramid() only accepts non-negative values"
+                    {:type :ValueError})))
+  (/ (* area-of-base height) 3.0))
 
-(defn vol-hemisphere "| Calculate the volume of a hemisphere\n| Wikipedia reference: https://en.wikipedia.org/wiki/Hemisphere\n| Other references: https://www.cuemath.com/geometry/hemisphere\n\n:return: :math:`\\frac{2}{3} \\cdot \\pi \\cdot radius^3`\n\n>>> vol_hemisphere(1)\n2.0943951023931953\n>>> vol_hemisphere(7)\n718.377520120866\n>>> vol_hemisphere(1.6)\n8.57864233940253\n>>> vol_hemisphere(0)\n0.0\n>>> vol_hemisphere(-1)\nTraceback (most recent call last):\n    ...\nValueError: vol_hemisphere() only accepts non-negative values"
-  [radius] (try (when (py-truthy (py-lt radius 0)) (throw (ex-info (py-str "vol_hemisphere() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul (py-mul (py-pow radius 3) Math/PI) 2) 3)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-hemisphere
+  "Calculate the volume of a hemisphere."
+  [radius]
+  (when (neg? radius)
+    (throw (ex-info "vol_hemisphere() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* (Math/pow radius 3) Math/PI (/ 2 3.0)))
 
-(defn vol-circular-cylinder "| Calculate the Volume of a Circular Cylinder.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Cylinder\n\n:return: :math:`\\pi \\cdot radius^2 \\cdot height`\n\n>>> vol_circular_cylinder(1, 1)\n3.141592653589793\n>>> vol_circular_cylinder(4, 3)\n150.79644737231007\n>>> vol_circular_cylinder(1.6, 1.6)\n12.867963509103795\n>>> vol_circular_cylinder(0, 0)\n0.0\n>>> vol_circular_cylinder(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_circular_cylinder() only accepts non-negative values\n>>> vol_circular_cylinder(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_circular_cylinder() only accepts non-negative values"
-  [radius height] (try (when (py-truthy (let [__b1 (py-lt height 0)] (if (py-truthy __b1) __b1 (py-lt radius 0)))) (throw (ex-info (py-str "vol_circular_cylinder() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul (py-pow radius 2) height) Math/PI)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-circular-cylinder
+  "Calculate the Volume of a Circular Cylinder."
+  [radius height]
+  (when (or (neg? height) (neg? radius))
+    (throw (ex-info "vol_circular_cylinder() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* (Math/pow radius 2) height Math/PI))
 
-(defn vol-hollow-circular-cylinder "Calculate the Volume of a Hollow Circular Cylinder.\n\n>>> vol_hollow_circular_cylinder(1, 2, 3)\n28.274333882308138\n>>> vol_hollow_circular_cylinder(1.6, 2.6, 3.6)\n47.50088092227767\n>>> vol_hollow_circular_cylinder(-1, 2, 3)\nTraceback (most recent call last):\n    ...\nValueError: vol_hollow_circular_cylinder() only accepts non-negative values\n>>> vol_hollow_circular_cylinder(1, -2, 3)\nTraceback (most recent call last):\n    ...\nValueError: vol_hollow_circular_cylinder() only accepts non-negative values\n>>> vol_hollow_circular_cylinder(1, 2, -3)\nTraceback (most recent call last):\n    ...\nValueError: vol_hollow_circular_cylinder() only accepts non-negative values\n>>> vol_hollow_circular_cylinder(2, 1, 3)\nTraceback (most recent call last):\n    ...\nValueError: outer_radius must be greater than inner_radius\n>>> vol_hollow_circular_cylinder(0, 0, 0)\nTraceback (most recent call last):\n    ...\nValueError: outer_radius must be greater than inner_radius"
-  [inner-radius outer-radius height] (try (when (py-truthy (let [__b2 (py-lt inner-radius 0)] (if (py-truthy __b2) __b2 (let [__b1 (py-lt outer-radius 0)] (if (py-truthy __b1) __b1 (py-lt height 0)))))) (throw (ex-info (py-str "vol_hollow_circular_cylinder() only accepts non-negative values") {:type :ValueError}))) (when (py-truthy (py-le outer-radius inner-radius)) (throw (ex-info (py-str "outer_radius must be greater than inner_radius") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul Math/PI (py-sub (py-pow outer-radius 2) (py-pow inner-radius 2))) height)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-hollow-circular-cylinder
+  "Calculate the Volume of a Hollow Circular Cylinder."
+  [inner-radius outer-radius height]
+  (when (or (neg? inner-radius) (neg? outer-radius) (neg? height))
+    (throw (ex-info "vol_hollow_circular_cylinder() only accepts non-negative values"
+                    {:type :ValueError})))
+  (when (<= outer-radius inner-radius)
+    (throw (ex-info "outer_radius must be greater than inner_radius"
+                    {:type :ValueError})))
+  (* Math/PI (- (Math/pow outer-radius 2) (Math/pow inner-radius 2)) height))
 
-(defn vol-conical-frustum "| Calculate the Volume of a Conical Frustum.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Frustum\n\n>>> vol_conical_frustum(45, 7, 28)\n48490.482608158454\n>>> vol_conical_frustum(1, 1, 2)\n7.330382858376184\n>>> vol_conical_frustum(1.6, 2.6, 3.6)\n48.7240076620753\n>>> vol_conical_frustum(0, 0, 0)\n0.0\n>>> vol_conical_frustum(-2, 2, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_conical_frustum() only accepts non-negative values\n>>> vol_conical_frustum(2, -2, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_conical_frustum() only accepts non-negative values\n>>> vol_conical_frustum(2, 2, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_conical_frustum() only accepts non-negative values"
-  [height radius-1 radius-2] (try (when (py-truthy (let [__b2 (py-lt radius-1 0)] (if (py-truthy __b2) __b2 (let [__b1 (py-lt radius-2 0)] (if (py-truthy __b1) __b1 (py-lt height 0)))))) (throw (ex-info (py-str "vol_conical_frustum() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul (py-mul (py-div 1 3) Math/PI) height) (py-add (py-add (py-pow radius-1 2) (py-pow radius-2 2)) (py-mul radius-1 radius-2)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-conical-frustum
+  "Calculate the Volume of a Conical Frustum."
+  [height radius-1 radius-2]
+  (when (or (neg? radius-1) (neg? radius-2) (neg? height))
+    (throw (ex-info "vol_conical_frustum() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* (/ 1 3.0) Math/PI height
+     (+ (Math/pow radius-1 2) (Math/pow radius-2 2) (* radius-1 radius-2))))
 
-(defn vol-torus "| Calculate the Volume of a Torus.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Torus\n\n:return: :math:`2 \\pi^2 \\cdot torus\\_radius \\cdot tube\\_radius^2`\n\n>>> vol_torus(1, 1)\n19.739208802178716\n>>> vol_torus(4, 3)\n710.6115168784338\n>>> vol_torus(3, 4)\n947.4820225045784\n>>> vol_torus(1.6, 1.6)\n80.85179925372404\n>>> vol_torus(0, 0)\n0.0\n>>> vol_torus(-1, 1)\nTraceback (most recent call last):\n    ...\nValueError: vol_torus() only accepts non-negative values\n>>> vol_torus(1, -1)\nTraceback (most recent call last):\n    ...\nValueError: vol_torus() only accepts non-negative values"
-  [torus-radius tube-radius] (try (when (py-truthy (let [__b1 (py-lt torus-radius 0)] (if (py-truthy __b1) __b1 (py-lt tube-radius 0)))) (throw (ex-info (py-str "vol_torus() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul (py-mul 2 (py-pow Math/PI 2)) torus-radius) (py-pow tube-radius 2))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-torus
+  "Calculate the Volume of a Torus."
+  [torus-radius tube-radius]
+  (when (or (neg? torus-radius) (neg? tube-radius))
+    (throw (ex-info "vol_torus() only accepts non-negative values"
+                    {:type :ValueError})))
+  (* 2 (Math/pow Math/PI 2) torus-radius (Math/pow tube-radius 2)))
 
-(defn vol-octahedron "| Calculate the Volume of an Octahedron.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Regular_octahedron\n\n>>> from math import isclose\n>>> isclose(vol_octahedron(2.5), 7.36569563735987)\nTrue\n>>> isclose(vol_octahedron(10), 471.40452079103168)\nTrue\n>>> isclose(vol_octahedron(5), 58.92556509887896)\nTrue\n>>> isclose(vol_octahedron(3.5), 20.21146882891548)\nTrue\n>>> vol_octahedron(0)\n0.0\n>>> vol_octahedron(-1)\nTraceback (most recent call last):\n    ...\nValueError: vol_octahedron() only accepts non-negative values"
-  [oct-side] (try (when (py-truthy (py-lt oct-side 0)) (throw (ex-info (py-str "vol_octahedron() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul (py-pow oct-side 3) (py-pow 2 0.5)) 3)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-octahedron
+  "Calculate the Volume of an Octahedron."
+  [oct-side]
+  (when (neg? oct-side)
+    (throw (ex-info "vol_octahedron() only accepts non-negative values"
+                    {:type :ValueError})))
+  (/ (* (Math/pow oct-side 3) (Math/sqrt 2)) 3))
 
-(defn vol-icosahedron "| Calculate the Volume of an Icosahedron.\n| Wikipedia reference: https://en.wikipedia.org/wiki/Regular_icosahedron\n\n>>> from math import isclose\n>>> isclose(vol_icosahedron(2.5), 34.088984228514256)\nTrue\n>>> isclose(vol_icosahedron(10), 2181.694990624912374)\nTrue\n>>> isclose(vol_icosahedron(5), 272.711873828114047)\nTrue\n>>> isclose(vol_icosahedron(3.49), 92.740688412033628)\nTrue\n>>> vol_icosahedron(0)\n0.0\n>>> vol_icosahedron(-1)\nTraceback (most recent call last):\n    ...\nValueError: vol_icosahedron() only accepts non-negative values\n>>> vol_icosahedron(-0.2)\nTraceback (most recent call last):\n    ...\nValueError: vol_icosahedron() only accepts non-negative values"
-  [tri-side] (try (when (py-truthy (py-lt tri-side 0)) (throw (ex-info (py-str "vol_icosahedron() only accepts non-negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div (py-mul (py-mul (py-pow tri-side 3) (py-add 3 (py-pow 5 0.5))) 5) 12)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn vol-icosahedron
+  "Calculate the Volume of an Icosahedron."
+  [tri-side]
+  (when (neg? tri-side)
+    (throw (ex-info "vol_icosahedron() only accepts non-negative values"
+                    {:type :ValueError})))
+  (/ (* (Math/pow tri-side 3) (+ 3 (Math/sqrt 5)) 5) 12))
 
-(defn main "Print the Results of Various Volume Calculations."
-  [] (println (clojure.string/join " " [(py-str "Volumes:")])) (println (clojure.string/join " " [(py-str (str "Cube: vol_cube(2) = " (py-str (pr-str (vol-cube 2)))))])) (println (clojure.string/join " " [(py-str (str "Cuboid: vol_cuboid(2, 2, 2) = " (py-str (pr-str (vol-cuboid 2 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Cone: vol_cone(2, 2) = " (py-str (pr-str (vol-cone 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Right Circular Cone: vol_right_circ_cone(2, 2) = " (py-str (pr-str (vol-right-circ-cone 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Prism: vol_prism(2, 2) = " (py-str (pr-str (vol-prism 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Pyramid: vol_pyramid(2, 2) = " (py-str (pr-str (vol-pyramid 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Sphere: vol_sphere(2) = " (py-str (pr-str (vol-sphere 2)))))])) (println (clojure.string/join " " [(py-str (str "Hemisphere: vol_hemisphere(2) = " (py-str (pr-str (vol-hemisphere 2)))))])) (println (clojure.string/join " " [(py-str (str "Circular Cylinder: vol_circular_cylinder(2, 2) = " (py-str (pr-str (vol-circular-cylinder 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Torus: vol_torus(2, 2) = " (py-str (pr-str (vol-torus 2 2)))))])) (println (clojure.string/join " " [(py-str (str "Conical Frustum: vol_conical_frustum(2, 2, 4) = " (py-str (pr-str (vol-conical-frustum 2 2 4)))))])) (println (clojure.string/join " " [(py-str (str "Spherical cap: vol_spherical_cap(1, 2) = " (py-str (pr-str (vol-spherical-cap 1 2)))))])) (println (clojure.string/join " " [(py-str (str "Spheres intersection: vol_spheres_intersect(2, 2, 1) = " (py-str (pr-str (vol-spheres-intersect 2 2 1)))))])) (println (clojure.string/join " " [(py-str (str "Spheres union: vol_spheres_union(2, 2, 1) = " (py-str (pr-str (vol-spheres-union 2 2 1)))))])) (println (clojure.string/join " " [(py-str (str "Hollow Circular Cylinder: vol_hollow_circular_cylinder(1, 2, 3) = " (py-str (pr-str (vol-hollow-circular-cylinder 1 2 3)))))])) (println (clojure.string/join " " [(py-str (str "Octahedron: vol_octahedron(2.5) = " (py-str (pr-str (vol-octahedron 2.5)))))])) (println (clojure.string/join " " [(py-str (str "Icosahedron: vol_icosahedron(2.5) = " (py-str (pr-str (vol-icosahedron 2.5)))))])) nil)
+(defn main
+  "Print the Results of Various Volume Calculations."
+  []
+  (println "Volumes:")
+  (println (str "Cube: vol_cube(2) = " (vol-cube 2)))
+  (println (str "Cuboid: vol_cuboid(2, 2, 2) = " (vol-cuboid 2 2 2)))
+  (println (str "Cone: vol_cone(2, 2) = " (vol-cone 2 2)))
+  (println (str "Right Circular Cone: vol_right_circ_cone(2, 2) = "
+                (vol-right-circ-cone 2 2)))
+  (println (str "Prism: vol_prism(2, 2) = " (vol-prism 2 2)))
+  (println (str "Pyramid: vol_pyramid(2, 2) = " (vol-pyramid 2 2)))
+  (println (str "Sphere: vol_sphere(2) = " (vol-sphere 2)))
+  (println (str "Hemisphere: vol_hemisphere(2) = " (vol-hemisphere 2)))
+  (println (str "Circular Cylinder: vol_circular_cylinder(2, 2) = "
+                (vol-circular-cylinder 2 2)))
+  (println (str "Torus: vol_torus(2, 2) = " (vol-torus 2 2)))
+  (println (str "Conical Frustum: vol_conical_frustum(2, 2, 4) = "
+                (vol-conical-frustum 2 2 4)))
+  (println (str "Spherical cap: vol_spherical_cap(1, 2) = "
+                (vol-spherical-cap 1 2)))
+  (println (str "Spheres intersection: vol_spheres_intersect(2, 2, 1) = "
+                (vol-spheres-intersect 2 2 1)))
+  (println (str "Spheres union: vol_spheres_union(2, 2, 1) = "
+                (vol-spheres-union 2 2 1)))
+  (println (str "Hollow Circular Cylinder: vol_hollow_circular_cylinder(1, 2, 3) = "
+                (vol-hollow-circular-cylinder 1 2 3)))
+  (println (str "Octahedron: vol_octahedron(2.5) = " (vol-octahedron 2.5)))
+  (println (str "Icosahedron: vol_icosahedron(2.5) = " (vol-icosahedron 2.5)))
+  nil)

@@ -1,11 +1,44 @@
 (ns clojure-algorithms.maths.pollard-rho
-  "Port of maths/pollard_rho.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Pollard's Rho algorithm for integer factorization.
+https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm")
 
-(declare pollard-rho)
+(defn- gcd
+  "Greatest common divisor, always non-negative."
+  [a b]
+  (loop [a (bigint a) b (bigint b)]
+    (if (zero? b)
+      (if (neg? a) (- a) a)
+      (recur b (mod a b)))))
 
-(defn pollard-rho "Use Pollard's Rho algorithm to return a nontrivial factor of ``num``.\nThe returned factor may be composite and require further factorization.\nIf the algorithm will return None if it fails to find a factor within\nthe specified number of attempts or within the specified number of steps.\nIf ``num`` is prime, this algorithm is guaranteed to return None.\nhttps://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm\n\n>>> pollard_rho(18446744073709551617)\n274177\n>>> pollard_rho(97546105601219326301)\n9876543191\n>>> pollard_rho(100)\n2\n>>> pollard_rho(17)\n>>> pollard_rho(17**3)\n17\n>>> pollard_rho(17**3, attempts=1)\n>>> pollard_rho(3*5*7)\n21\n>>> pollard_rho(1)\nTraceback (most recent call last):\n    ...\nValueError: The input value cannot be less than 2"
+(defn pollard-rho
+  "Use Pollard's Rho algorithm to return a nontrivial factor of num.
+The returned factor may be composite and require further factorization.
+Returns nil if no factor is found within the given attempts; if num
+is prime, this algorithm always returns nil."
   ([num] (pollard-rho num 2 1 3))
   ([num seed] (pollard-rho num seed 1 3))
   ([num seed step] (pollard-rho num seed step 3))
-  ([num seed step attempts] (let [seed (atom seed) step (atom step)] (let [--v (atom nil) divisor (atom nil) hare (atom nil) tortoise (atom nil)] (try (when (py-truthy (py-lt num 2)) (throw (ex-info (py-str "The input value cannot be less than 2") {:type :ValueError}))) (when (py-truthy (let [__b1 (py-gt num 2)] (if (py-truthy __b1) (py-eq (py-mod num 2) 0) __b1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value 2}))) (letfn [(rand-fn [value step modulus] (py-mod (py-add (py-pow value 2) step) modulus))] (doseq [__i2 (py-iter (range attempts))] (reset! --v __i2) (reset! tortoise @seed) (reset! hare @seed) (try (while (py-truthy true) (try (reset! tortoise (rand-fn @tortoise @step num)) (reset! hare (rand-fn @hare @step num)) (reset! hare (rand-fn @hare @step num)) (reset! divisor (py-gcd (py-sub @hare @tortoise) num)) (when (py-truthy (py-eq @divisor 1)) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (when (py-truthy (py-eq @divisor num)) (throw (ex-info "__break__" {:__control__ true :__break__ true}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @divisor})) (catch clojure.lang.ExceptionInfo __e (if (:__continue__ (ex-data __e)) nil (throw __e))))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (reset! seed @hare) (swap! step py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value nil}))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  ([num seed step attempts]
+   (let [num (bigint num)]
+     (when (< num 2)
+       (throw (ex-info "The input value cannot be less than 2"
+                       {:type :ValueError})))
+     (if (and (> num 2) (zero? (mod num 2)))
+       2
+       (let [rand-fn (fn [value step modulus]
+                       (mod (+ (* value value) step) modulus))]
+         (loop [attempt 0 seed (bigint seed) step (bigint step)]
+           (if (>= attempt attempts)
+             nil
+             (let [[divisor hare]
+                   (loop [tortoise seed hare seed]
+                     (let [tortoise (rand-fn tortoise step num)
+                           hare (rand-fn (rand-fn hare step num) step num)
+                           divisor (gcd (- hare tortoise) num)]
+                       (cond
+                         (= divisor 1) (recur tortoise hare)
+                         (= divisor num) [nil hare]
+                         :else [divisor hare])))]
+               (if divisor
+                 divisor
+                 (recur (inc attempt) hare (inc step)))))))))))

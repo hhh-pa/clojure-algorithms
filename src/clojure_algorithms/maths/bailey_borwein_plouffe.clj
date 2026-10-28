@@ -1,12 +1,33 @@
 (ns clojure-algorithms.maths.bailey-borwein-plouffe
-  "Port of maths/bailey_borwein_plouffe.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Bailey-Borwein-Plouffe pi-digit-extraction algorithm.")
 
-(declare bailey-borwein-plouffe -subsum)
+(defn -subsum
+  "Private helper implementing the summation functionality."
+  [digit-pos-to-extract denominator-addend precision]
+  (loop [sum-index 0
+         total 0.0]
+    (if (>= sum-index (+ digit-pos-to-extract precision))
+      total
+      (let [denominator (+ (* 8 sum-index) denominator-addend)
+            exponential-term (if (< sum-index digit-pos-to-extract)
+                               (.modPow (biginteger 16)
+                                        (biginteger (- digit-pos-to-extract 1 sum-index))
+                                        (biginteger denominator))
+                               (Math/pow 16 (- digit-pos-to-extract 1 sum-index)))]
+        (recur (inc sum-index)
+               (+ total (/ (double exponential-term) denominator)))))))
 
-(defn bailey-borwein-plouffe "Implement a popular pi-digit-extraction algorithm known as the\nBailey-Borwein-Plouffe (BBP) formula to calculate the nth hex digit of pi.\nWikipedia page:\nhttps://en.wikipedia.org/wiki/Bailey%E2%80%93Borwein%E2%80%93Plouffe_formula\n@param digit_position: a positive integer representing the position of the digit to\nextract.\nThe digit immediately after the decimal point is located at position 1.\n@param precision: number of terms in the second summation to calculate.\nA higher number reduces the chance of an error but increases the runtime.\n@return: a hexadecimal digit representing the digit at the nth position\nin pi's decimal expansion.\n\n>>> \"\".join(bailey_borwein_plouffe(i) for i in range(1, 11))\n'243f6a8885'\n>>> bailey_borwein_plouffe(5, 10000)\n'6'\n>>> bailey_borwein_plouffe(-10)\nTraceback (most recent call last):\n  ...\nValueError: Digit position must be a positive integer\n>>> bailey_borwein_plouffe(0)\nTraceback (most recent call last):\n  ...\nValueError: Digit position must be a positive integer\n>>> bailey_borwein_plouffe(1.7)\nTraceback (most recent call last):\n  ...\nValueError: Digit position must be a positive integer\n>>> bailey_borwein_plouffe(2, -10)\nTraceback (most recent call last):\n  ...\nValueError: Precision must be a nonnegative integer\n>>> bailey_borwein_plouffe(2, 1.6)\nTraceback (most recent call last):\n  ...\nValueError: Precision must be a nonnegative integer"
+(defn bailey-borwein-plouffe
+  "Calculate the nth hex digit of pi with the Bailey-Borwein-Plouffe formula.
+  The digit immediately after the decimal point is located at position 1."
   ([digit-position] (bailey-borwein-plouffe digit-position 1000))
-  ([digit-position precision] (let [sum-result (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? digit-position)))] (if (py-truthy __b1) __b1 (py-le digit-position 0)))) (throw (ex-info (py-str "Digit position must be a positive integer") {:type :ValueError}))) (when (py-truthy (let [__b2 (not (py-truthy (integer? precision)))] (if (py-truthy __b2) __b2 (py-lt precision 0)))) (throw (ex-info (py-str "Precision must be a nonnegative integer") {:type :ValueError}))) (reset! sum-result (py-sub (py-sub (py-sub (py-mul 4 (-subsum digit-position 1 precision)) (py-mul 2 (-subsum digit-position 4 precision))) (-subsum digit-position 5 precision)) (-subsum digit-position 6 precision))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-slice (py-hex (py-int (py-mul (py-mod @sum-result 1) 16) nil)) 2 nil nil)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
-
-(defn -subsum "Private helper function to implement the summation\nfunctionality.\n@param digit_pos_to_extract: digit position to extract\n@param denominator_addend: added to denominator of fractions in the formula\n@param precision: same as precision in main function\n@return: floating-point number whose integer part is not important"
-  [digit-pos-to-extract denominator-addend precision] (let [denominator (atom nil) exponential-term (atom nil) sum-index (atom nil) total (atom nil)] (try (reset! total 0.0) (doseq [__i1 (py-iter (range (py-add digit-pos-to-extract precision)))] (reset! sum-index __i1) (reset! denominator (py-add (py-mul 8 @sum-index) denominator-addend)) (if (py-truthy (py-lt @sum-index digit-pos-to-extract)) (do (reset! exponential-term (py-powmod 16 (py-sub (py-sub digit-pos-to-extract 1) @sum-index) @denominator))) (do (reset! exponential-term (py-pow 16 (py-sub (py-sub digit-pos-to-extract 1) @sum-index))))) (swap! total py-add (py-div @exponential-term @denominator))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @total})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  ([digit-position precision]
+   (when (or (not (integer? digit-position)) (<= digit-position 0))
+     (throw (ex-info "Digit position must be a positive integer" {:type :ValueError})))
+   (when (or (not (integer? precision)) (< precision 0))
+     (throw (ex-info "Precision must be a nonnegative integer" {:type :ValueError})))
+   (let [sum-result (- (* 4 (-subsum digit-position 1 precision))
+                       (* 2 (-subsum digit-position 4 precision))
+                       (-subsum digit-position 5 precision)
+                       (-subsum digit-position 6 precision))]
+     (Long/toHexString (long (* (mod sum-result 1) 16))))))

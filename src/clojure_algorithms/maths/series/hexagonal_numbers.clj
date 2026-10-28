@@ -1,8 +1,24 @@
 (ns clojure-algorithms.maths.series.hexagonal-numbers
-  "A hexagonal number sequence is a sequence of figurate numbers\nwhere the nth hexagonal number hₙ is the number of distinct dots\nin a pattern of dots consisting of the outlines of regular\nhexagons with sides up to n dots, when the hexagons are overlaid\nso that they share one vertex.\n\n    Calculates the hexagonal numbers sequence with a formula\n        hₙ = n(2n-1)\n        where:\n        hₙ --> is nth element of the sequence\n        n --> is the number of element in the sequence\n        reference-->\"Hexagonal number\" Wikipedia\n        <https://en.wikipedia.org/wiki/Hexagonal_number>"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "A hexagonal number sequence is a sequence of figurate numbers
+where the nth hexagonal number hₙ is the number of distinct dots
+in a pattern of dots consisting of the outlines of regular
+hexagons with sides up to n dots, when the hexagons are overlaid
+so that they share one vertex.
 
-(declare hexagonal-numbers)
+    Calculates the hexagonal numbers sequence with a formula
+        hₙ = n(2n-1)
+        where:
+        hₙ --> is nth element of the sequence
+        n --> is the number of element in the sequence
+        reference-->\"Hexagonal number\" Wikipedia
+        <https://en.wikipedia.org/wiki/Hexagonal_number>")
 
-(defn hexagonal-numbers ":param len: max number of elements\n:type len: int\n:return: Hexagonal numbers as a list\n\nTests:\n>>> hexagonal_numbers(10)\n[0, 1, 6, 15, 28, 45, 66, 91, 120, 153]\n>>> hexagonal_numbers(5)\n[0, 1, 6, 15, 28]\n>>> hexagonal_numbers(0)\nTraceback (most recent call last):\n  ...\nValueError: Length must be a positive integer."
-  [length] (try (when (py-truthy (let [__b1 (py-le length 0)] (if (py-truthy __b1) __b1 (not (py-truthy (integer? length)))))) (throw (ex-info (py-str "Length must be a positive integer.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (vec (for [n (py-iter (range length))] (py-mul n (py-sub (py-mul 2 n) 1))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn hexagonal-numbers
+  "Return the first length hexagonal numbers.
+
+  Throws ex-info with :type :ValueError when length is not a positive
+  integer."
+  [length]
+  (when (or (not (integer? length)) (<= length 0))
+    (throw (ex-info "Length must be a positive integer." {:type :ValueError})))
+  (mapv (fn [n] (* n (- (* 2 n) 1))) (range length)))

@@ -1,8 +1,30 @@
 (ns clojure-algorithms.maths.binomial-expansion
-  "Port of maths/binomial_expansion.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set] [clojure-algorithms.maths.binomial-coefficient :as m1]))
+  "Value of (a + b)^n computed with the Binomial Theorem.
+  See https://en.wikipedia.org/wiki/Binomial_theorem")
 
-(declare binomial-expansion)
+(defn- binomial-coefficient
+  "Number of ways to choose `k` items from `n` (exact integer arithmetic)."
+  [n k]
+  (let [k (min k (- n k))]
+    (quot (reduce *' 1 (range (inc (- n k)) (inc n)))
+          (reduce *' 1 (range 1 (inc k))))))
 
-(defn binomial-expansion "Compute the value of (a + b)^n using the Binomial Theorem.\n\nThis function works for both positive and negative integer exponents.\nIt raises a ZeroDivisionError if the base (a + b) is 0 and n is negative.\n\nArgs:\n    a: First term (int or float).\n    b: Second term (int or float).\n    n: Exponent (must be integer).\n\nReturns:\n    The result of the binomial expansion (a + b)^n.\n\nRaises:\n    ZeroDivisionError: If a + b == 0 and n < 0.\n\nSee Also:\n    https://en.wikipedia.org/wiki/Binomial_theorem\n\nExamples:\n    >>> binomial_expansion(2, 3, 2)\n    25\n    >>> binomial_expansion(100, -4, 3)\n    884736\n    >>> binomial_expansion(2, 2, -2)\n    0.0625\n    >>> binomial_expansion(0, 0, 3)\n    0\n    >>> binomial_expansion(-2, 2, -1)\n    Traceback (most recent call last):\n        ...\n    ZeroDivisionError: Cannot raise 0 to the negative power"
-  [a b n] (let [abs-n (atom nil) total (atom nil) value (atom nil)] (try (reset! total (py-add a b)) (when (py-truthy (let [__b1 (py-eq @total 0)] (if (py-truthy __b1) (py-lt n 0) __b1))) (throw (ex-info (py-str "Cannot raise 0 to the negative power") {:type :ZeroDivisionError}))) (reset! abs-n (py-abs n)) (reset! value (reduce +' 0 (doall (for [i (py-iter (range (py-add @abs-n 1)))] (py-mul (py-mul (m1/binomial-coefficient @abs-n i) (py-pow a (py-sub @abs-n i))) (py-pow b i)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-ge n 0)) @value (py-div 1 @value))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- int-pow
+  "`base` raised to the non-negative integer `exp`."
+  [base exp]
+  (reduce * 1 (repeat exp base)))
+
+(defn binomial-expansion
+  "Computes (a + b)^n using the Binomial Theorem. Works for positive and
+  negative integer exponents. Raises ZeroDivisionError when a + b is 0
+  and n is negative."
+  [a b n]
+  (when (and (zero? (+ a b)) (neg? n))
+    (throw (ex-info "Cannot raise 0 to the negative power" {:type :ZeroDivisionError})))
+  (let [m (abs (long n))
+        value (reduce + (map (fn [i]
+                               (* (binomial-coefficient m i)
+                                  (int-pow a (- m i))
+                                  (int-pow b i)))
+                             (range (inc m))))]
+    (if (neg? n) (/ 1.0 value) value)))

@@ -1,8 +1,38 @@
 (ns clojure-algorithms.maths.special-numbers.hamming-numbers
-  "A Hamming number is a positive integer of the form 2^i*3^j*5^k, for some\nnon-negative integers i, j, and k. They are often referred to as regular numbers.\nMore info at: https://en.wikipedia.org/wiki/Regular_number."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A Hamming number is a positive integer of the form 2^i*3^j*5^k, for some
+non-negative integers i, j, and k. They are often referred to as regular numbers.
+More info at: https://en.wikipedia.org/wiki/Regular_number.")
 
-(declare hamming)
+(defn- advance
+  "Smallest index at or after `idx` whose multiple by `mult` exceeds `lastv`."
+  [lst idx mult lastv]
+  (loop [i idx]
+    (if (<= (* (nth lst i) mult) lastv)
+      (recur (inc i))
+      i)))
 
-(defn hamming "This function creates an ordered list of n length as requested, and afterwards\nreturns the last value of the list. It must be given a positive integer.\n\n:param n_element: The number of elements on the list\n:return: The nth element of the list\n\n>>> hamming(-5)\nTraceback (most recent call last):\n    ...\nValueError: n_element should be a positive number\n>>> hamming(5)\n[1, 2, 3, 4, 5]\n>>> hamming(10)\n[1, 2, 3, 4, 5, 6, 8, 9, 10, 12]\n>>> hamming(15)\n[1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24]"
-  [n-element] (let [n-element (atom n-element)] (let [hamming-list (atom nil) i (atom nil) index (atom nil) j (atom nil) k (atom nil) my-error (atom nil)] (try (reset! n-element (py-int @n-element nil)) (when (py-truthy (py-lt @n-element 1)) (reset! my-error (ex-info (py-str "n_element should be a positive number") {:type :ValueError})) (throw @my-error)) (reset! hamming-list [1]) (let [__d1 (vec [0 0 0])] (reset! i (nth __d1 0)) (reset! j (nth __d1 1)) (reset! k (nth __d1 2))) (reset! index 1) (while (py-truthy (py-lt @index @n-element)) (while (py-truthy (py-le (py-mul (py-get @hamming-list @i) 2) (py-get @hamming-list (py-neg 1)))) (swap! i py-add 1)) (while (py-truthy (py-le (py-mul (py-get @hamming-list @j) 3) (py-get @hamming-list (py-neg 1)))) (swap! j py-add 1)) (while (py-truthy (py-le (py-mul (py-get @hamming-list @k) 5) (py-get @hamming-list (py-neg 1)))) (swap! k py-add 1)) (swap! hamming-list conj (py-min [(py-mul (py-get @hamming-list @i) 2) (py-mul (py-get @hamming-list @j) 3) (py-mul (py-get @hamming-list @k) 5)])) (swap! index py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @hamming-list})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn hamming
+  "Returns a vector holding the first `n-element` Hamming numbers in order.
+`n-element` must be a positive integer. Throws an ex-info with :type
+:ValueError when it is below 1 (non-integers are truncated toward zero,
+mirroring Python's int())."
+  [n-element]
+  (let [n (cond
+            (integer? n-element) n-element
+            (number? n-element) (int n-element)
+            :else (throw (ex-info "n_element should be a positive number"
+                                  {:type :ValueError})))]
+    (when (< n 1)
+      (throw (ex-info "n_element should be a positive number"
+                      {:type :ValueError})))
+    (loop [lst [1] i 0 j 0 k 0]
+      (if (>= (count lst) n)
+        lst
+        (let [lastv (peek lst)
+              i (advance lst i 2 lastv)
+              j (advance lst j 3 lastv)
+              k (advance lst k 5 lastv)]
+          (recur (conj lst (min (* (nth lst i) 2)
+                                (* (nth lst j) 3)
+                                (* (nth lst k) 5)))
+                 i j k))))))

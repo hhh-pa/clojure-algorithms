@@ -1,7 +1,5 @@
 (ns clojure-algorithms.maths.special-numbers.perfect-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.perfect-number :as sut]))
 
 (deftest test-fn-perfect-examples
@@ -16,3 +14,10 @@
   (is (= false (boolean (sut/perfect -1))))
   (is (thrown? Exception (sut/perfect 12.34)))
   (is (thrown? Exception (sut/perfect "Hello"))))
+
+(deftest test-error-type
+  (is (= :ValueError
+         (try (sut/perfect 12.34)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

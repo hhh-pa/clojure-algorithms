@@ -1,8 +1,33 @@
 (ns clojure-algorithms.maths.autocorrelation
-  "Autocorrelation measures the correlation of a signal with a delayed\ncopy of itself. It is widely used in time series analysis, signal\nprocessing, and statistics.\n\nReference: https://en.wikipedia.org/wiki/Autocorrelation"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Autocorrelation measures the correlation of a signal with a delayed
+copy of itself. It is widely used in time series analysis, signal
+processing, and statistics.
 
-(declare autocorrelation)
+Reference: https://en.wikipedia.org/wiki/Autocorrelation")
 
-(defn autocorrelation "Calculate the autocorrelation of a time series at a given lag.\n\n:param data: A list of numerical values representing the time series.\n:param lag: The number of time steps to shift the series.\n:return: The autocorrelation coefficient at the given lag.\n\n>>> round(autocorrelation([1, 2, 3, 4, 5], 1), 4)\n0.4\n>>> round(autocorrelation([1, 2, 3, 4, 5], 0), 4)\n1.0\n>>> autocorrelation([1, 2, 3], 5)\nTraceback (most recent call last):\n    ...\nValueError: Lag must be less than the length of the data."
-  [data lag] (let [covariance (atom nil) mean (atom nil) n (atom nil) variance (atom nil)] (try (when (py-truthy (py-ge lag (count data))) (throw (ex-info (py-str "Lag must be less than the length of the data.") {:type :ValueError}))) (reset! n (count data)) (reset! mean (py-div (reduce +' 0 data) @n)) (reset! variance (py-div (reduce +' 0 (doall (for [x (py-iter data)] (py-pow (py-sub x @mean) 2)))) @n)) (when (py-truthy (py-eq @variance 0)) (throw (ex-info (py-str "Variance of data is zero, autocorrelation undefined.") {:type :ValueError}))) (reset! covariance (py-div (reduce +' 0 (doall (for [i (py-iter (range lag @n))] (py-mul (py-sub (py-get data i) @mean) (py-sub (py-get data (py-sub i lag)) @mean))))) @n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-div @covariance @variance)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn autocorrelation
+  "Calculate the autocorrelation of a time series at a given lag.
+  data is a sequential of numbers, lag the number of time steps to shift.
+  Throws :ValueError when lag is not less than the data length or when
+  the data has zero variance."
+  [data lag]
+  (let [n (count data)]
+    (when (>= lag n)
+      (throw (ex-info "Lag must be less than the length of the data."
+                      {:type :ValueError})))
+    (let [mean (/ (reduce + 0.0 data) n)
+          variance (/ (reduce + 0.0
+                              (map (fn [x]
+                                     (let [d (- x mean)] (* d d)))
+                                   data))
+                      n)]
+      (when (zero? variance)
+        (throw (ex-info "Variance of data is zero, autocorrelation undefined."
+                        {:type :ValueError})))
+      (let [covariance (/ (reduce + 0.0
+                                  (map (fn [i]
+                                         (* (- (nth data i) mean)
+                                            (- (nth data (- i lag)) mean)))
+                                       (range lag n)))
+                          n)]
+        (/ covariance variance)))))

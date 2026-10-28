@@ -1,56 +1,199 @@
 (ns clojure-algorithms.maths.primelib
-  "Created on Thu Oct  5 16:44:23 2017\n\n@author: Christian Bender\n\nThis Python library contains some useful functions to deal with\nprime numbers and whole numbers.\n\nOverview:\n\nis_prime(number)\nsieve_er(N)\nget_prime_numbers(N)\nprime_factorization(number)\ngreatest_prime_factor(number)\nsmallest_prime_factor(number)\nget_prime(n)\nget_primes_between(pNumber1, pNumber2)\n\n----\n\nis_even(number)\nis_odd(number)\nkg_v(number1, number2)  // least common multiple\nget_divisors(number)    // all divisors of 'number' inclusive 1, number\nis_perfect_number(number)\n\nNEW-FUNCTIONS\n\nsimplify_fraction(numerator, denominator)\nfactorial (n) // n!\nfib (n) // calculate the n-th fibonacci term.\n\n-----\n\ngoldbach(number)  // Goldbach's assumption"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set] [clojure-algorithms.maths.greatest-common-divisor :as m1]))
+  "Created on Thu Oct  5 16:44:23 2017
 
-(declare is-prime sieve-er get-prime-numbers prime-factorization greatest-prime-factor smallest-prime-factor is-even is-odd goldbach kg-v get-prime get-primes-between get-divisors is-perfect-number simplify-fraction factorial fib)
+  @author: Christian Bender
 
-(defn is-prime "input: positive integer 'number'\nreturns true if 'number' is prime otherwise false.\n\n>>> is_prime(3)\nTrue\n>>> is_prime(10)\nFalse\n>>> is_prime(97)\nTrue\n>>> is_prime(9991)\nFalse\n>>> is_prime(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and positive\n>>> is_prime(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and positive"
-  [number] (let [divisor (atom nil) status (atom nil)] (try (assert (py-truthy (let [__b1 (integer? number)] (if (py-truthy __b1) (py-ge number 0) __b1))) (py-str "'number' must been an int and positive")) (reset! status true) (when (py-truthy (py-le number 1)) (reset! status false)) (try (doseq [__i2 (py-iter (range 2 (py-add (py-round (Math/sqrt number)) 1)))] (reset! divisor __i2) (when (py-truthy (py-eq (py-mod number @divisor) 0)) (reset! status false) (throw (ex-info "__break__" {:__control__ true :__break__ true})))) (catch clojure.lang.ExceptionInfo __e (if (:__break__ (ex-data __e)) nil (throw __e)))) (assert (py-truthy (boolean? @status)) (py-str "'status' must been from type bool")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @status})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  This library contains some useful functions to deal with
+  prime numbers and whole numbers.
 
-(defn sieve-er "input: positive integer 'N' > 2\nreturns a list of prime numbers from 2 up to N.\n\nThis function implements the algorithm called\nsieve of erathostenes.\n\n>>> sieve_er(8)\n[2, 3, 5, 7]\n>>> sieve_er(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'N' must been an int and > 2\n>>> sieve_er(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'N' must been an int and > 2"
-  [n] (let [ans (atom nil) begin-list (atom nil) i (atom nil) j (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-gt n 2) __b1))) (py-str "'N' must been an int and > 2")) (reset! begin-list (py-list (range 2 (py-add n 1)))) (reset! ans []) (doseq [__i2 (py-iter (range (count @begin-list)))] (reset! i __i2) (doseq [__i3 (py-iter (range (py-add @i 1) (count @begin-list)))] (reset! j __i3) (when (py-truthy (let [__b4 (not (py-eq (py-get @begin-list @i) 0))] (if (py-truthy __b4) (py-eq (py-mod (py-get @begin-list @j) (py-get @begin-list @i)) 0) __b4))) (swap! begin-list (fn [__c] (py-assoc-in __c [@j] 0)))))) (reset! ans (vec (for [x (py-iter @begin-list) :when (py-truthy (not (py-eq x 0)))] x))) (assert (py-truthy (sequential? @ans)) (py-str "'ans' must been from type list")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Overview:
 
-(defn get-prime-numbers "input: positive integer 'N' > 2\nreturns a list of prime numbers from 2 up to N (inclusive)\nThis function is more efficient as function 'sieveEr(...)'\n\n>>> get_prime_numbers(8)\n[2, 3, 5, 7]\n>>> get_prime_numbers(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'N' must been an int and > 2\n>>> get_prime_numbers(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'N' must been an int and > 2"
-  [n] (let [ans (atom nil) number (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-gt n 2) __b1))) (py-str "'N' must been an int and > 2")) (reset! ans []) (doseq [__i2 (py-iter (range 2 (py-add n 1)))] (reset! number __i2) (when (py-truthy (is-prime @number)) (swap! ans conj @number))) (assert (py-truthy (sequential? @ans)) (py-str "'ans' must been from type list")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  is-prime(number)
+  sieve-er(N)
+  get-prime-numbers(N)
+  prime-factorization(number)
+  greatest-prime-factor(number)
+  smallest-prime-factor(number)
+  get-prime(n)
+  get-primes-between(pNumber1, pNumber2)
 
-(defn prime-factorization "input: positive integer 'number'\nreturns a list of the prime number factors of 'number'\n\n>>> prime_factorization(0)\n[0]\n>>> prime_factorization(8)\n[2, 2, 2]\n>>> prime_factorization(287)\n[7, 41]\n>>> prime_factorization(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0\n>>> prime_factorization(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0"
-  [number] (let [ans (atom nil) factor (atom nil) quotient (atom nil)] (try (assert (py-truthy (let [__b1 (integer? number)] (if (py-truthy __b1) (py-ge number 0) __b1))) (py-str "'number' must been an int and >= 0")) (reset! ans []) (reset! factor 2) (reset! quotient number) (if (py-truthy (py-in number (set [0 1]))) (do (swap! ans conj number)) (do (if (py-truthy (not (py-truthy (is-prime number)))) (do (while (py-truthy (not (py-eq @quotient 1))) (if (py-truthy (let [__b2 (is-prime @factor)] (if (py-truthy __b2) (py-eq (py-mod @quotient @factor) 0) __b2))) (do (swap! ans conj @factor) (swap! quotient py-floordiv @factor)) (do (swap! factor py-add 1))))) (do (swap! ans conj number))))) (assert (py-truthy (sequential? @ans)) (py-str "'ans' must been from type list")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  ----
 
-(defn greatest-prime-factor "input: positive integer 'number' >= 0\nreturns the greatest prime number factor of 'number'\n\n>>> greatest_prime_factor(0)\n0\n>>> greatest_prime_factor(8)\n2\n>>> greatest_prime_factor(287)\n41\n>>> greatest_prime_factor(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0\n>>> greatest_prime_factor(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0"
-  [number] (let [ans (atom nil) prime-factors (atom nil)] (try (assert (py-truthy (let [__b1 (integer? number)] (if (py-truthy __b1) (py-ge number 0) __b1))) (py-str "'number' must been an int and >= 0")) (reset! ans 0) (reset! prime-factors (prime-factorization number)) (reset! ans (py-max @prime-factors)) (assert (py-truthy (integer? @ans)) (py-str "'ans' must been from type int")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  is-even(number)
+  is-odd(number)
+  kg-v(number1, number2)  // least common multiple
+  get-divisors(number)    // all divisors of 'number' inclusive 1, number
+  is-perfect-number(number)
 
-(defn smallest-prime-factor "input: integer 'number' >= 0\nreturns the smallest prime number factor of 'number'\n\n>>> smallest_prime_factor(0)\n0\n>>> smallest_prime_factor(8)\n2\n>>> smallest_prime_factor(287)\n7\n>>> smallest_prime_factor(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0\n>>> smallest_prime_factor(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 0"
-  [number] (let [ans (atom nil) prime-factors (atom nil)] (try (assert (py-truthy (let [__b1 (integer? number)] (if (py-truthy __b1) (py-ge number 0) __b1))) (py-str "'number' must been an int and >= 0")) (reset! ans 0) (reset! prime-factors (prime-factorization number)) (reset! ans (py-min @prime-factors)) (assert (py-truthy (integer? @ans)) (py-str "'ans' must been from type int")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  NEW-FUNCTIONS
 
-(defn is-even "input: integer 'number'\nreturns true if 'number' is even, otherwise false.\n\n>>> is_even(0)\nTrue\n>>> is_even(8)\nTrue\n>>> is_even(287)\nFalse\n>>> is_even(-1)\nFalse\n>>> is_even(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int"
-  [number] (try (assert (py-truthy (integer? number)) (py-str "'number' must been an int")) (assert (py-truthy (boolean? (py-eq (py-mod number 2) 0))) (py-str "compare must been from type bool")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq (py-mod number 2) 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  simplify-fraction(numerator, denominator)
+  factorial (n) // n!
+  fib (n) // calculate the n-th fibonacci term.
 
-(defn is-odd "input: integer 'number'\nreturns true if 'number' is odd, otherwise false.\n\n>>> is_odd(0)\nFalse\n>>> is_odd(8)\nFalse\n>>> is_odd(287)\nTrue\n>>> is_odd(-1)\nTrue\n>>> is_odd(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int"
-  [number] (try (assert (py-truthy (integer? number)) (py-str "'number' must been an int")) (assert (py-truthy (boolean? (not (py-eq (py-mod number 2) 0)))) (py-str "compare must been from type bool")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (not (py-eq (py-mod number 2) 0))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+  -----
 
-(defn goldbach "Goldbach's assumption\ninput: a even positive integer 'number' > 2\nreturns a list of two prime numbers whose sum is equal to 'number'\n\n>>> goldbach(8)\n[3, 5]\n>>> goldbach(824)\n[3, 821]\n>>> goldbach(0)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int, even and > 2\n>>> goldbach(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int, even and > 2\n>>> goldbach(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int, even and > 2"
-  [number] (let [ans (atom nil) i (atom nil) j (atom nil) len-pn (atom nil) loop-v (atom nil) prime-numbers (atom nil)] (try (assert (py-truthy (let [__b2 (integer? number)] (if (py-truthy __b2) (let [__b1 (py-gt number 2)] (if (py-truthy __b1) (is-even number) __b1)) __b2))) (py-str "'number' must been an int, even and > 2")) (reset! ans []) (reset! prime-numbers (get-prime-numbers number)) (reset! len-pn (count @prime-numbers)) (reset! i 0) (reset! j nil) (reset! loop-v true) (while (py-truthy (let [__b3 (py-lt @i @len-pn)] (if (py-truthy __b3) @loop-v __b3))) (reset! j (py-add @i 1)) (while (py-truthy (let [__b4 (py-lt @j @len-pn)] (if (py-truthy __b4) @loop-v __b4))) (when (py-truthy (py-eq (py-add (py-get @prime-numbers @i) (py-get @prime-numbers @j)) number)) (reset! loop-v false) (swap! ans conj (py-get @prime-numbers @i)) (swap! ans conj (py-get @prime-numbers @j))) (swap! j py-add 1)) (swap! i py-add 1)) (assert (py-truthy (let [__b8 (sequential? @ans)] (if (py-truthy __b8) (let [__b7 (py-eq (count @ans) 2)] (if (py-truthy __b7) (let [__b6 (py-eq (py-add (py-get @ans 0) (py-get @ans 1)) number)] (if (py-truthy __b6) (let [__b5 (is-prime (py-get @ans 0))] (if (py-truthy __b5) (is-prime (py-get @ans 1)) __b5)) __b6)) __b7)) __b8))) (py-str "'ans' must contains two primes. And sum of elements must been eq 'number'")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  goldbach(number)  // Goldbach's assumption")
 
-(defn kg-v "Least common multiple\ninput: two positive integer 'number1' and 'number2'\nreturns the least common multiple of 'number1' and 'number2'\n\n>>> kg_v(8,10)\n40\n>>> kg_v(824,67)\n55208\n>>> kg_v(1, 10)\n10\n>>> kg_v(0)\nTraceback (most recent call last):\n    ...\nTypeError: kg_v() missing 1 required positional argument: 'number2'\n>>> kg_v(10,-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number1' and 'number2' must been positive integer.\n>>> kg_v(\"test\",\"test2\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number1' and 'number2' must been positive integer."
-  [number1 number2] (let [--v (atom nil) ans (atom nil) count1 (atom nil) count2 (atom nil) done (atom nil) n (atom nil) prime-fac-1 (atom nil) prime-fac-2 (atom nil)] (try (assert (py-truthy (let [__b3 (integer? number1)] (if (py-truthy __b3) (let [__b2 (integer? number2)] (if (py-truthy __b2) (let [__b1 (py-ge number1 1)] (if (py-truthy __b1) (py-ge number2 1) __b1)) __b2)) __b3))) (py-str "'number1' and 'number2' must been positive integer.")) (reset! ans 1) (if (py-truthy (let [__b4 (py-gt number1 1)] (if (py-truthy __b4) (py-gt number2 1) __b4))) (do (reset! prime-fac-1 (prime-factorization number1)) (reset! prime-fac-2 (prime-factorization number2))) (do (when (py-truthy (let [__b5 (py-eq number1 1)] (if (py-truthy __b5) __b5 (py-eq number2 1)))) (reset! prime-fac-1 []) (reset! prime-fac-2 []) (reset! ans (py-max [number1 number2]))))) (reset! count1 0) (reset! count2 0) (reset! done []) (doseq [__i6 (py-iter @prime-fac-1)] (reset! n __i6) (when (py-truthy (not (py-in @n @done))) (if (py-truthy (py-in @n @prime-fac-2)) (do (reset! count1 (py-count @prime-fac-1 @n)) (reset! count2 (py-count @prime-fac-2 @n)) (doseq [__i7 (py-iter (range (py-max [@count1 @count2])))] (reset! --v __i7) (swap! ans py-mul @n))) (do (reset! count1 (py-count @prime-fac-1 @n)) (doseq [__i8 (py-iter (range @count1))] (reset! --v __i8) (swap! ans py-mul @n)))) (swap! done conj @n))) (doseq [__i9 (py-iter @prime-fac-2)] (reset! n __i9) (when (py-truthy (not (py-in @n @done))) (reset! count2 (py-count @prime-fac-2 @n)) (doseq [__i10 (py-iter (range @count2))] (reset! --v __i10) (swap! ans py-mul @n)) (swap! done conj @n))) (assert (py-truthy (let [__b11 (integer? @ans)] (if (py-truthy __b11) (py-ge @ans 0) __b11))) (py-str "'ans' must been from type int and positive")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-prime
+  "Returns true if 'number' is prime, otherwise false."
+  [number]
+  (assert (and (integer? number) (>= number 0))
+          "'number' must been an int and positive")
+  (and (> number 1)
+       (not-any? #(zero? (mod number %))
+                 (range 2 (inc (Math/round (Math/sqrt (double number))))))))
 
-(defn get-prime "Gets the n-th prime number.\ninput: positive integer 'n' >= 0\nreturns the n-th prime number, beginning at index 0\n\n>>> get_prime(0)\n2\n>>> get_prime(8)\n23\n>>> get_prime(824)\n6337\n>>> get_prime(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been a positive int\n>>> get_prime(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been a positive int"
-  [n] (let [ans (atom nil) index (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-ge n 0) __b1))) (py-str "'number' must been a positive int")) (reset! index 0) (reset! ans 2) (while (py-truthy (py-lt @index n)) (swap! index py-add 1) (swap! ans py-add 1) (while (py-truthy (not (py-truthy (is-prime @ans)))) (swap! ans py-add 1))) (assert (py-truthy (let [__b2 (integer? @ans)] (if (py-truthy __b2) (is-prime @ans) __b2))) (py-str "'ans' must been a prime number and from type int")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn sieve-er
+  "Returns a list of prime numbers from 2 up to N.
+  This function implements the algorithm called sieve of erathostenes."
+  [n]
+  (assert (and (integer? n) (> n 2)) "'N' must been an int and > 2")
+  (let [nums (vec (range 2 (inc n)))]
+    (loop [i 0 sieved nums]
+      (if (>= i (count sieved))
+        (filterv pos? sieved)
+        (let [p (sieved i)]
+          (recur (inc i)
+                 (if (zero? p)
+                   sieved
+                   (vec (map-indexed
+                         (fn [j x]
+                           (if (and (> j i) (zero? (mod x p))) 0 x))
+                         sieved)))))))))
 
-(defn get-primes-between "input: prime numbers 'pNumber1' and 'pNumber2'\n        pNumber1 < pNumber2\nreturns a list of all prime numbers between 'pNumber1' (exclusive)\n        and 'pNumber2' (exclusive)\n\n>>> get_primes_between(3, 67)\n[5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61]\n>>> get_primes_between(0)\nTraceback (most recent call last):\n    ...\nTypeError: get_primes_between() missing 1 required positional argument: 'p_number_2'\n>>> get_primes_between(0, 1)\nTraceback (most recent call last):\n    ...\nAssertionError: The arguments must been prime numbers and 'pNumber1' < 'pNumber2'\n>>> get_primes_between(-1, 3)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and positive\n>>> get_primes_between(\"test\",\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and positive"
-  [p-number-1 p-number-2] (let [ans (atom nil) number (atom nil)] (try (assert (py-truthy (let [__b2 (is-prime p-number-1)] (if (py-truthy __b2) (let [__b1 (is-prime p-number-2)] (if (py-truthy __b1) (py-lt p-number-1 p-number-2) __b1)) __b2))) (py-str "The arguments must been prime numbers and 'pNumber1' < 'pNumber2'")) (reset! number (py-add p-number-1 1)) (reset! ans []) (while (py-truthy (not (py-truthy (is-prime @number)))) (swap! number py-add 1)) (while (py-truthy (py-lt @number p-number-2)) (swap! ans conj @number) (swap! number py-add 1) (while (py-truthy (not (py-truthy (is-prime @number)))) (swap! number py-add 1))) (assert (py-truthy (let [__b4 (sequential? @ans)] (if (py-truthy __b4) (let [__b3 (not (py-eq (py-get @ans 0) p-number-1))] (if (py-truthy __b3) (not (py-eq (py-get @ans (py-sub (count @ans) 1)) p-number-2)) __b3)) __b4))) (py-str "'ans' must been a list without the arguments")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn get-prime-numbers
+  "Returns a list of prime numbers from 2 up to N (inclusive).
+  This function is more efficient than function 'sieve-er'."
+  [n]
+  (assert (and (integer? n) (> n 2)) "'N' must been an int and > 2")
+  (filterv is-prime (range 2 (inc n))))
 
-(defn get-divisors "input: positive integer 'n' >= 1\nreturns all divisors of n (inclusive 1 and 'n')\n\n>>> get_divisors(8)\n[1, 2, 4, 8]\n>>> get_divisors(824)\n[1, 2, 4, 8, 103, 206, 412, 824]\n>>> get_divisors(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'n' must been int and >= 1\n>>> get_divisors(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'n' must been int and >= 1"
-  [n] (let [ans (atom nil) divisor (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-ge n 1) __b1))) (py-str "'n' must been int and >= 1")) (reset! ans []) (doseq [__i2 (py-iter (range 1 (py-add n 1)))] (reset! divisor __i2) (when (py-truthy (py-eq (py-mod n @divisor) 0)) (swap! ans conj @divisor))) (assert (py-truthy (let [__b3 (py-eq (py-get @ans 0) 1)] (if (py-truthy __b3) (py-eq (py-get @ans (py-sub (count @ans) 1)) n) __b3))) (py-str "Error in function getDivisiors(...)")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn prime-factorization
+  "Returns a list of the prime number factors of 'number'."
+  [number]
+  (assert (and (integer? number) (>= number 0))
+          "'number' must been an int and >= 0")
+  (cond (<= number 1) [number]
+        (is-prime number) [number]
+        :else (loop [quotient number factor 2 acc []]
+                (if (= quotient 1)
+                  acc
+                  (if (and (is-prime factor) (zero? (mod quotient factor)))
+                    (recur (quot quotient factor) factor (conj acc factor))
+                    (recur quotient (inc factor) acc))))))
 
-(defn is-perfect-number "input: positive integer 'number' > 1\nreturns true if 'number' is a perfect number otherwise false.\n\n>>> is_perfect_number(28)\nTrue\n>>> is_perfect_number(824)\nFalse\n>>> is_perfect_number(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 1\n>>> is_perfect_number(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'number' must been an int and >= 1"
-  [number] (let [divisors (atom nil)] (try (assert (py-truthy (let [__b1 (integer? number)] (if (py-truthy __b1) (py-gt number 1) __b1))) (py-str "'number' must been an int and >= 1")) (reset! divisors (get-divisors number)) (assert (py-truthy (let [__b3 (sequential? @divisors)] (if (py-truthy __b3) (let [__b2 (py-eq (py-get @divisors 0) 1)] (if (py-truthy __b2) (py-eq (py-get @divisors (py-sub (count @divisors) 1)) number) __b2)) __b3))) (py-str "Error in help-function getDivisiors(...)")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq (reduce +' 0 (py-slice @divisors nil (py-neg 1) nil)) number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn greatest-prime-factor
+  "Returns the greatest prime number factor of 'number'."
+  [number]
+  (assert (and (integer? number) (>= number 0))
+          "'number' must been an int and >= 0")
+  (reduce max (prime-factorization number)))
 
-(defn simplify-fraction "input: two integer 'numerator' and 'denominator'\nassumes: 'denominator' != 0\nreturns: a tuple with simplify numerator and denominator.\n\n>>> simplify_fraction(10, 20)\n(1, 2)\n>>> simplify_fraction(10, -1)\n(10, -1)\n>>> simplify_fraction(\"test\",\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: The arguments must been from type int and 'denominator' != 0"
-  [numerator denominator] (let [gcd-of-fraction (atom nil)] (try (assert (py-truthy (let [__b2 (integer? numerator)] (if (py-truthy __b2) (let [__b1 (integer? denominator)] (if (py-truthy __b1) (not (py-eq denominator 0)) __b1)) __b2))) (py-str "The arguments must been from type int and 'denominator' != 0")) (reset! gcd-of-fraction (m1/gcd-by-iterative (py-abs numerator) (py-abs denominator))) (assert (py-truthy (let [__b4 (integer? @gcd-of-fraction)] (if (py-truthy __b4) (let [__b3 (py-eq (py-mod numerator @gcd-of-fraction) 0)] (if (py-truthy __b3) (py-eq (py-mod denominator @gcd-of-fraction) 0) __b3)) __b4))) (py-str "Error in function gcd_by_iterative(...,...)")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-floordiv numerator @gcd-of-fraction) (py-floordiv denominator @gcd-of-fraction)]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn smallest-prime-factor
+  "Returns the smallest prime number factor of 'number'."
+  [number]
+  (assert (and (integer? number) (>= number 0))
+          "'number' must been an int and >= 0")
+  (reduce min (prime-factorization number)))
 
-(defn factorial "input: positive integer 'n'\nreturns the factorial of 'n' (n!)\n\n>>> factorial(0)\n1\n>>> factorial(20)\n2432902008176640000\n>>> factorial(-1)\nTraceback (most recent call last):\n    ...\nAssertionError: 'n' must been a int and >= 0\n>>> factorial(\"test\")\nTraceback (most recent call last):\n    ...\nAssertionError: 'n' must been a int and >= 0"
-  [n] (let [ans (atom nil) factor (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-ge n 0) __b1))) (py-str "'n' must been a int and >= 0")) (reset! ans 1) (doseq [__i2 (py-iter (range 1 (py-add n 1)))] (reset! factor __i2) (swap! ans py-mul @factor)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-even
+  "Returns true if 'number' is even, otherwise false."
+  [number]
+  (assert (integer? number) "'number' must been an int")
+  (even? number))
 
-(defn fib "input: positive integer 'n'\nreturns the n-th fibonacci term , indexing by 0\n\n>>> fib(0)\n1\n>>> fib(5)\n8\n>>> fib(20)\n10946\n>>> fib(99)\n354224848179261915075\n>>> fib(-1)\nTraceback (most recent call last):\n...\nAssertionError: 'n' must been an int and >= 0\n>>> fib(\"test\")\nTraceback (most recent call last):\n...\nAssertionError: 'n' must been an int and >= 0"
-  [n] (let [--v (atom nil) ans (atom nil) fib1 (atom nil) tmp (atom nil)] (try (assert (py-truthy (let [__b1 (integer? n)] (if (py-truthy __b1) (py-ge n 0) __b1))) (py-str "'n' must been an int and >= 0")) (reset! tmp 0) (reset! fib1 1) (reset! ans 1) (doseq [__i2 (py-iter (range (py-sub n 1)))] (reset! --v __i2) (reset! tmp @ans) (swap! ans py-add @fib1) (reset! fib1 @tmp)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @ans})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-odd
+  "Returns true if 'number' is odd, otherwise false."
+  [number]
+  (assert (integer? number) "'number' must been an int")
+  (odd? number))
+
+(defn goldbach
+  "Goldbach's assumption: returns a list of two prime numbers whose
+  sum is equal to 'number' (an even positive integer > 2)."
+  [number]
+  (assert (and (integer? number) (> number 2) (is-even number))
+          "'number' must been an int, even and > 2")
+  (let [primes (get-prime-numbers number)
+        len-pn (count primes)
+        ans (first (for [i (range len-pn)
+                         j (range (inc i) len-pn)
+                         :when (= number (+ (primes i) (primes j)))]
+                     [(primes i) (primes j)]))]
+    (assert (and (vector? ans)
+                 (= 2 (count ans))
+                 (= number (reduce + ans))
+                 (is-prime (ans 0))
+                 (is-prime (ans 1)))
+            "'ans' must contains two primes. And sum of elements must been eq 'number'")
+    ans))
+
+(defn- gcd
+  "Greatest common divisor via Euclid's algorithm."
+  [a b]
+  (loop [a a b b]
+    (if (zero? b)
+      a
+      (recur b (mod a b)))))
+
+(defn kg-v
+  "Least common multiple of positive integers 'number1' and 'number2'."
+  [number1 number2]
+  (assert (and (integer? number1) (integer? number2)
+               (>= number1 1) (>= number2 1))
+          "'number1' and 'number2' must been positive integer.")
+  (quot (* number1 number2) (gcd number1 number2)))
+
+(defn get-prime
+  "Gets the n-th prime number (0-indexed)."
+  [n]
+  (assert (and (integer? n) (>= n 0)) "'number' must been a positive int")
+  (nth (filter is-prime (iterate inc 2)) n))
+
+(defn get-primes-between
+  "Returns a list of all prime numbers between 'p-number-1' (exclusive)
+  and 'p-number-2' (exclusive)."
+  [p-number-1 p-number-2]
+  (assert (and (is-prime p-number-1) (is-prime p-number-2)
+               (< p-number-1 p-number-2))
+          "The arguments must been prime numbers and 'pNumber1' < 'pNumber2'")
+  (filterv is-prime (range (inc p-number-1) p-number-2)))
+
+(defn get-divisors
+  "Returns all divisors of n (inclusive 1 and 'n')."
+  [n]
+  (assert (and (integer? n) (>= n 1)) "'n' must been int and >= 1")
+  (filterv #(zero? (mod n %)) (range 1 (inc n))))
+
+(defn is-perfect-number
+  "Returns true if 'number' is a perfect number, otherwise false."
+  [number]
+  (assert (and (integer? number) (> number 1))
+          "'number' must been an int and >= 1")
+  (= number (reduce + (butlast (get-divisors number)))))
+
+(defn simplify-fraction
+  "Returns a vector with the simplified numerator and denominator."
+  [numerator denominator]
+  (assert (and (integer? numerator) (integer? denominator)
+               (not= denominator 0))
+          "The arguments must been from type int and 'denominator' != 0")
+  (let [g (gcd (abs (long numerator)) (abs (long denominator)))]
+    [(quot numerator g) (quot denominator g)]))
+
+(defn factorial
+  "Returns the factorial of 'n' (n!)."
+  [n]
+  (assert (and (integer? n) (>= n 0)) "'n' must been a int and >= 0")
+  (reduce *' 1 (range 1 (inc n))))
+
+(defn fib
+  "Returns the n'th fibonacci term, indexing by 0
+  (i.e. fib(0) = 1, fib(1) = 1, fib(5) = 8)."
+  [n]
+  (assert (and (integer? n) (>= n 0)) "'n' must been an int and >= 0")
+  (loop [i 0 ans 1 fib1 1]
+    (if (>= i (dec n))
+      ans
+      (recur (inc i) (+' ans fib1) ans))))

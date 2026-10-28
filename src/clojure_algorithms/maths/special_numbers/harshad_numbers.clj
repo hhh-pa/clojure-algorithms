@@ -1,17 +1,62 @@
 (ns clojure-algorithms.maths.special-numbers.harshad-numbers
-  "A harshad number (or more specifically an n-harshad number) is a number that's\ndivisible by the sum of its digits in some given base n.\nReference: https://en.wikipedia.org/wiki/Harshad_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A harshad number (or more specifically an n-harshad number) is a number that's
+divisible by the sum of its digits in some given base n.
+Reference: https://en.wikipedia.org/wiki/Harshad_number")
 
-(declare int-to-base sum-of-digits harshad-numbers-in-base is-harshad-number-in-base)
+(def ^:private digit-chars "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-(defn int-to-base "Convert a given positive decimal integer to base 'base'.\nWhere 'base' ranges from 2 to 36.\n\nExamples:\n>>> int_to_base(0, 21)\n'0'\n>>> int_to_base(23, 2)\n'10111'\n>>> int_to_base(58, 5)\n'213'\n>>> int_to_base(167, 16)\n'A7'\n>>> # bases below 2 and beyond 36 will error\n>>> int_to_base(98, 1)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> int_to_base(98, 37)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> int_to_base(-99, 16)\nTraceback (most recent call last):\n    ...\nValueError: number must be a positive integer"
-  [number base] (let [number (atom number)] (let [digits (atom nil) remainder (atom nil) result (atom nil)] (try (when (py-truthy (let [__b1 (py-lt base 2)] (if (py-truthy __b1) __b1 (py-gt base 36)))) (throw (ex-info (py-str "'base' must be between 2 and 36 inclusive") {:type :ValueError}))) (reset! digits "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") (reset! result "") (when (py-truthy (py-lt @number 0)) (throw (ex-info (py-str "number must be a positive integer") {:type :ValueError}))) (while (py-truthy (py-gt @number 0)) (let [__d2 (vec [(py-floordiv @number base) (py-mod @number base)])] (reset! number (nth __d2 0)) (reset! remainder (nth __d2 1))) (reset! result (py-add (py-get @digits @remainder) @result))) (when (py-truthy (py-eq @result "")) (reset! result "0")) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn- check-base!
+  "Throws an ex-info with :type :ValueError unless base is within 2..36."
+  [base]
+  (when (or (< base 2) (> base 36))
+    (throw (ex-info "'base' must be between 2 and 36 inclusive"
+                    {:type :ValueError}))))
 
-(defn sum-of-digits "Calculate the sum of digit values in a positive integer\nconverted to the given 'base'.\nWhere 'base' ranges from 2 to 36.\n\nExamples:\n>>> sum_of_digits(103, 12)\n'13'\n>>> sum_of_digits(1275, 4)\n'30'\n>>> sum_of_digits(6645, 2)\n'1001'\n>>> # bases below 2 and beyond 36 will error\n>>> sum_of_digits(543, 1)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> sum_of_digits(543, 37)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive"
-  [num base] (let [num-str (atom nil) res (atom nil) res-str (atom nil)] (try (when (py-truthy (let [__b1 (py-lt base 2)] (if (py-truthy __b1) __b1 (py-gt base 36)))) (throw (ex-info (py-str "'base' must be between 2 and 36 inclusive") {:type :ValueError}))) (reset! num-str (int-to-base num base)) (reset! res (reduce +' 0 (doall (for [char (py-iter @num-str)] (py-int char base))))) (reset! res-str (int-to-base @res base)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @res-str})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn int-to-base
+  "Converts the non-negative integer `number` to its string representation in
+`base` (2 to 36). Throws an ex-info with :type :ValueError when `base` is out
+of range or `number` is negative."
+  [number base]
+  (check-base! base)
+  (when (neg? number)
+    (throw (ex-info "number must be a positive integer" {:type :ValueError})))
+  (if (zero? number)
+    "0"
+    (loop [n number, chars ()]
+      (if (zero? n)
+        (apply str chars)
+        (recur (quot n base)
+               (conj chars (nth digit-chars (rem n base))))))))
 
-(defn harshad-numbers-in-base "Finds all Harshad numbers smaller than num in base 'base'.\nWhere 'base' ranges from 2 to 36.\n\nExamples:\n>>> harshad_numbers_in_base(15, 2)\n['1', '10', '100', '110', '1000', '1010', '1100']\n>>> harshad_numbers_in_base(12, 34)\n['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B']\n>>> harshad_numbers_in_base(12, 4)\n['1', '2', '3', '10', '12', '20', '21']\n>>> # bases below 2 and beyond 36 will error\n>>> harshad_numbers_in_base(234, 37)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> harshad_numbers_in_base(234, 1)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> harshad_numbers_in_base(-12, 6)\n[]"
-  [limit base] (let [numbers (atom nil)] (try (when (py-truthy (let [__b1 (py-lt base 2)] (if (py-truthy __b1) __b1 (py-gt base 36)))) (throw (ex-info (py-str "'base' must be between 2 and 36 inclusive") {:type :ValueError}))) (when (py-truthy (py-lt limit 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (reset! numbers (vec (for [i (py-iter (range 1 limit)) :when (py-truthy (py-eq (py-mod i (py-int (sum-of-digits i base) base)) 0))] (int-to-base i base)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @numbers})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn sum-of-digits
+  "Sums the digit values of `num` expressed in `base` and returns that sum
+rendered as a string in `base`."
+  [num base]
+  (check-base! base)
+  (->> (int-to-base num base)
+       (map #(Integer/parseInt (str %) base))
+       (reduce + 0)
+       (#(int-to-base % base))))
 
-(defn is-harshad-number-in-base "Determines whether n in base 'base' is a harshad number.\nWhere 'base' ranges from 2 to 36.\n\nExamples:\n>>> is_harshad_number_in_base(18, 10)\nTrue\n>>> is_harshad_number_in_base(21, 10)\nTrue\n>>> is_harshad_number_in_base(-21, 5)\nFalse\n>>> # bases below 2 and beyond 36 will error\n>>> is_harshad_number_in_base(45, 37)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive\n>>> is_harshad_number_in_base(45, 1)\nTraceback (most recent call last):\n    ...\nValueError: 'base' must be between 2 and 36 inclusive"
-  [num base] (let [d (atom nil) n (atom nil)] (try (when (py-truthy (let [__b1 (py-lt base 2)] (if (py-truthy __b1) __b1 (py-gt base 36)))) (throw (ex-info (py-str "'base' must be between 2 and 36 inclusive") {:type :ValueError}))) (when (py-truthy (py-lt num 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! n (int-to-base num base)) (reset! d (sum-of-digits num base)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq (py-mod (py-int @n base) (py-int @d base)) 0)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn harshad-numbers-in-base
+  "Returns a vector of the string representations (in `base`) of all Harshad
+numbers below `limit`. Returns an empty vector when `limit` is negative."
+  [limit base]
+  (check-base! base)
+  (if (neg? limit)
+    []
+    (mapv int-to-base
+          (filter #(zero? (rem % (Integer/parseInt (sum-of-digits % base) base)))
+                  (range 1 limit))
+          (repeat base))))
+
+(defn is-harshad-number-in-base
+  "Returns true if `num` expressed in `base` is a Harshad number, i.e. it is
+divisible by the sum of its digits. Returns false for negative numbers."
+  [num base]
+  (check-base! base)
+  (if (neg? num)
+    false
+    (let [n (Integer/parseInt (int-to-base num base) base)
+          d (Integer/parseInt (sum-of-digits num base) base)]
+      (zero? (rem n d)))))

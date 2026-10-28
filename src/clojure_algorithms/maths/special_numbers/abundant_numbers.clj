@@ -1,8 +1,40 @@
 (ns clojure-algorithms.maths.special-numbers.abundant-numbers
-  "A number n is said to be an Abundant number if\nthe sum of its proper divisors is greater than the number itself.\n\nExamples of Abundant Numbers: 12, 18, 20, 24, 30, 36, 40, 42, 48, 54, ...\n\nhttps://en.wikipedia.org/wiki/Abundant_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A number n is said to be an Abundant number if
+the sum of its proper divisors is greater than the number itself.
 
-(declare is-abundant-number)
+Examples of Abundant Numbers: 12, 18, 20, 24, 30, 36, 40, 42, 48, 54, ...
 
-(defn is-abundant-number "This function takes an integer number as input.\nReturns True if the number is abundant.\n\n>>> is_abundant_number(-1)\nFalse\n>>> is_abundant_number(0)\nFalse\n>>> is_abundant_number(12)\nTrue\n>>> is_abundant_number(18)\nTrue\n>>> is_abundant_number(28)\nFalse\n>>> is_abundant_number(20)\nTrue\n>>> is_abundant_number(6)\nFalse\n>>> is_abundant_number(1)\nFalse\n>>> is_abundant_number(945)\nTrue\n>>> is_abundant_number(28.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=28.0] must be an integer"
-  [number] (let [divisor-sum (atom nil) i (atom nil) msg (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! divisor-sum 1) (doseq [__i1 (py-iter (range 2 (py-add (py-int (py-pow number 0.5) nil) 1)))] (reset! i __i1) (when (py-truthy (py-eq (py-mod number @i) 0)) (swap! divisor-sum py-add @i) (when (py-truthy (not (py-eq @i (py-floordiv number @i)))) (swap! divisor-sum py-add (py-floordiv number @i))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-gt @divisor-sum number)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+https://en.wikipedia.org/wiki/Abundant_number")
+
+(defn- isqrt
+  "Integer square root of n: the greatest integer r with r*r <= n.
+Assumes n is a non-negative integer."
+  [n]
+  (loop [x (long (Math/sqrt (double n)))]
+    (cond
+      (> (*' x x) n) (recur (dec x))
+      (<= (*' (inc x) (inc x)) n) (recur (inc x))
+      :else x)))
+
+(defn- proper-divisor-sum
+  "Sum of the proper divisors of n. Assumes n is an integer >= 1."
+  [n]
+  (let [limit (isqrt n)]
+    (reduce +'
+            1
+            (mapcat (fn [i]
+                      (let [j (quot n i)]
+                        (if (= i j) [i] [i j])))
+                    (filter #(zero? (rem n %)) (range 2 (inc limit)))))))
+
+(defn is-abundant-number
+  "Returns true if `number` is abundant, i.e. the sum of its proper divisors
+is greater than the number itself. Returns false for integers below 1.
+Throws an ex-info with :type :TypeError when `number` is not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (if (< number 1)
+    false
+    (< number (proper-divisor-sum number))))

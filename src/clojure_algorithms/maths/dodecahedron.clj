@@ -1,11 +1,28 @@
 (ns clojure-algorithms.maths.dodecahedron
-  "A regular dodecahedron is a three-dimensional figure made up of\n12 pentagon faces having the same equal size."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "A regular dodecahedron is a three-dimensional figure made up of
+  12 pentagon faces having the same equal size.")
 
-(declare dodecahedron-surface-area dodecahedron-volume)
+(defn- check-edge
+  [edge]
+  ;; Note: upstream also rejects non-integer edges
+  ;; (`not isinstance(edge, int)`); that quirk is preserved here.
+  (when (or (<= edge 0) (not (integer? edge)))
+    (throw (ex-info "Length must be a positive." {:type :ValueError}))))
 
-(defn dodecahedron-surface-area "Calculates the surface area of a regular dodecahedron\na = 3 * ((25 + 10 * (5** (1 / 2))) ** (1 / 2 )) * (e**2)\nwhere:\na --> is the area of the dodecahedron\ne --> is the length of the edge\nreference-->\"Dodecahedron\" Study.com\n<https://study.com/academy/lesson/dodecahedron-volume-surface-area-formulas.html>\n\n:param edge: length of the edge of the dodecahedron\n:type edge: float\n:return: the surface area of the dodecahedron as a float\n\n\nTests:\n>>> dodecahedron_surface_area(5)\n516.1432201766901\n>>> dodecahedron_surface_area(10)\n2064.5728807067603\n>>> dodecahedron_surface_area(-1)\nTraceback (most recent call last):\n  ...\nValueError: Length must be a positive."
-  [edge] (try (when (py-truthy (let [__b1 (py-le edge 0)] (if (py-truthy __b1) __b1 (not (py-truthy (integer? edge)))))) (throw (ex-info (py-str "Length must be a positive.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-mul 3 (py-pow (py-add 25 (py-mul 10 (py-pow 5 (py-div 1 2)))) (py-div 1 2))) (py-pow edge 2))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn dodecahedron-surface-area
+  "Calculates the surface area of a regular dodecahedron:
+  a = 3 * sqrt(25 + 10 * sqrt(5)) * e^2.
+  Reference: \"Dodecahedron\" Study.com
+  <https://study.com/academy/lesson/dodecahedron-volume-surface-area-formulas.html>"
+  [edge]
+  (check-edge edge)
+  (* 3 (Math/sqrt (+ 25 (* 10 (Math/sqrt 5)))) edge edge))
 
-(defn dodecahedron-volume "Calculates the volume of a regular dodecahedron\nv = ((15 + (7 * (5** (1 / 2)))) / 4) * (e**3)\nwhere:\nv --> is the volume of the dodecahedron\ne --> is the length of the edge\nreference-->\"Dodecahedron\" Study.com\n<https://study.com/academy/lesson/dodecahedron-volume-surface-area-formulas.html>\n\n:param edge: length of the edge of the dodecahedron\n:type edge: float\n:return: the volume of the dodecahedron as a float\n\nTests:\n>>> dodecahedron_volume(5)\n957.8898700780791\n>>> dodecahedron_volume(10)\n7663.118960624633\n>>> dodecahedron_volume(-1)\nTraceback (most recent call last):\n  ...\nValueError: Length must be a positive."
-  [edge] (try (when (py-truthy (let [__b1 (py-le edge 0)] (if (py-truthy __b1) __b1 (not (py-truthy (integer? edge)))))) (throw (ex-info (py-str "Length must be a positive.") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-mul (py-div (py-add 15 (py-mul 7 (py-pow 5 (py-div 1 2)))) 4) (py-pow edge 3))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn dodecahedron-volume
+  "Calculates the volume of a regular dodecahedron:
+  v = ((15 + 7 * sqrt(5)) / 4) * e^3.
+  Reference: \"Dodecahedron\" Study.com
+  <https://study.com/academy/lesson/dodecahedron-volume-surface-area-formulas.html>"
+  [edge]
+  (check-edge edge)
+  (* (/ (+ 15 (* 7 (Math/sqrt 5))) 4) edge edge edge))

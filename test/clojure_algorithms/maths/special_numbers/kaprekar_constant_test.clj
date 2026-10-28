@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.kaprekar-constant-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.kaprekar-constant :as sut]))
 
 (deftest test-fn-kaprekar-routine-examples
@@ -26,3 +25,15 @@
   (is (= true (boolean (sut/is-kaprekar-valid 1000))))
   (is (= true (boolean (sut/is-kaprekar-valid 1))))
   (is (= true (boolean (sut/is-kaprekar-valid 6174)))))
+
+(deftest test-error-paths
+  (is (thrown? Exception (sut/kaprekar-routine -1)))
+  (is (thrown? Exception (sut/kaprekar-routine 10000)))
+  (is (thrown? Exception (sut/kaprekar-routine 1.5)))
+  (is (thrown? Exception (sut/kaprekar-constant 3524 0)))
+  (is (thrown? Exception (sut/is-kaprekar-valid -1)))
+  (is (= :ValueError
+         (try (sut/kaprekar-routine -1)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

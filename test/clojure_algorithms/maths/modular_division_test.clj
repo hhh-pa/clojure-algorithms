@@ -1,13 +1,15 @@
 (ns clojure-algorithms.maths.modular-division-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is]]
             [clojure-algorithms.maths.modular-division :as sut]))
 
 (deftest test-fn-modular-division-examples
   (is (approx 2 (sut/modular-division 4 8 5)))
   (is (approx 1 (sut/modular-division 3 8 5)))
-  (is (approx 4 (sut/modular-division 4 11 5))))
+  (is (approx 4 (sut/modular-division 4 11 5)))
+  (is (thrown? clojure.lang.ExceptionInfo (sut/modular-division 4 8 1)))
+  (is (thrown? clojure.lang.ExceptionInfo (sut/modular-division 0 8 5)))
+  (is (thrown? clojure.lang.ExceptionInfo (sut/modular-division 4 8 6))))
 
 (deftest test-fn-invert-modulo-examples
   (is (approx 3 (sut/invert-modulo 2 5)))

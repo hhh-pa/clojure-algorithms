@@ -1,11 +1,51 @@
 (ns clojure-algorithms.machine-learning.rmsprop
-  "RMSprop (Root Mean Square Propagation) optimizer implementation.\n\nRMSprop is an adaptive learning rate optimizer that maintains a moving\naverage of squared gradients to normalize the gradient. It was proposed\nby Geoffrey Hinton in his Coursera course on Neural Networks.\n\nKey idea: Instead of using a fixed learning rate, RMSprop adapts the\nlearning rate for each parameter by dividing by a running average of\nrecent gradient magnitudes.\n\nUpdate rules:\n    v(t) = rho * v(t-1) + (1 - rho) * gradient^2\n    param = param - (learning_rate / sqrt(v(t) + epsilon)) * gradient\n\nWhere:\n    v(t)          = moving average of squared gradients\n    rho           = decay factor (typically 0.9)\n    learning_rate = step size\n    epsilon       = small value to avoid division by zero\n\nReference: https://en.wikipedia.org/wiki/Stochastic_gradient_descent#RMSProp\n\n>>> rmsprop([0.0], [0.1], 0.01)  # doctest: +ELLIPSIS\n[-0.031...]\n>>> rmsprop([1.0, -1.0], [0.5, -0.5], 0.01)  # doctest: +ELLIPSIS\n[0.968..., -0.968...]"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "RMSprop (Root Mean Square Propagation) optimizer.
 
-(declare rmsprop)
+  Maintains a moving average of squared gradients to normalize each update:
+    v(t) = rho * v(t-1) + (1 - rho) * gradient^2
+    param = param - (learning_rate / sqrt(v(t) + epsilon)) * gradient
 
-(defn rmsprop "Perform one step of the RMSprop optimization algorithm.\n\n:param params: Current parameter values to be updated.\n:param gradients: Gradients of the loss with respect to each parameter.\n:param learning_rate: Step size for the update (must be positive).\n:param rho: Decay factor for the moving average (default 0.9).\n:param epsilon: Small constant to avoid division by zero (default 1e-8).\n:param moving_avg: Running average of squared gradients. Updated in\n                   place each call. Initialized to zeros if not provided.\n:return: Updated parameter values after one RMSprop step.\n\n:raises ValueError: If params and gradients have different lengths.\n:raises ValueError: If learning_rate, rho, or epsilon are out of range.\n\n>>> rmsprop([0.0], [0.0], 0.01)\n[0.0]\n>>> rmsprop([1.0], [0.0], 0.01)\n[1.0]\n>>> len(rmsprop([1.0, 2.0, 3.0], [0.1, 0.2, 0.3], 0.01)) == 3\nTrue\n>>> rmsprop([1.0], [0.5], learning_rate=0.01)  # doctest: +ELLIPSIS\n[0.968...]"
-  ([params gradients learning-rate] (rmsprop params gradients learning-rate 0.9 1e-08 nil))
-  ([params gradients learning-rate rho] (rmsprop params gradients learning-rate rho 1e-08 nil))
-  ([params gradients learning-rate rho epsilon] (rmsprop params gradients learning-rate rho epsilon nil))
-  ([params gradients learning-rate rho epsilon moving-avg] (let [moving-avg (atom moving-avg)] (let [grad (atom nil) i (atom nil) msg (atom nil) param (atom nil) updated-params (atom nil)] (try (when (py-truthy (not (py-eq (count params) (count gradients)))) (reset! msg (str "params and gradients must have the same length, got " (py-str (count params)) " and " (py-str (count gradients)))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (py-le learning-rate 0)) (reset! msg (str "learning_rate must be positive, got " (py-str learning-rate))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (not (py-truthy (let [__c1 0.0 __c2 rho __c3 1.0] (and (py-le __c1 __c2) (py-lt __c2 __c3)))))) (reset! msg (str "rho must be in [0, 1), got " (py-str rho))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (py-le epsilon 0)) (reset! msg (str "epsilon must be positive, got " (py-str epsilon))) (throw (ex-info (py-str @msg) {:type :ValueError}))) (when (py-truthy (nil? @moving-avg)) (reset! moving-avg (py-mul [0.0] (count params)))) (reset! updated-params []) (doseq [[__i4 [__i5 __i6]] (py-iter (map-indexed (fn [i x] [(+' i 0) x]) (map vector params gradients)))] (reset! i __i4) (reset! param __i5) (reset! grad __i6) (swap! moving-avg (fn [__c] (py-assoc-in __c [@i] (py-add (py-mul rho (py-get @moving-avg @i)) (py-mul (py-sub 1 rho) (py-pow @grad 2)))))) (reset! param (py-sub @param (py-mul (py-div learning-rate (Math/sqrt (py-add (py-get @moving-avg @i) epsilon))) @grad))) (swap! updated-params conj @param)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @updated-params})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))))
+  Reference: https://en.wikipedia.org/wiki/Stochastic_gradient_descent#RMSProp")
+
+(defn rmsprop
+  "Perform one step of RMSprop, returning the updated parameters.
+
+  moving-avg carries the running average of squared gradients across calls:
+  nil (default) starts from zeros, a sequential is used as the initial value,
+  and an atom is updated in place (matching the upstream Python behaviour).
+
+  Throws ex-info with :type :ValueError when params/gradients differ in
+  length, or when learning-rate, rho or epsilon are out of range."
+  ([params gradients learning-rate]
+   (rmsprop params gradients learning-rate 0.9 1e-8 nil))
+  ([params gradients learning-rate rho]
+   (rmsprop params gradients learning-rate rho 1e-8 nil))
+  ([params gradients learning-rate rho epsilon]
+   (rmsprop params gradients learning-rate rho epsilon nil))
+  ([params gradients learning-rate rho epsilon moving-avg]
+   (when (not= (count params) (count gradients))
+     (throw (ex-info (str "params and gradients must have the same length, got "
+                          (count params) " and " (count gradients))
+                     {:type :ValueError})))
+   (when (<= learning-rate 0)
+     (throw (ex-info (str "learning_rate must be positive, got " learning-rate)
+                     {:type :ValueError})))
+   (when (not (and (<= 0.0 rho) (< rho 1.0)))
+     (throw (ex-info (str "rho must be in [0, 1), got " rho) {:type :ValueError})))
+   (when (<= epsilon 0)
+     (throw (ex-info (str "epsilon must be positive, got " epsilon)
+                     {:type :ValueError})))
+   (let [avg (cond (nil? moving-avg) (vec (repeat (count params) 0.0))
+                   (instance? clojure.lang.Atom moving-avg) @moving-avg
+                   :else (vec moving-avg))
+         [updated new-avg]
+         (reduce (fn [[ps avgs] [i param grad]]
+                   (let [v (+ (* rho (nth avgs i)) (* (- 1 rho) grad grad))
+                         p (- param (* (/ learning-rate (Math/sqrt (+ v epsilon)))
+                                       grad))]
+                     [(conj ps p) (assoc avgs i v)]))
+                 [[] avg]
+                 (map vector (range) params gradients))]
+     (when (instance? clojure.lang.Atom moving-avg)
+       (reset! moving-avg new-avg))
+     updated)))

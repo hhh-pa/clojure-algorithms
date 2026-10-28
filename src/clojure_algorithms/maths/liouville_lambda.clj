@@ -1,8 +1,21 @@
 (ns clojure-algorithms.maths.liouville-lambda
-  "== Liouville Lambda Function ==\nThe Liouville Lambda function, denoted by λ(n)\nand λ(n) is 1 if n is the product of an even number of prime numbers,\nand -1 if it is the product of an odd number of primes.\n\nhttps://en.wikipedia.org/wiki/Liouville_function"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure-algorithms.maths.prime-factors :as m1]))
+  "== Liouville Lambda Function ==
+The Liouville Lambda function, denoted by λ(n):
+λ(n) is 1 if n is the product of an even number of prime numbers,
+and -1 if it is the product of an odd number of primes.
 
-(declare liouville-lambda)
+https://en.wikipedia.org/wiki/Liouville_function"
+  (:require [clojure-algorithms.maths.prime-factors :as prime-factors]))
 
-(defn liouville-lambda "This functions takes an integer number as input.\nreturns 1 if n has even number of prime factors and -1 otherwise.\n>>> liouville_lambda(10)\n1\n>>> liouville_lambda(11)\n-1\n>>> liouville_lambda(0)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive integer\n>>> liouville_lambda(-1)\nTraceback (most recent call last):\n    ...\nValueError: Input must be a positive integer\n>>> liouville_lambda(11.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=11.0] must be an integer"
-  [number] (let [msg (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (throw (ex-info (py-str "Input must be a positive integer") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-mod (count (m1/prime-factors number)) 2)) (py-neg 1) 1)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn liouville-lambda
+  "Return 1 when number has an even number of prime factors, -1 otherwise.
+  Throws :TypeError for non-integers and :ValueError for integers below 1."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (when (< number 1)
+    (throw (ex-info "Input must be a positive integer" {:type :ValueError})))
+  (if (odd? (count (prime-factors/prime-factors number)))
+    -1
+    1))

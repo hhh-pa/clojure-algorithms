@@ -1,27 +1,78 @@
 (ns clojure-algorithms.matrix.pascal-triangle
-  "This implementation demonstrates how to generate the elements of a Pascal's triangle.\nThe element havingva row index of r and column index of c can be derivedvas follows:\ntriangle[r][c] = triangle[r-1][c-1]+triangle[r-1][c]\n\nA Pascal's triangle is a triangular array containing binomial coefficients.\nhttps://en.wikipedia.org/wiki/Pascal%27s_triangle"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Generates Pascal's triangle, a triangular array of binomial coefficients.
+  https://en.wikipedia.org/wiki/Pascal%27s_triangle"
+  (:require [clojure.string :as str]))
 
-(declare print-pascal-triangle generate-pascal-triangle populate-current-row calculate-current-element generate-pascal-triangle-optimized benchmark)
+(defn- check-num-rows
+  "Throws unless num-rows is a non-negative integer."
+  [num-rows]
+  (when-not (integer? num-rows)
+    (throw (ex-info "The input value of 'num_rows' should be 'int'"
+                    {:type :TypeError})))
+  (when (neg? num-rows)
+    (throw (ex-info (str "The input value of 'num_rows' should be greater "
+                         "than or equal to 0")
+                    {:type :ValueError}))))
 
-(defn print-pascal-triangle "Print Pascal's triangle for different number of rows\n>>> print_pascal_triangle(5)\n    1\n   1 1\n  1 2 1\n 1 3 3 1\n1 4 6 4 1"
-  [num-rows] (let [--v (atom nil) col-idx (atom nil) row-idx (atom nil) triangle (atom nil)] (reset! triangle (generate-pascal-triangle num-rows)) (doseq [__i1 (py-iter (range num-rows))] (reset! row-idx __i1) (doseq [__i2 (py-iter (range (py-sub (py-sub num-rows @row-idx) 1)))] (reset! --v __i2) (print " ")) (doseq [__i3 (py-iter (range (py-add @row-idx 1)))] (reset! col-idx __i3) (if (py-truthy (not (py-eq @col-idx @row-idx))) (do (print (str (clojure.string/join " " [(py-str (py-get (py-get @triangle @row-idx) @col-idx))]) " "))) (do (print (str (clojure.string/join " " [(py-str (py-get (py-get @triangle @row-idx) @col-idx))]) ""))))) (print "\n")) nil))
+(defn calculate-current-element
+  "Fills position current-col-idx of current-row from the previous triangle
+  row. Returns the updated row (upstream mutates it in place)."
+  [triangle current-row current-row-idx current-col-idx]
+  (assoc (vec current-row)
+         current-col-idx
+         (+ (get-in triangle [(dec current-row-idx) (dec current-col-idx)])
+            (get-in triangle [(dec current-row-idx) current-col-idx]))))
 
-(defn generate-pascal-triangle "Create Pascal's triangle for different number of rows\n>>> generate_pascal_triangle(0)\n[]\n>>> generate_pascal_triangle(1)\n[[1]]\n>>> generate_pascal_triangle(2)\n[[1], [1, 1]]\n>>> generate_pascal_triangle(3)\n[[1], [1, 1], [1, 2, 1]]\n>>> generate_pascal_triangle(4)\n[[1], [1, 1], [1, 2, 1], [1, 3, 3, 1]]\n>>> generate_pascal_triangle(5)\n[[1], [1, 1], [1, 2, 1], [1, 3, 3, 1], [1, 4, 6, 4, 1]]\n>>> generate_pascal_triangle(-5)\nTraceback (most recent call last):\n    ...\nValueError: The input value of 'num_rows' should be greater than or equal to 0\n>>> generate_pascal_triangle(7.89)\nTraceback (most recent call last):\n    ...\nTypeError: The input value of 'num_rows' should be 'int'"
-  [num-rows] (let [current-row (atom nil) current-row-idx (atom nil) triangle (atom nil)] (try (when (py-truthy (not (py-truthy (integer? num-rows)))) (throw (ex-info (py-str "The input value of 'num_rows' should be 'int'") {:type :TypeError}))) (if (py-truthy (py-eq num-rows 0)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (do (when (py-truthy (py-lt num-rows 0)) (throw (ex-info (py-str "The input value of 'num_rows' should be greater than or equal to 0") {:type :ValueError}))))) (reset! triangle []) (doseq [__i1 (py-iter (range num-rows))] (reset! current-row-idx __i1) (reset! current-row (populate-current-row @triangle @current-row-idx)) (swap! triangle conj @current-row)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @triangle})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn populate-current-row
+  "Builds row current-row-idx of the triangle."
+  [triangle current-row-idx]
+  (let [init (assoc (vec (repeat (inc current-row-idx) -1))
+                    0 1
+                    current-row-idx 1)]
+    (reduce (fn [row c]
+              (calculate-current-element triangle row current-row-idx c))
+            init
+            (range 1 current-row-idx))))
 
-(defn populate-current-row ">>> triangle = [[1]]\n>>> populate_current_row(triangle, 1)\n[1, 1]"
-  [triangle current-row-idx] (let [current-col-idx (atom nil) current-row (atom nil)] (try (reset! current-row (py-mul [(py-neg 1)] (py-add current-row-idx 1))) (let [__d1 (vec [1 1])] (swap! current-row (fn [__c] (py-assoc-in __c [0] (nth __d1 0)))) (swap! current-row (fn [__c] (py-assoc-in __c [(py-neg 1)] (nth __d1 1))))) (doseq [__i2 (py-iter (range 1 current-row-idx))] (reset! current-col-idx __i2) (calculate-current-element triangle @current-row current-row-idx @current-col-idx)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @current-row})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn generate-pascal-triangle
+  "Returns the first num-rows rows of Pascal's triangle."
+  [num-rows]
+  (check-num-rows num-rows)
+  (if (zero? num-rows)
+    []
+    (reduce (fn [triangle idx] (conj triangle (populate-current-row triangle idx)))
+            []
+            (range num-rows))))
 
-(defn calculate-current-element ">>> triangle = [[1], [1, 1]]\n>>> current_row = [1, -1, 1]\n>>> calculate_current_element(triangle, current_row, 2, 1)\n>>> current_row\n[1, 2, 1]"
-  [triangle current-row current-row-idx current-col-idx] (let [current-row (atom current-row)] (let [above-to-left-elt (atom nil) above-to-right-elt (atom nil)] (reset! above-to-left-elt (py-get (py-get triangle (py-sub current-row-idx 1)) (py-sub current-col-idx 1))) (reset! above-to-right-elt (py-get (py-get triangle (py-sub current-row-idx 1)) current-col-idx)) (swap! current-row (fn [__c] (py-assoc-in __c [current-col-idx] (py-add @above-to-left-elt @above-to-right-elt)))) nil)))
+(defn generate-pascal-triangle-optimized
+  "Returns the first num-rows rows of Pascal's triangle, computing only
+  half of each row and mirroring it."
+  [num-rows]
+  (check-num-rows num-rows)
+  (if (zero? num-rows)
+    []
+    (loop [result [[1]] row-index 1]
+      (if (>= row-index num-rows)
+        result
+        (let [temp-row (vec (concat [0] (peek result) [0]))
+              row-length (inc row-index)
+              distinct (+ (quot row-length 2) (mod row-length 2))
+              first-half (mapv (fn [i]
+                                 (+ (nth temp-row (dec i)) (nth temp-row i)))
+                               (range 1 (inc distinct)))
+              second-half (vec (reverse (subvec first-half 0 (quot (inc row-index) 2))))]
+          (recur (conj result (vec (concat first-half second-half)))
+                 (inc row-index)))))))
 
-(defn generate-pascal-triangle-optimized "This function returns a matrix representing the corresponding pascal's triangle\naccording to the given input of number of rows of Pascal's triangle to be generated.\nIt reduces the operations done to generate a row by half\nby eliminating redundant calculations.\n\n:param num_rows: Integer specifying the number of rows in the Pascal's triangle\n:return: 2-D List (matrix) representing the Pascal's triangle\n\nReturn the Pascal's triangle of given rows\n>>> generate_pascal_triangle_optimized(3)\n[[1], [1, 1], [1, 2, 1]]\n>>> generate_pascal_triangle_optimized(1)\n[[1]]\n>>> generate_pascal_triangle_optimized(0)\n[]\n>>> generate_pascal_triangle_optimized(-5)\nTraceback (most recent call last):\n    ...\nValueError: The input value of 'num_rows' should be greater than or equal to 0\n>>> generate_pascal_triangle_optimized(7.89)\nTraceback (most recent call last):\n    ...\nTypeError: The input value of 'num_rows' should be 'int'"
-  [num-rows] (let [distinct-elements (atom nil) result (atom nil) row (atom nil) row-first-half (atom nil) row-index (atom nil) row-length (atom nil) row-second-half (atom nil) temp-row (atom nil)] (try (when (py-truthy (not (py-truthy (integer? num-rows)))) (throw (ex-info (py-str "The input value of 'num_rows' should be 'int'") {:type :TypeError}))) (if (py-truthy (py-eq num-rows 0)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value []}))) (do (when (py-truthy (py-lt num-rows 0)) (throw (ex-info (py-str "The input value of 'num_rows' should be greater than or equal to 0") {:type :ValueError}))))) (reset! result [[1]]) (doseq [__i1 (py-iter (range 1 num-rows))] (reset! row-index __i1) (reset! temp-row (py-add (py-add [0] (py-get @result (py-neg 1))) [0])) (reset! row-length (py-add @row-index 1)) (reset! distinct-elements (reduce +' 0 [(py-floordiv @row-length 2) (py-mod @row-length 2)])) (reset! row-first-half (vec (for [i (py-iter (range 1 (py-add @distinct-elements 1)))] (py-add (py-get @temp-row (py-sub i 1)) (py-get @temp-row i))))) (reset! row-second-half (py-slice @row-first-half nil (py-floordiv (py-add @row-index 1) 2) nil)) (reset! row-second-half (vec (reverse @row-second-half))) (reset! row (py-add @row-first-half @row-second-half)) (swap! result conj @row)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn print-pascal-triangle
+  "Prints the first num-rows rows of Pascal's triangle."
+  [num-rows]
+  (let [triangle (generate-pascal-triangle num-rows)]
+    (doseq [r (range num-rows)]
+      (print (apply str (repeat (- num-rows r 1) " ")))
+      (println (str/join " " (nth triangle r))))))
 
-(defn benchmark "Benchmark multiple functions, with three different length int values."
+(defn benchmark
   [& _args]
   ;; stub: original requires timeit; pure-Clojure port not applicable
   (throw (ex-info "requires timeit" {:type :UnsupportedOperation})))
-
-;; NOTE: benchmark stubbed (timeit)

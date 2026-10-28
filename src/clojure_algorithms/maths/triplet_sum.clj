@@ -1,23 +1,55 @@
 (ns clojure-algorithms.maths.triplet-sum
-  "Given an array of integers and another integer target,\nwe are required to find a triplet from the array such that it's sum is equal to\nthe target."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
-
-(declare make-dataset triplet-sum1 triplet-sum2 solution-times dataset)
+  "Given an array of integers and another integer target,
+  we are required to find a triplet from the array such that it's sum is equal to
+  the target.")
 
 (defn make-dataset
-  [] (let [arr (atom nil) r (atom nil)] (try (reset! arr (vec (for [i (py-iter (range 10))] (py-randint (py-neg 1000) 1000)))) (reset! r (py-randint (py-neg 5000) 5000)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@arr @r]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Returns a random [array target] pair: 10 integers in [-1000, 1000] and a
+  target in [-5000, 5000]."
+  []
+  [(vec (repeatedly 10 #(- (rand-int 2001) 1000)))
+   (- (rand-int 10001) 5000)])
 
-(defn triplet-sum1 "Returns a triplet in the array with sum equal to target,\nelse (0, 0, 0).\n>>> triplet_sum1([13, 29, 7, 23, 5], 35)\n(5, 7, 23)\n>>> triplet_sum1([37, 9, 19, 50, 44], 65)\n(9, 19, 37)\n>>> arr = [6, 47, 27, 1, 15]\n>>> target = 11\n>>> triplet_sum1(arr, target)\n(0, 0, 0)"
-  [arr target] (let [triplet (atom nil)] (try (doseq [__i1 (py-iter (py-permutations arr 3))] (reset! triplet __i1) (when (py-truthy (py-eq (reduce +' 0 @triplet) target)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-list (py-sorted @triplet))})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [0 0 0]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(def dataset
+  "A random dataset shared by the timing comparison."
+  (make-dataset))
 
-(defn triplet-sum2 "Returns a triplet in the array with sum equal to target,\nelse (0, 0, 0).\n>>> triplet_sum2([13, 29, 7, 23, 5], 35)\n(5, 7, 23)\n>>> triplet_sum2([37, 9, 19, 50, 44], 65)\n(9, 19, 37)\n>>> arr = [6, 47, 27, 1, 15]\n>>> target = 11\n>>> triplet_sum2(arr, target)\n(0, 0, 0)"
-  [arr target] (let [arr (atom arr)] (let [i (atom nil) left (atom nil) n (atom nil) right (atom nil)] (try (reset! arr (py-sorted @arr)) (reset! n (count @arr)) (doseq [__i1 (py-iter (range (py-sub @n 1)))] (reset! i __i1) (let [__d2 (vec [(py-add @i 1) (py-sub @n 1)])] (reset! left (nth __d2 0)) (reset! right (nth __d2 1))) (while (py-truthy (py-lt @left @right)) (if (py-truthy (py-eq (py-add (py-add (py-get @arr @i) (py-get @arr @left)) (py-get @arr @right)) target)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-get @arr @i) (py-get @arr @left) (py-get @arr @right)]}))) (do (if (py-truthy (py-lt (py-add (py-add (py-get @arr @i) (py-get @arr @left)) (py-get @arr @right)) target)) (do (swap! left py-add 1)) (do (when (py-truthy (py-gt (py-add (py-add (py-get @arr @i) (py-get @arr @left)) (py-get @arr @right)) target)) (swap! right py-sub 1)))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [0 0 0]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+(defn triplet-sum1
+  "Returns a sorted triplet from `arr` summing to `target`, else [0 0 0].
+  Naive implementation checking every permutation."
+  [arr target]
+  (let [v (vec arr)
+        n (count v)]
+    (or (some (fn [[i j k]]
+                (let [t [(nth v i) (nth v j) (nth v k)]]
+                  (when (== target (+ (t 0) (t 1) (t 2)))
+                    (vec (sort t)))))
+              (for [i (range n) j (range n) k (range n)
+                    :when (and (not= i j) (not= i k) (not= j k))]
+                [i j k]))
+        [0 0 0])))
+
+(defn triplet-sum2
+  "Returns a sorted triplet from `arr` summing to `target`, else [0 0 0].
+  Optimized implementation sorting first, then using two pointers."
+  [arr target]
+  (let [v (vec (sort arr))
+        n (count v)]
+    (or (some (fn [i]
+                (loop [lo (inc i), hi (dec n)]
+                  (when (< lo hi)
+                    (let [s (+ (nth v i) (nth v lo) (nth v hi))]
+                      (cond
+                        (== s target) [(nth v i) (nth v lo) (nth v hi)]
+                        (< s target) (recur (inc lo) hi)
+                        :else (recur lo (dec hi)))))))
+              (range (dec n)))
+        [0 0 0])))
 
 (defn solution-times
+  "Upstream only benchmarks the two implementations with the timeit harness,
+  which has no Clojure equivalent; kept as a stub so the public var still
+  exists."
   [& _args]
-  ;; stub: original requires repeat; pure-Clojure port not applicable
-  (throw (ex-info "requires repeat" {:type :UnsupportedOperation})))
-
-(def dataset (make-dataset))
-
-;; NOTE: solution_times stubbed (repeat)
+  (throw (ex-info "solution-times requires the timeit harness"
+                  {:type :UnsupportedOperation})))

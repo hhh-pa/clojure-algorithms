@@ -1,8 +1,47 @@
 (ns clojure-algorithms.maths.numerical-analysis.nevilles-method
-  "Python program to show how to interpolate and evaluate a polynomial\nusing Neville's method.\nNeville's method evaluates a polynomial that passes through a\ngiven set of x and y points for a particular x value (x0) using the\nNewton polynomial form.\nReference:\n    https://rpubs.com/aaronsc32/nevilles-method-polynomial-interpolation"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Python program to show how to interpolate and evaluate a polynomial
+using Neville's method.
+Neville's method evaluates a polynomial that passes through a
+given set of x and corresponding y points for a particular x value (x0) using the
+Newton polynomial form.
+Reference:
+    https://rpubs.com/aaronsc32/nevilles-method-polynomial-interpolation")
 
-(declare neville-interpolate)
+(defn neville-interpolate
+  "Interpolate and evaluate a polynomial using Neville's method.
 
-(defn neville-interpolate "   Interpolate and evaluate a polynomial using Neville's method.\n   Arguments:\n       x_points, y_points: Iterables of x and corresponding y points through\n        which the polynomial passes.\n       x0: The value of x to evaluate the polynomial for.\n   Return Value: A list of the approximated value and the Neville iterations\n       table respectively.\n>>> import pprint\n>>> neville_interpolate((1,2,3,4,6), (6,7,8,9,11), 5)[0]\n10.0\n>>> pprint.pprint(neville_interpolate((1,2,3,4,6), (6,7,8,9,11), 99)[1])\n[[0, 6, 0, 0, 0],\n [0, 7, 0, 0, 0],\n [0, 8, 104.0, 0, 0],\n [0, 9, 104.0, 104.0, 0],\n [0, 11, 104.0, 104.0, 104.0]]\n>>> neville_interpolate((1,2,3,4,6), (6,7,8,9,11), 99)[0]\n104.0\n>>> neville_interpolate((1,2,3,4,6), (6,7,8,9,11), '')\nTraceback (most recent call last):\n    ...\nTypeError: unsupported operand type(s) for -: 'str' and 'int'"
-  [x-points y-points x0] (let [i (atom nil) j (atom nil) n (atom nil) q (atom nil)] (try (reset! n (count x-points)) (reset! q (vec (for [i (py-iter (range @n))] (py-mul [0] @n)))) (doseq [__i1 (py-iter (range @n))] (reset! i __i1) (swap! q (fn [__c] (py-assoc-in __c [@i 1] (py-get y-points @i))))) (doseq [__i2 (py-iter (range 2 @n))] (reset! i __i2) (doseq [__i3 (py-iter (range @i @n))] (reset! j __i3) (swap! q (fn [__c] (py-assoc-in __c [@j @i] (py-div (py-sub (py-mul (py-sub x0 (py-get x-points (py-add (py-sub @j @i) 1))) (py-get (py-get @q @j) (py-sub @i 1))) (py-mul (py-sub x0 (py-get x-points @j)) (py-get (py-get @q (py-sub @j 1)) (py-sub @i 1)))) (py-sub (py-get x-points @j) (py-get x-points (py-add (py-sub @j @i) 1))))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(py-get (py-get @q (py-sub @n 1)) (py-sub @n 1)) @q]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  x-points and y-points are the points the polynomial passes through, x0 is
+  the value of x to evaluate the polynomial for. Returns a vector of the
+  approximated value and the Neville iterations table."
+  [x-points y-points x0]
+  (when-not (number? x0)
+    (throw (ex-info (str "unsupported operand type(s) for -: '"
+                         (cond (string? x0) "str"
+                               (boolean? x0) "bool"
+                               (nil? x0) "NoneType"
+                               :else (.getSimpleName (class x0)))
+                         "' and 'int'")
+                    {:type :TypeError})))
+  (let [xs (vec x-points)
+        ys (vec y-points)
+        n (count xs)
+        table (reduce (fn [q i] (assoc-in q [i 1] (nth ys i)))
+                      (vec (repeat n (vec (repeat n 0))))
+                      (range n))]
+    (loop [i 2
+           q table]
+      (if (>= i n)
+        [(get-in q [(dec n) (dec n)]) q]
+        (recur (inc i)
+               (loop [j i
+                      q q]
+                 (if (>= j n)
+                   q
+                   (recur (inc j)
+                          (assoc-in q [j i]
+                                    (/ (double (- (* (- x0 (nth xs (- (+ j 1) i)))
+                                                     (get-in q [j (dec i)]))
+                                                  (* (- x0 (nth xs j))
+                                                     (get-in q [(dec j) (dec i)]))))
+                                       (double (- (nth xs j)
+                                                  (nth xs (- (+ j 1) i))))))))))))))

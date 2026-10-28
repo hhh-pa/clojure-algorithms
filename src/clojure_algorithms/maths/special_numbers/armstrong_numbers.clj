@@ -1,21 +1,72 @@
 (ns clojure-algorithms.maths.special-numbers.armstrong-numbers
-  "An Armstrong number is equal to the sum of its own digits each raised to the\npower of the number of digits.\n\nFor example, 370 is an Armstrong number because 3*3*3 + 7*7*7 + 0*0*0 = 370.\n\nArmstrong numbers are also called Narcissistic numbers and Pluperfect numbers.\n\nOn-Line Encyclopedia of Integer Sequences entry: https://oeis.org/A005188"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "An Armstrong number is equal to the sum of its own digits each raised to the
+power of the number of digits.
 
-(declare armstrong-number pluperfect-number narcissistic-number main PASSING FAILING)
+For example, 370 is an Armstrong number because 3*3*3 + 7*7*7 + 0*0*0 = 370.
 
-(defn armstrong-number "Return True if n is an Armstrong number or False if it is not.\n\n>>> all(armstrong_number(n) for n in PASSING)\nTrue\n>>> any(armstrong_number(n) for n in FAILING)\nFalse"
-  [n] (let [number-of-digits (atom nil) rem-v (atom nil) temp (atom nil) total (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? n)))] (if (py-truthy __b1) __b1 (py-lt n 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! total 0) (reset! number-of-digits 0) (reset! temp n) (reset! number-of-digits (count (py-str n))) (reset! temp n) (while (py-truthy (py-gt @temp 0)) (reset! rem-v (py-mod @temp 10)) (swap! total py-add (py-pow @rem-v @number-of-digits)) (swap! temp py-floordiv 10)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq n @total)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Armstrong numbers are also called Narcissistic numbers and Pluperfect numbers.
 
-(defn pluperfect-number "Return True if n is a pluperfect number or False if it is not\n\n>>> all(pluperfect_number(n) for n in PASSING)\nTrue\n>>> any(pluperfect_number(n) for n in FAILING)\nFalse"
-  [n] (let [cnt (atom nil) digit-histogram (atom nil) digit-total (atom nil) i (atom nil) rem-v (atom nil) temp (atom nil) total (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? n)))] (if (py-truthy __b1) __b1 (py-lt n 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! digit-histogram [0 0 0 0 0 0 0 0 0 0]) (reset! digit-total 0) (reset! total 0) (reset! temp n) (while (py-truthy (py-gt @temp 0)) (let [__d2 (vec [(py-floordiv @temp 10) (py-mod @temp 10)])] (reset! temp (nth __d2 0)) (reset! rem-v (nth __d2 1))) (swap! digit-histogram (fn [__c] (py-assoc-in __c [@rem-v] (py-add (py-get-in __c [@rem-v]) 1)))) (swap! digit-total py-add 1)) (doseq [[__i3 __i4] (py-iter (map vector @digit-histogram (range (count @digit-histogram))))] (reset! cnt __i3) (reset! i __i4) (swap! total py-add (py-mul @cnt (py-pow @i @digit-total)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq n @total)})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+On-Line Encyclopedia of Integer Sequences entry: https://oeis.org/A005188"
+  (:require [clojure.string :as str]))
 
-(defn narcissistic-number "Return True if n is a narcissistic number or False if it is not.\n\n>>> all(narcissistic_number(n) for n in PASSING)\nTrue\n>>> any(narcissistic_number(n) for n in FAILING)\nFalse"
-  [n] (let [expo (atom nil)] (try (when (py-truthy (let [__b1 (not (py-truthy (integer? n)))] (if (py-truthy __b1) __b1 (py-lt n 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! expo (count (py-str n))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq n (reduce +' 0 (doall (for [i (py-iter (py-str n))] (py-pow (py-int i nil) @expo)))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(def PASSING
+  [1 153 370 371 1634 24678051 115132219018763992565095597973971522401])
 
-(defn main "Request that user input an integer and tell them if it is Armstrong number."
-  [] (let [num (atom nil)] (reset! num (py-int (py-strip (do (print "Enter an integer to see if it is an Armstrong number: ") (flush) (read-line)) nil :both) nil)) (println (clojure.string/join " " [(py-str (str (py-str @num) " is " (py-str (if (py-truthy (armstrong-number @num)) "" "not ")) "an Armstrong number."))])) (println (clojure.string/join " " [(py-str (str (py-str @num) " is " (py-str (if (py-truthy (narcissistic-number @num)) "" "not ")) "an Armstrong number."))])) (println (clojure.string/join " " [(py-str (str (py-str @num) " is " (py-str (if (py-truthy (pluperfect-number @num)) "" "not ")) "an Armstrong number."))])) nil))
+(def FAILING [-153 -1 0 1.2 200 "A" [] {} nil])
 
-(def PASSING [1 153 370 371 1634 24678051 115132219018763992565095597973971522401])
+(defn- pow-int
+  "Integer power: base**exp computed with exact integer arithmetic."
+  [base exp]
+  (reduce *' 1 (repeat exp base)))
 
-(def FAILING [(py-neg 153) (py-neg 1) 0 1.2 200 "A" [] {} nil])
+(defn- digits-of
+  "Decimal digits of a non-negative integer n as a sequence of ints."
+  [n]
+  (map #(Character/digit ^char % 10) (str n)))
+
+(defn armstrong-number
+  "Returns true if n is an Armstrong number, i.e. it equals the sum of its own
+digits each raised to the power of the number of digits. Returns false for
+non-integers and integers below 1."
+  [n]
+  (if (or (not (integer? n)) (< n 1))
+    false
+    (let [digits (digits-of n)
+          total (reduce +' 0 (map #(pow-int % (count digits)) digits))]
+      (= n total))))
+
+(defn pluperfect-number
+  "Returns true if n is a pluperfect number (same as an Armstrong number),
+computed via a histogram of its digits. Returns false for non-integers and
+integers below 1."
+  [n]
+  (if (or (not (integer? n)) (< n 1))
+    false
+    (let [s (str n)
+          digit-total (count s)
+          total (reduce +' 0
+                        (map (fn [[ch cnt]]
+                               (*' cnt (pow-int (Character/digit ^char ch 10)
+                                                digit-total)))
+                             (frequencies s)))]
+      (= n total))))
+
+(defn narcissistic-number
+  "Returns true if n is a narcissistic number (same as an Armstrong number).
+Returns false for non-integers and integers below 1."
+  [n]
+  (if (or (not (integer? n)) (< n 1))
+    false
+    (let [s (str n)
+          expo (count s)]
+      (= n (reduce +' 0 (map #(pow-int (Character/digit ^char % 10) expo) s))))))
+
+(defn main
+  "Request that user input an integer and tell them if it is Armstrong number."
+  []
+  (print "Enter an integer to see if it is an Armstrong number: ")
+  (flush)
+  (let [num (Integer/parseInt (str/trim (read-line)))]
+    (doseq [check [armstrong-number narcissistic-number pluperfect-number]]
+      (println (str num " is " (if (check num) "" "not ")
+                    "an Armstrong number.")))))

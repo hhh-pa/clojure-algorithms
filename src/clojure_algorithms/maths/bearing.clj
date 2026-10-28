@@ -1,8 +1,47 @@
 (ns clojure-algorithms.maths.bearing
-  "Initial bearing (forward azimuth) between two geographic points.\n\nPoints are (latitude, longitude) in decimal degrees. Returns bearing in degrees\nclockwise from true north in the range [0, 360).\n\nReference: https://en.wikipedia.org/wiki/Bearing_(navigation)"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Initial bearing (forward azimuth) between two geographic points.
 
-(declare initial-bearing)
+Points are (latitude, longitude) in decimal degrees. Returns bearing in degrees
+clockwise from true north in the range [0, 360).
 
-(defn initial-bearing "Compute the initial bearing from `origin` to `destination`.\n\nParameters\n----------\norigin, destination : tuple[float, float]\n    (latitude, longitude) in decimal degrees.\n\nReturns\n-------\nfloat\n    Initial bearing in degrees, clockwise from north in [0, 360).\n\nRaises\n------\nTypeError\n    If inputs are not 2-tuples of numbers.\nValueError\n    If the two points are identical (bearing undefined).\n\nExamples\n>>> round(initial_bearing((50.066389, -5.714722), (58.643889, -3.07)), 3)\n9.12\n>>> round(initial_bearing((0.0, 0.0), (1.0, 1.0)), 3)\n44.996\n>>> initial_bearing((0.0, 0.0), (0.0, 0.0))\nTraceback (most recent call last):\n...\nValueError: origin and destination are the same point; bearing is undefined"
-  [origin destination] (let [bearing (atom nil) delta-lambda (atom nil) lat1 (atom nil) lat2 (atom nil) lon1 (atom nil) lon2 (atom nil) phi1 (atom nil) phi2 (atom nil) theta (atom nil) x (atom nil) y (atom nil)] (try (try (let [__d1 (vec [(py-float (py-get origin 0)) (py-float (py-get origin 1))])] (reset! lat1 (nth __d1 0)) (reset! lon1 (nth __d1 1))) (let [__d2 (vec [(py-float (py-get destination 0)) (py-float (py-get destination 1))])] (reset! lat2 (nth __d2 0)) (reset! lon2 (nth __d2 1))) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond true (do (let [exc __eh] (throw (ex-info (py-str "origin and destination must be 2-tuples of numeric values") {:type :TypeError})))) :else (throw __eh)))))) (when (py-truthy (let [__b3 (py-eq @lat1 @lat2)] (if (py-truthy __b3) (py-eq @lon1 @lon2) __b3))) (throw (ex-info (py-str "origin and destination are the same point; bearing is undefined") {:type :ValueError}))) (reset! phi1 (Math/toRadians @lat1)) (reset! phi2 (Math/toRadians @lat2)) (reset! delta-lambda (Math/toRadians (py-sub @lon2 @lon1))) (reset! x (py-mul (Math/sin @delta-lambda) (Math/cos @phi2))) (reset! y (py-sub (py-mul (Math/cos @phi1) (Math/sin @phi2)) (py-mul (py-mul (Math/sin @phi1) (Math/cos @phi2)) (Math/cos @delta-lambda)))) (reset! theta (Math/atan2 @x @y)) (reset! bearing (py-mod (py-add (Math/toDegrees @theta) 360.0) 360.0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @bearing})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+Reference: https://en.wikipedia.org/wiki/Bearing_(navigation)")
+
+(defn- as-float
+  "Coerce v to a double the way Python's float() does for numbers and strings."
+  [v]
+  (cond
+    (number? v) (double v)
+    (string? v) (Double/parseDouble v)
+    :else (throw (IllegalArgumentException. "not numeric"))))
+
+(defn- parse-point
+  "Parse a 2-element (latitude, longitude) point into [lat lon] doubles."
+  [point]
+  [(as-float (nth point 0)) (as-float (nth point 1))])
+
+(defn initial-bearing
+  "Compute the initial bearing from `origin` to `destination`, each a
+  2-element (latitude, longitude) sequential in decimal degrees.
+  Returns the bearing in degrees, clockwise from north in [0, 360).
+  Throws :TypeError if inputs are not 2-tuples of numeric values, and
+  :ValueError if the two points are identical (bearing undefined)."
+  [origin destination]
+  (let [[lat1 lon1] (try (parse-point origin)
+                         (catch Exception e
+                           (throw (ex-info "origin and destination must be 2-tuples of numeric values"
+                                           {:type :TypeError}))))
+        [lat2 lon2] (try (parse-point destination)
+                         (catch Exception e
+                           (throw (ex-info "origin and destination must be 2-tuples of numeric values"
+                                           {:type :TypeError}))))]
+    (when (and (= lat1 lat2) (= lon1 lon2))
+      (throw (ex-info "origin and destination are the same point; bearing is undefined"
+                      {:type :ValueError})))
+    (let [phi1 (Math/toRadians lat1)
+          phi2 (Math/toRadians lat2)
+          delta-lambda (Math/toRadians (- lon2 lon1))
+          x (* (Math/sin delta-lambda) (Math/cos phi2))
+          y (- (* (Math/cos phi1) (Math/sin phi2))
+               (* (Math/sin phi1) (Math/cos phi2) (Math/cos delta-lambda)))
+          theta (Math/atan2 x y)]
+      (mod (+ (Math/toDegrees theta) 360.0) 360.0))))

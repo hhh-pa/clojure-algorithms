@@ -1,8 +1,30 @@
 (ns clojure-algorithms.maths.special-numbers.pronic-number
-  "== Pronic Number ==\nA number n is said to be a Proic number if\nthere exists an integer m such that n = m * (m + 1)\n\nExamples of Proic Numbers: 0, 2, 6, 12, 20, 30, 42, 56, 72, 90, 110 ...\nhttps://en.wikipedia.org/wiki/Pronic_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Pronic Number ==
+A number n is said to be a Proic number if
+there exists an integer m such that n = m * (m + 1)
 
-(declare is-pronic)
+Examples of Proic Numbers: 0, 2, 6, 12, 20, 30, 42, 56, 72, 90, 110 ...
+https://en.wikipedia.org/wiki/Pronic_number")
 
-(defn is-pronic "# doctest: +NORMALIZE_WHITESPACE\nThis functions takes an integer number as input.\nreturns True if the number is pronic.\n>>> is_pronic(-1)\nFalse\n>>> is_pronic(0)\nTrue\n>>> is_pronic(2)\nTrue\n>>> is_pronic(5)\nFalse\n>>> is_pronic(6)\nTrue\n>>> is_pronic(8)\nFalse\n>>> is_pronic(30)\nTrue\n>>> is_pronic(32)\nFalse\n>>> is_pronic(2147441940)\nTrue\n>>> is_pronic(9223372033963249500)\nTrue\n>>> is_pronic(6.0)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=6.0] must be an integer"
-  [number] (let [msg (atom nil) number-sqrt (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (let [__b1 (py-lt number 0)] (if (py-truthy __b1) __b1 (py-eq (py-mod number 2) 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (reset! number-sqrt (py-int (py-pow number 0.5) nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-eq number (py-mul @number-sqrt (py-add @number-sqrt 1)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- isqrt
+  "Integer square root of n: the greatest integer r with r*r <= n.
+Assumes n is a non-negative integer."
+  [n]
+  (loop [x (long (Math/sqrt (double n)))]
+    (cond
+      (> (*' x x) n) (recur (dec x))
+      (<= (*' (inc x) (inc x)) n) (recur (inc x))
+      :else x)))
+
+(defn is-pronic
+  "Returns true if `number` is pronic, i.e. some integer m exists with
+n = m * (m + 1). Returns false for negative and odd integers. Throws an
+ex-info with :type :TypeError when `number` is not an integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (if (or (neg? number) (odd? number))
+    false
+    (let [root (isqrt number)]
+      (= number (*' root (inc root))))))

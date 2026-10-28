@@ -1,11 +1,40 @@
 (ns clojure-algorithms.maths.series.geometric
-  "Geometric Mean\nReference :  https://en.wikipedia.org/wiki/Geometric_mean\n\nGeometric series\nReference: https://en.wikipedia.org/wiki/Geometric_series"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Geometric Mean
+Reference :  https://en.wikipedia.org/wiki/Geometric_mean
 
-(declare is-geometric-series geometric-mean)
+Geometric series
+Reference: https://en.wikipedia.org/wiki/Geometric_series")
 
-(defn is-geometric-series "checking whether the input series is geometric series or not\n>>> is_geometric_series([2, 4, 8])\nTrue\n>>> is_geometric_series([3, 6, 12, 24])\nTrue\n>>> is_geometric_series([1, 2, 3])\nFalse\n>>> is_geometric_series([0, 0, 3])\nFalse\n>>> is_geometric_series([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list\n>>> is_geometric_series(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [2, 4, 8]"
-  [series] (let [common-ratio (atom nil) index (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [2, 4, 8]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (try (reset! common-ratio (py-div (py-get series 1) (py-get series 0))) (doseq [__i1 (py-iter (range (py-sub (count series) 1)))] (reset! index __i1) (when (py-truthy (not (py-eq (py-div (py-get series (py-add @index 1)) (py-get series @index)) @common-ratio))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})))) (catch clojure.lang.ExceptionInfo __eh (if (:__control__ (ex-data __eh)) (throw __eh) (let [__t (:type (ex-data __eh))] (cond (contains? #{:ZeroDivisionError} __t) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) :else (throw __eh)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn is-geometric-series
+  "Return true when series is a geometric series.
 
-(defn geometric-mean "return the geometric mean of series\n\n>>> geometric_mean([2, 4, 8])\n3.9999999999999996\n>>> geometric_mean([3, 6, 12, 24])\n8.48528137423857\n>>> geometric_mean([4, 8, 16])\n7.999999999999999\n>>> geometric_mean(4)\nTraceback (most recent call last):\n    ...\nValueError: Input series is not valid, valid series - [2, 4, 8]\n>>> geometric_mean([1, 2, 3])\n1.8171205928321397\n>>> geometric_mean([0, 2, 3])\n0.0\n>>> geometric_mean([])\nTraceback (most recent call last):\n    ...\nValueError: Input list must be a non empty list"
-  [series] (let [answer (atom nil) value (atom nil)] (try (when (py-truthy (not (py-truthy (sequential? series)))) (throw (ex-info (py-str "Input series is not valid, valid series - [2, 4, 8]") {:type :ValueError}))) (when (py-truthy (py-eq (count series) 0)) (throw (ex-info (py-str "Input list must be a non empty list") {:type :ValueError}))) (reset! answer 1) (doseq [__i1 (py-iter series)] (reset! value __i1) (swap! answer py-mul @value)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (py-pow @answer (py-div 1 (count series)))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Throws ex-info with :type :ValueError when series is not sequential or is
+  empty."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [2, 4, 8]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (if (= 1 (count series))
+    true
+    (try
+      (let [common-ratio (/ (nth series 1) (nth series 0))]
+        (every? (fn [index]
+                  (= (/ (nth series (inc index)) (nth series index))
+                     common-ratio))
+                (range (dec (count series)))))
+      (catch ArithmeticException _ false))))
+
+(defn geometric-mean
+  "Return the geometric mean of series.
+
+  Throws ex-info with :type :ValueError when series is not sequential or is
+  empty."
+  [series]
+  (when-not (sequential? series)
+    (throw (ex-info "Input series is not valid, valid series - [2, 4, 8]"
+                    {:type :ValueError})))
+  (when (empty? series)
+    (throw (ex-info "Input list must be a non empty list" {:type :ValueError})))
+  (Math/pow (double (reduce *' series)) (/ 1.0 (count series))))

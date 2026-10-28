@@ -1,10 +1,29 @@
 (ns clojure-algorithms.maths.series.logarithmic-series
-  "This is an implementation of logarithmic series in Python.\nReference: https://math.stackexchange.com/questions/3973429/what-is-a-logarithmic-series"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "This is an implementation of logarithmic series in Python.
+Reference: https://math.stackexchange.com/questions/3973429/what-is-a-logarithmic-series"
+  (:require [clojure.string :as str]))
 
-(declare logarithmic-series)
+(defn logarithmic-series
+  "Return the logarithmic series for x-value (log x) up to n-terms terms.
 
-(defn logarithmic-series "Returns the logarithmic series for a number x (log x) upto n terms.\n\nParameters:\n    x_value: a floating point number for log(x)\n    n_terms: number of terms to be computed\n    expand: Set this flag to get the terms as real numbers,\n            unset for unsolved expressions\n\nExamples:\n    >>> logarithmic_series(3)\n    ['(2^1)/1', '-(2^2)/2', '(2^3)/3', '-(2^4)/4', '(2^5)/5']\n\n    >>> logarithmic_series(-3)\n    ['-(4^1)/1', '(4^2)/2', '-(4^3)/3', '(4^4)/4', '-(4^5)/5']\n\n    >>> logarithmic_series(3, 6)\n    ['(2^1)/1', '-(2^2)/2', '(2^3)/3', '-(2^4)/4', '(2^5)/5', '-(2^6)/6']\n\n    >>> logarithmic_series(3, expand=True)\n    [2.0, -2.0, 2.6666666666666665, -4.0, 6.4]"
+  With expand false (default) terms are unsolved expressions, with expand
+  true they are real numbers."
   ([x-value] (logarithmic-series x-value 5 false))
   ([x-value n-terms] (logarithmic-series x-value n-terms false))
-  ([x-value n-terms expand] (let [--v (atom nil) n (atom nil) n-times-x-minus-1 (atom nil) series (atom nil) sign (atom nil) term (atom nil)] (try (reset! n-times-x-minus-1 (py-sub x-value 1)) (reset! n 1) (reset! series []) (doseq [__i1 (py-iter (range n-terms))] (reset! --v __i1) (if (py-truthy expand) (do (swap! series conj (py-mul (py-pow (py-neg 1) (py-add @n 1)) (py-div @n-times-x-minus-1 @n))) (swap! n-times-x-minus-1 py-mul (py-sub x-value 1))) (do (reset! sign (if (py-truthy (py-eq (py-pow (py-neg 1) (py-add @n 1)) (py-neg 1))) "-" "")) (reset! term (py-add (py-add (py-add (py-add (py-add (py-add (py-add @sign "(") (py-str (py-sub x-value 1))) "^") (py-str @n)) ")") "/") (py-str @n))) (if (py-truthy (py-startswith @term "-(-")) (do (reset! term (py-add "(" (py-slice @term 3 nil nil)))) (do (when (py-truthy (py-startswith @term "(-")) (reset! term (py-add "-(" (py-slice @term 2 nil nil)))))) (swap! series conj @term))) (swap! n py-add 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @series})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([x-value n-terms expand]
+   (if expand
+     (loop [n 1
+            acc (double (- x-value 1))
+            out []]
+       (if (> n n-terms)
+         out
+         (recur (inc n)
+                (* acc (- x-value 1))
+                (conj out (* (if (odd? n) 1.0 -1.0) (/ acc n))))))
+     (mapv (fn [n]
+             (let [term (str (if (odd? n) "" "-")
+                             "(" (- x-value 1) "^" n ")/" n)]
+               (cond (str/starts-with? term "-(-") (str "(" (subs term 3))
+                     (str/starts-with? term "(-") (str "-(" (subs term 2))
+                     :else term)))
+           (range 1 (inc n-terms))))))

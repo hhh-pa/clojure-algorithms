@@ -1,11 +1,27 @@
 (ns clojure-algorithms.maths.double-factorial
-  "Port of maths/double_factorial.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Double factorial. Theory: https://en.wikipedia.org/wiki/Double_factorial")
 
-(declare double-factorial-recursive double-factorial-iterative)
+(defn- check-double-factorial-arg
+  "Validates the argument for the double factorial functions."
+  [fname n]
+  (when-not (integer? n)
+    (throw (ex-info (str fname "() only accepts integral values")
+                    {:type :ValueError})))
+  (when (neg? n)
+    (throw (ex-info (str fname "() not defined for negative values")
+                    {:type :ValueError}))))
 
-(defn double-factorial-recursive "Compute double factorial using recursive method.\nRecursion can be costly for large numbers.\n\nTo learn about the theory behind this algorithm:\nhttps://en.wikipedia.org/wiki/Double_factorial\n\n>>> from math import prod\n>>> all(double_factorial_recursive(i) == prod(range(i, 0, -2)) for i in range(20))\nTrue\n>>> double_factorial_recursive(0.1)\nTraceback (most recent call last):\n    ...\nValueError: double_factorial_recursive() only accepts integral values\n>>> double_factorial_recursive(-1)\nTraceback (most recent call last):\n    ...\nValueError: double_factorial_recursive() not defined for negative values"
-  [n] (try (when (py-truthy (not (py-truthy (integer? n)))) (throw (ex-info (py-str "double_factorial_recursive() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt n 0)) (throw (ex-info (py-str "double_factorial_recursive() not defined for negative values") {:type :ValueError}))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-le n 1)) 1 (py-mul n (double-factorial-recursive (py-sub n 2))))})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
+(defn double-factorial-recursive
+  "Compute double factorial using a recursive method.
+Recursion can be costly for large numbers."
+  [n]
+  (check-double-factorial-arg "double_factorial_recursive" n)
+  (if (<= n 1)
+    1
+    (*' n (double-factorial-recursive (- n 2)))))
 
-(defn double-factorial-iterative "Compute double factorial using iterative method.\n\nTo learn about the theory behind this algorithm:\nhttps://en.wikipedia.org/wiki/Double_factorial\n\n>>> from math import prod\n>>> all(double_factorial_iterative(i) == prod(range(i, 0, -2)) for i in range(20))\nTrue\n>>> double_factorial_iterative(0.1)\nTraceback (most recent call last):\n    ...\nValueError: double_factorial_iterative() only accepts integral values\n>>> double_factorial_iterative(-1)\nTraceback (most recent call last):\n    ...\nValueError: double_factorial_iterative() not defined for negative values"
-  [num] (let [i (atom nil) value (atom nil)] (try (when (py-truthy (not (py-truthy (integer? num)))) (throw (ex-info (py-str "double_factorial_iterative() only accepts integral values") {:type :ValueError}))) (when (py-truthy (py-lt num 0)) (throw (ex-info (py-str "double_factorial_iterative() not defined for negative values") {:type :ValueError}))) (reset! value 1) (doseq [__i1 (py-iter (range num 0 (py-neg 2)))] (reset! i __i1) (swap! value py-mul @i)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @value})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn double-factorial-iterative
+  "Compute double factorial using an iterative method."
+  [num]
+  (check-double-factorial-arg "double_factorial_iterative" num)
+  (reduce *' 1 (range num 0 -2)))

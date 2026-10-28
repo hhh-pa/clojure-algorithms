@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.hexagonal-number-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.hexagonal-number :as sut]))
 
 (deftest test-fn-hexagonal-examples
@@ -11,3 +10,19 @@
   (is (thrown? Exception (sut/hexagonal 0)))
   (is (thrown? Exception (sut/hexagonal -1)))
   (is (thrown? Exception (sut/hexagonal 11.0))))
+
+(deftest test-hexagonal-first
+  (is (approx 1 (sut/hexagonal 1)))
+  (is (approx 6 (sut/hexagonal 2))))
+
+(deftest test-error-types
+  (is (= :ValueError
+         (try (sut/hexagonal 0)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e))))))
+  (is (= :TypeError
+         (try (sut/hexagonal 11.0)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

@@ -1,18 +1,60 @@
 (ns clojure-algorithms.maths.gamma
-  "Gamma function is a very useful tool in math and physics.\nIt helps calculating complex integral in a convenient way.\nfor more info: https://en.wikipedia.org/wiki/Gamma_function\nIn mathematics, the gamma function is one commonly\nused extension of the factorial function to complex numbers.\nThe gamma function is defined for all complex numbers except\nthe non-positive integers\nPython's Standard Library math.gamma() function overflows around gamma(171.624)."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Gamma function is a very useful tool in math and physics.
+  It helps calculating complex integral in a convenient way.
+  for more info: https://en.wikipedia.org/wiki/Gamma_function
+  In mathematics, the gamma function is one commonly
+  used extension of the factorial function to complex numbers.
+  The gamma function is defined for all complex numbers except
+  the non-positive integers")
 
-(declare gamma-iterative integrand gamma-recursive)
+(def ^:private lanczos-coefficients
+  "Lanczos approximation coefficients (g=7)."
+  [0.9999999999998099 676.5203681218851 -1259.1392167224028
+   771.32342877765313 -176.61502916214059 12.507343278686905
+   -0.13857109526572012 9.984369578019572e-6 1.5056327351493116e-7])
 
-(defn gamma-iterative "Calculates the value of Gamma function of num\nwhere num is either an integer (1, 2, 3..) or a half-integer (0.5, 1.5, 2.5 ...).\n\n>>> gamma_iterative(-1)\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_iterative(0)\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_iterative(9)\n40320.0\n>>> from math import gamma as math_gamma\n>>> all(.99999999 < gamma_iterative(i) / math_gamma(i) <= 1.000000001\n...     for i in range(1, 50))\nTrue\n>>> gamma_iterative(-1)/math_gamma(-1) <= 1.000000001\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_iterative(3.3) - math_gamma(3.3) <= 0.00000001\nTrue"
-  [& _args]
-  ;; stub: original requires inf,quad; pure-Clojure port not applicable
-  (throw (ex-info "requires inf,quad" {:type :UnsupportedOperation})))
+(defn- lanczos-gamma
+  "Gamma function for positive `z` via the Lanczos approximation
+  (relative error ~1e-10)."
+  [z]
+  (if (< z 0.5)
+    (/ Math/PI (* (Math/sin (* Math/PI z)) (lanczos-gamma (- 1 z))))
+    (let [z (dec z)
+          x (+ (first lanczos-coefficients)
+               (reduce + (map-indexed (fn [i c] (/ c (+ z i 1)))
+                                      (rest lanczos-coefficients))))
+          t (+ z 7.5)]
+      (* (Math/sqrt (* 2 Math/PI))
+         (Math/pow t (+ z 0.5))
+         (Math/exp (- t))
+         x))))
+
+(defn gamma-iterative
+  "Calculates the value of the Gamma function of `num` for positive `num`.
+  Upstream uses scipy numerical quadrature; this port uses the Lanczos
+  approximation instead since scipy is unavailable in stdlib-only Clojure."
+  [num]
+  (when (<= num 0)
+    (throw (ex-info "math domain error" {:type :ValueError})))
+  (lanczos-gamma (double num)))
 
 (defn integrand
-  [x z] (py-mul (py-pow x (py-sub z 1)) (Math/exp (py-neg x))))
+  "Integrand x^(z-1) * e^(-x) of the Gamma function integral definition."
+  [x z]
+  (* (Math/pow x (- z 1)) (Math/exp (- x))))
 
-(defn gamma-recursive "Calculates the value of Gamma function of num\nwhere num is either an integer (1, 2, 3..) or a half-integer (0.5, 1.5, 2.5 ...).\nImplemented using recursion\nExamples:\n>>> from math import isclose, gamma as math_gamma\n>>> gamma_recursive(0.5)\n1.7724538509055159\n>>> gamma_recursive(1)\n1.0\n>>> gamma_recursive(2)\n1.0\n>>> gamma_recursive(3.5)\n3.3233509704478426\n>>> gamma_recursive(171.5)\n9.483367566824795e+307\n>>> all(isclose(gamma_recursive(num), math_gamma(num))\n...     for num in (0.5, 2, 3.5, 171.5))\nTrue\n>>> gamma_recursive(0)\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_recursive(-1.1)\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_recursive(-4)\nTraceback (most recent call last):\n    ...\nValueError: math domain error\n>>> gamma_recursive(172)\nTraceback (most recent call last):\n    ...\nOverflowError: math range error\n>>> gamma_recursive(1.1)\nTraceback (most recent call last):\n    ...\nNotImplementedError: num must be an integer or a half-integer"
-  [num] (try (when (py-truthy (py-le num 0)) (throw (ex-info (py-str "math domain error") {:type :ValueError}))) (when (py-truthy (py-gt num 171.5)) (throw (ex-info (py-str "math range error") {:type :OverflowError}))) (when (py-truthy (not (py-in (py-sub num (py-int num nil)) [0 0.5]))) (throw (ex-info (py-str "num must be an integer or a half-integer") {:type :NotImplementedError}))) (if (py-truthy (py-eq num 0.5)) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (Math/sqrt Math/PI)}))) (do (throw (ex-info "__return__" {:__control__ true :__return__ true :value (if (py-truthy (py-eq num 1)) 1.0 (py-mul (py-sub num 1) (gamma-recursive (py-sub num 1))))})))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-;; NOTE: gamma_iterative stubbed (inf,quad)
+(defn gamma-recursive
+  "Calculates the value of the Gamma function of `num` using recursion,
+  where `num` is either a positive integer or half-integer."
+  [num]
+  (cond
+    (<= num 0)
+    (throw (ex-info "math domain error" {:type :ValueError}))
+    (> num 171.5)
+    (throw (ex-info "math range error" {:type :OverflowError}))
+    (not (or (zero? (- num (long num))) (== (- num (long num)) 0.5)))
+    (throw (ex-info "num must be an integer or a half-integer"
+                    {:type :NotImplementedError}))
+    (== num 0.5) (Math/sqrt Math/PI)
+    (== num 1) 1.0
+    :else (* (dec num) (gamma-recursive (dec num)))))

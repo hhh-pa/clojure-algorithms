@@ -1,23 +1,68 @@
 (ns clojure-algorithms.maths.modular-division
-  "Port of maths/modular_division.py"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Port of maths/modular_division.py.")
 
-(declare modular-division invert-modulo modular-division2 extended-gcd extended-euclid greatest-common-divisor)
+(defn greatest-common-divisor
+  "Euclid's Lemma: d divides a and b, if and only if d divides a-b and b.
+  Euclid's Algorithm."
+  [a b]
+  (loop [a a b b]
+    (let [[a b] (if (< a b) [b a] [a b])]
+      (if (zero? (mod a b))
+        b
+        (recur b (mod a b))))))
 
-(defn modular-division "Modular Division :\nAn efficient algorithm for dividing b by a modulo n.\n\nGCD ( Greatest Common Divisor ) or HCF ( Highest Common Factor )\n\nGiven three integers a, b, and n, such that gcd(a,n)=1 and n>1, the algorithm should\nreturn an integer x such that 0≤x≤n-1, and  b/a=x(modn) (that is, b=ax(modn)).\n\nTheorem:\na has a multiplicative inverse modulo n iff gcd(a,n) = 1\n\n\nThis find x = b*a^(-1) mod n\nUses ExtendedEuclid to find the inverse of a\n\n>>> modular_division(4,8,5)\n2\n\n>>> modular_division(3,8,5)\n1\n\n>>> modular_division(4, 11, 5)\n4"
-  [a b n] (let [-d (atom nil) -t (atom nil) s (atom nil) x (atom nil)] (try (when (py-truthy (py-le n 1)) (throw (ex-info (py-str "Modulus n must be greater than 1") {:type :ValueError}))) (when (py-truthy (py-le a 0)) (throw (ex-info (py-str "Divisor a must be a positive integer") {:type :ValueError}))) (when (py-truthy (not (py-eq (greatest-common-divisor a n) 1))) (throw (ex-info (py-str "a and n must be coprime (gcd(a, n) = 1)") {:type :ValueError}))) (let [__d1 (vec (extended-gcd n a))] (reset! -d (nth __d1 0)) (reset! -t (nth __d1 1)) (reset! s (nth __d1 2))) (reset! x (py-mod (py-mul b @s) n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @x})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn extended-gcd
+  "Extended Euclid's Algorithm: if d divides a and b and
+  d = a*x + b*y for integers x and y, then d = gcd(a,b).
+  Returns [d x y]."
+  [a b]
+  (assert (>= a 0))
+  (assert (>= b 0))
+  (let [[d x y] (if (zero? b)
+                  [a 1 0]
+                  (let [[d p q] (extended-gcd b (mod a b))]
+                    [d q (- p (* q (quot a b)))]))]
+    (assert (zero? (mod a d)))
+    (assert (zero? (mod b d)))
+    (assert (= d (+ (* a x) (* b y))))
+    [d x y]))
 
-(defn invert-modulo "This function find the inverses of a i.e., a^(-1)\n\n>>> invert_modulo(2, 5)\n3\n\n>>> invert_modulo(8,7)\n1"
-  [a n] (let [-x (atom nil) b (atom nil)] (try (let [__d1 (vec (extended-euclid a n))] (reset! b (nth __d1 0)) (reset! -x (nth __d1 1))) (when (py-truthy (py-lt @b 0)) (reset! b (py-mod (py-add (py-mod @b n) n) n))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @b})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn extended-euclid
+  "Extended Euclid. Returns [x y] such that a*x + b*y = gcd(a,b)."
+  [a b]
+  (if (zero? b)
+    [1 0]
+    (let [[x y] (extended-euclid b (mod a b))
+          k (quot a b)]
+      [y (- x (* k y))])))
 
-(defn modular-division2 "This function used the above inversion of a to find x = (b*a^(-1))mod n\n\n>>> modular_division2(4,8,5)\n2\n\n>>> modular_division2(3,8,5)\n1\n\n>>> modular_division2(4, 11, 5)\n4"
-  [a b n] (let [s (atom nil) x (atom nil)] (try (reset! s (invert-modulo a n)) (reset! x (py-mod (py-mul b @s) n)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @x})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn invert-modulo
+  "Finds the inverse of a, i.e. a^(-1), modulo n."
+  [a n]
+  (let [[b _x] (extended-euclid a n)]
+    (if (neg? b)
+      (mod (+ (mod b n) n) n)
+      b)))
 
-(defn extended-gcd "Extended Euclid's Algorithm : If d divides a and b and d = a*x + b*y for integers x\nand y, then d = gcd(a,b)\n>>> extended_gcd(10, 6)\n(2, -1, 2)\n\n>>> extended_gcd(7, 5)\n(1, -2, 3)\n\n** extended_gcd function is used when d = gcd(a,b) is required in output"
-  [a b] (let [d (atom nil) p (atom nil) q (atom nil) x (atom nil) y (atom nil)] (try (assert (py-truthy (py-ge a 0))) (assert (py-truthy (py-ge b 0))) (if (py-truthy (py-eq b 0)) (do (let [__d1 (vec [a 1 0])] (reset! d (nth __d1 0)) (reset! x (nth __d1 1)) (reset! y (nth __d1 2)))) (do (let [__d2 (vec (extended-gcd b (py-mod a b)))] (reset! d (nth __d2 0)) (reset! p (nth __d2 1)) (reset! q (nth __d2 2))) (reset! x @q) (reset! y (py-sub @p (py-mul @q (py-floordiv a b)))))) (assert (py-truthy (py-eq (py-mod a @d) 0))) (assert (py-truthy (py-eq (py-mod b @d) 0))) (assert (py-truthy (py-eq @d (py-add (py-mul a @x) (py-mul b @y))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@d @x @y]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn modular-division
+  "Modular Division: an efficient algorithm for dividing b by a modulo n.
 
-(defn extended-euclid "Extended Euclid\n>>> extended_euclid(10, 6)\n(-1, 2)\n\n>>> extended_euclid(7, 5)\n(-2, 3)"
-  [a b] (let [k (atom nil) x (atom nil) y (atom nil)] (try (when (py-truthy (py-eq b 0)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [1 0]}))) (let [__d1 (vec (extended-euclid b (py-mod a b)))] (reset! x (nth __d1 0)) (reset! y (nth __d1 1))) (reset! k (py-floordiv a b)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@y (py-sub @x (py-mul @k @y))]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Given three integers a, b, and n, such that gcd(a,n)=1 and n>1, returns
+  an integer x such that 0<=x<=n-1 and b/a=x(mod n) (that is, b=ax(mod n)).
 
-(defn greatest-common-divisor "Euclid's Lemma :  d divides a and b, if and only if d divides a-b and b\nEuclid's Algorithm\n\n>>> greatest_common_divisor(7,5)\n1\n\nNote : In number theory, two integers a and b are said to be relatively prime,\n    mutually prime, or co-prime if the only positive integer (factor) that divides\n    both of them is 1  i.e., gcd(a,b) = 1.\n\n>>> greatest_common_divisor(121, 11)\n11"
-  [a b] (let [a (atom a) b (atom b)] (try (when (py-truthy (py-lt @a @b)) (let [__d1 (vec [@b @a])] (reset! a (nth __d1 0)) (reset! b (nth __d1 1)))) (while (py-truthy (not (py-eq (py-mod @a @b) 0))) (let [__d2 (vec [@b (py-mod @a @b)])] (reset! a (nth __d2 0)) (reset! b (nth __d2 1)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @b})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  Theorem: a has a multiplicative inverse modulo n iff gcd(a,n) = 1."
+  [a b n]
+  (when (<= n 1)
+    (throw (ex-info "Modulus n must be greater than 1" {:type :ValueError})))
+  (when (<= a 0)
+    (throw (ex-info "Divisor a must be a positive integer" {:type :ValueError})))
+  (when (not= (greatest-common-divisor a n) 1)
+    (throw (ex-info "a and n must be coprime (gcd(a, n) = 1)"
+                    {:type :ValueError})))
+  (let [[_d _t s] (extended-gcd n a)]
+    (mod (* b s) n)))
+
+(defn modular-division2
+  "Uses the inversion of a to find x = (b*a^(-1)) mod n."
+  [a b n]
+  (mod (* b (invert-modulo a n)) n))

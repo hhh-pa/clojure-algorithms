@@ -1,127 +1,160 @@
 (ns clojure-algorithms.machine-learning.automatic-differentiation
-  "Demonstration of the Automatic Differentiation (Reverse mode).\n\nReference: https://en.wikipedia.org/wiki/Automatic_differentiation\n\nAuthor: Poojan Smart\nEmail: smrtpoojan@gmail.com"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str] [clojure.set :as set]))
+  "Reverse-mode automatic differentiation sketch.
 
-(declare OpType OpType-ADD OpType-SUB OpType-MUL OpType-DIV OpType-MATMUL OpType-POWER OpType-NOOP make-OpType make-Variable Variable-repr Variable-to-ndarray Variable-add Variable-sub Variable-mul Variable-truediv Variable-matmul Variable-pow Variable-add-param-to Variable-add-result-of make-Operation Operation-add-params Operation-add-output Operation-eq make-GradientTracker GradientTracker-enter GradientTracker-exit GradientTracker-append GradientTracker-gradient GradientTracker-derivative GradientTracker-instance)
+  The computation-graph plumbing (operation types, operation nodes and the
+  singleton gradient tracker with its graph wiring) is plain structural
+  logic and fully ported. Variables wrap numpy ndarrays and every value
+  computation (elementwise/broadcast arithmetic, matmul, power, gradient
+  accumulation) needs ndarray semantics with no stdlib-only equivalent, so
+  the value-carrying functions are honest documented stubs.
 
-(defrecord Variable [value param-to result-of])
+  Reference: https://en.wikipedia.org/wiki/Automatic_differentiation")
 
-(defrecord Operation [op-type other-params params output])
-
-(defrecord GradientTracker [enabled instance])
-
-(defn make-OpType [v] (get (into {} (map (fn [[k w]] [w k])) OpType) v v))
-
-(defn make-Variable "Constructor for Variable. Class represents n-dimensional object which is used to wrap numpy array on which\noperations will be performed and the gradient will be calculated.\n\nExamples:\n>>> Variable(5.0)\nVariable(5.0)\n>>> Variable([5.0, 2.9])\nVariable([5.  2.9])\n>>> Variable([5.0, 2.9]) + Variable([1.0, 5.5])\nVariable([6.  8.4])\n>>> Variable([[8.0, 10.0]])\nVariable([[ 8. 10.]])"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn make-Operation "Constructor for Operation. Class represents operation between single or two Variable objects.\nOperation objects contains type of operation, pointers to input Variable\nobjects and pointer to resulting Variable from the operation."
-  ([op-type] (make-Operation op-type nil))
-  ([op-type other-params] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:op-type] op-type))) (swap! self (fn [__c] (py-assoc-in __c [:other-params] (if (py-truthy (nil? other-params)) {} other-params)))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->Operation @self))))
-
-(defn make-GradientTracker "Constructor for GradientTracker. Class contains methods to compute partial derivatives of Variable\nbased on the computation graph.\n\nExamples:\n\n>>> with GradientTracker() as tracker:\n...     a = Variable([2.0, 5.0])\n...     b = Variable([1.0, 2.0])\n...     m = Variable([1.0, 2.0])\n...     c = a + b\n...     d = a * b\n...     e = c / d\n>>> tracker.gradient(e, a)\narray([-0.25, -0.04])\n>>> tracker.gradient(e, b)\narray([-1.  , -0.25])\n>>> tracker.gradient(e, m) is None\nTrue\n\n>>> with GradientTracker() as tracker:\n...     a = Variable([[2.0, 5.0]])\n...     b = Variable([[1.0], [2.0]])\n...     c = a @ b\n>>> tracker.gradient(c, a)\narray([[1., 2.]])\n>>> tracker.gradient(c, b)\narray([[2.],\n       [5.]])\n\n>>> with GradientTracker() as tracker:\n...     a = Variable([[2.0, 5.0]])\n...     b = a ** 3\n>>> tracker.gradient(b, a)\narray([[12., 75.]])"
-  [] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:enabled] false))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->GradientTracker @self)))
-
-(defn Variable-repr
-  [self] (str "Variable(" (py-str (:value @self)) ")"))
-
-(defn Variable-to-ndarray
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn Variable-add
-  [self other] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-add (:value @self) (:value other)))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-ADD)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-sub
-  [self other] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-sub (:value @self) (:value other)))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-SUB)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-mul
-  [self other] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-mul (:value @self) (:value other)))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-MUL)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-truediv
-  [self other] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-div (:value @self) (:value other)))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-DIV)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-matmul
-  [self other] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-matmul (:value @self) (:value other)))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-MATMUL)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-pow
-  [self power] (let [result (atom nil) tracker (atom nil)] (try (reset! result (make-Variable (py-pow (:value @self) power))) (let [__w1 (atom (make-GradientTracker))] (reset! tracker (GradientTracker-enter __w1)) (when (py-truthy (:enabled @tracker)) (swap! tracker conj OpType-POWER)) (GradientTracker-exit __w1 nil nil nil)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @result})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
-
-(defn Variable-add-param-to
-  [self param-to] (conj (vec (:param-to @self)) param-to) nil)
-
-(defn Variable-add-result-of
-  [self result-of] (swap! self (fn [__c] (py-assoc-in __c [:result-of] result-of))) nil)
-
-(defn Operation-add-params
-  [self params] (swap! self (fn [__c] (py-assoc-in __c [:params] params))) nil)
-
-(defn Operation-add-output
-  [self output] (swap! self (fn [__c] (py-assoc-in __c [:output] output))) nil)
-
-(defn Operation-eq
-  [self value] (if (py-truthy (contains? (set (vals OpType)) value)) (py-eq (:op-type @self) value) false))
-
-(defn GradientTracker-enter
-  [self] (try (swap! self (fn [__c] (py-assoc-in __c [:enabled] true))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @self})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))
-
-(defn GradientTracker-exit
-  [self exc-type exc traceback] (swap! self (fn [__c] (py-assoc-in __c [:enabled] false))) nil)
-
-(defn GradientTracker-append "Adds Operation object to the related Variable objects for\ncreating computational graph for calculating gradients.\n\nArgs:\n    op_type: Operation type\n    params: Input parameters to the operation\n    output: Output variable of the operation"
-  ([self op-type params output] (GradientTracker-append self op-type params output nil))
-  ([self op-type params output other-params] (let [operation (atom nil) param (atom nil) param-nodes (atom nil)] (reset! operation (make-Operation op-type nil)) (reset! param-nodes []) (doseq [__i1 (py-iter params)] (reset! param __i1) (Variable-add-param-to param @operation) (swap! param-nodes conj @param)) (Variable-add-result-of (atom output) @operation) (Operation-add-params operation @param-nodes) (Operation-add-output operation output) nil)))
-
-(defn GradientTracker-gradient "Reverse accumulation of partial derivatives to calculate gradients\nof target variable with respect to source variable.\n\nArgs:\n    target: target variable for which gradients are calculated.\n    source: source variable with respect to which the gradients are\n    calculated.\n\nReturns:\n    Gradient of the source variable with respect to the target variable"
-  [& _args]
-  ;; stub: original requires np; pure-Clojure port not applicable
-  (throw (ex-info "requires np" {:type :UnsupportedOperation})))
-
-(defn GradientTracker-derivative "Compute the derivative of given operation/function\n\nArgs:\n    param: variable to be differentiated\n    operation: function performed on the input variable\n\nReturns:\n    Derivative of input variable with respect to the output of\n    the operation"
-  [& _args]
-  ;; stub: original requires np,numpy-attr:T; pure-Clojure port not applicable
-  (throw (ex-info "requires np,numpy-attr:T" {:type :UnsupportedOperation})))
+(defn- unsupported!
+  [needs]
+  (throw (ex-info (str "requires " needs) {:type :UnsupportedOperation})))
 
 (def OpType
-  "Class represents list of supported operations on Variable for gradient calculation."
+  "Supported operation types for gradient calculation."
   {:ADD 0 :SUB 1 :MUL 2 :DIV 3 :MATMUL 4 :POWER 5 :NOOP 6})
 
 (def OpType-ADD 0)
-
 (def OpType-SUB 1)
-
 (def OpType-MUL 2)
-
 (def OpType-DIV 3)
-
 (def OpType-MATMUL 4)
-
 (def OpType-POWER 5)
-
 (def OpType-NOOP 6)
 
-(def GradientTracker-instance nil)
+(defn make-OpType
+  "Resolve an op-type id to its keyword (unknown values pass through)."
+  [v]
+  (get {0 :ADD 1 :SUB 2 :MUL 3 :DIV 4 :MATMUL 5 :POWER 6 :NOOP} v v))
 
-(defmethod print-method Variable [o w] (.write w (Variable-repr (atom o))))
+(defn make-Variable
+  "STUB: variables wrap numpy ndarrays (needs np.array)."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:add Variable] [_ a b] (Variable-add (atom a) b))
+(defn Variable-to-ndarray
+  "STUB: returns the wrapped numpy array."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:sub Variable] [_ a b] (Variable-sub (atom a) b))
+(defn Variable-add
+  "STUB: elementwise/broadcasting ndarray addition."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:mul Variable] [_ a b] (Variable-mul (atom a) b))
+(defn Variable-sub
+  "STUB: elementwise/broadcasting ndarray subtraction."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:div Variable] [_ a b] (Variable-truediv (atom a) b))
+(defn Variable-mul
+  "STUB: elementwise/broadcasting ndarray multiplication."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:matmul Variable] [_ a b] (Variable-matmul (atom a) b))
+(defn Variable-truediv
+  "STUB: elementwise/broadcasting ndarray division."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:pow Variable] [_ a b] (Variable-pow (atom a) b))
+(defn Variable-matmul
+  "STUB: ndarray matrix multiplication."
+  [& _args]
+  (unsupported! "np"))
 
-(defmethod py-dunder [:eq Operation] [_ a b] (Operation-eq (atom a) b))
+(defn Variable-pow
+  "STUB: ndarray power."
+  [& _args]
+  (unsupported! "np"))
 
-;; NOTE: Variable __init__ stubbed (np)
-;; NOTE: Variable.to_ndarray stubbed (np)
-;; NOTE: GradientTracker.gradient stubbed (np)
-;; NOTE: GradientTracker.derivative stubbed (np,numpy-attr:T)
+(defn Variable-repr
+  "Variable(<value>) rendering for a variable-like map."
+  [variable]
+  (let [variable (if (instance? clojure.lang.Atom variable) @variable variable)]
+    (str "Variable(" (:value variable) ")")))
+
+(defn Variable-add-param-to
+  "Record an operation the variable feeds into. Returns nil."
+  [variable operation]
+  (swap! variable update :param-to (fnil conj []) operation)
+  nil)
+
+(defn Variable-add-result-of
+  "Record the operation producing the variable. Returns nil."
+  [variable operation]
+  (swap! variable assoc :result-of operation)
+  nil)
+
+(defn make-Operation
+  "Operation node of op-type with optional other-params."
+  ([op-type] (make-Operation op-type nil))
+  ([op-type other-params]
+   {:op-type op-type :other-params (or other-params {})}))
+
+(defn Operation-add-params
+  "Return the operation with input param nodes attached."
+  [operation params]
+  (assoc operation :params params))
+
+(defn Operation-add-output
+  "Return the operation with its output variable attached."
+  [operation output]
+  (assoc operation :output output))
+
+(defn Operation-eq
+  "True when value is an op-type id equal to the operation's type."
+  [operation value]
+  (boolean (and (contains? (set (vals OpType)) value)
+                (= (:op-type operation) value))))
+
+(def GradientTracker-instance
+  "The singleton tracker state (enabled flag)."
+  (atom {:enabled false}))
+
+(defn make-GradientTracker
+  "Return the singleton tracker (fresh instances share state upstream too:
+  constructing always resets enabled to false)."
+  []
+  (reset! GradientTracker-instance {:enabled false})
+  GradientTracker-instance)
+
+(defn GradientTracker-enter
+  "Enable the tracker; returns it."
+  [tracker]
+  (swap! tracker assoc :enabled true)
+  tracker)
+
+(defn GradientTracker-exit
+  "Disable the tracker; returns nil."
+  [tracker _exc-type _exc _traceback]
+  (swap! tracker assoc :enabled false)
+  nil)
+
+(defn GradientTracker-append
+  "Wire an operation into the computation graph: every param records the
+  operation, the output records it as its source, and the operation records
+  its params and output. Params/output are variable atoms. Returns nil."
+  ([tracker op-type params output]
+   (GradientTracker-append tracker op-type params output nil))
+  ([_tracker op-type params output other-params]
+   (let [operation (-> (make-Operation op-type other-params)
+                       (Operation-add-params (vec params))
+                       (Operation-add-output output))]
+     (doseq [param params]
+       (Variable-add-param-to param operation))
+     (Variable-add-result-of output operation)
+     nil)))
+
+(defn GradientTracker-gradient
+  "STUB: reverse accumulation over ndarray partial derivatives."
+  [& _args]
+  (unsupported! "np"))
+
+(defn GradientTracker-derivative
+  "STUB: per-operation ndarray derivatives (needs transpose/broadcasting)."
+  [& _args]
+  (unsupported! "np"))

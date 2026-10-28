@@ -1,48 +1,155 @@
 (ns clojure-algorithms.machine-learning.frequent-pattern-growth
-  "The Frequent Pattern Growth algorithm (FP-Growth) is a widely used data mining\ntechnique for discovering frequent itemsets in large transaction databases.\n\nIt overcomes some of the limitations of traditional methods such as Apriori by\nefficiently constructing the FP-Tree\n\nWIKI: https://athena.ecs.csus.edu/~mei/associationcw/FpGrowth.html\n\nExamples: https://www.javatpoint.com/fp-growth-algorithm-in-data-mining"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "Frequent Pattern Growth (FP-Growth) mining of frequent itemsets.
 
-(declare create-tree update-tree update-header ascend-tree find-prefix-path mine-tree make-TreeNode TreeNode-repr TreeNode-inc TreeNode-disp)
+  Nodes are atoms holding {:name :count :parent :children :node-link}, which
+  preserves the shared-identity semantics of the upstream mutable tree (the
+  header table aliases live nodes whose counts keep changing). The header
+  table itself is an immutable map threaded through purely: update-tree
+  returns the updated header.
 
-(defrecord TreeNode [name count-v parent children node-link])
+  Reference: https://athena.ecs.csus.edu/~mei/associationcw/FpGrowth.html")
 
-(defn make-TreeNode "Constructor for TreeNode. A node in a Frequent Pattern tree.\n\nArgs:\n    name: The name of this node.\n    num_occur: The number of occurrences of the node.\n    parent_node: The parent node.\n\nExample:\n>>> parent = TreeNode(\"Parent\", 1, None)\n>>> child = TreeNode(\"Child\", 2, parent)\n>>> child.name\n'Child'\n>>> child.count\n2"
-  ([name count-v] (make-TreeNode name count-v nil (py-dict {}) nil))
-  ([name count-v parent] (make-TreeNode name count-v parent (py-dict {}) nil))
-  ([name count-v parent children] (make-TreeNode name count-v parent children nil))
-  ([name count-v parent children node-link] (let [self (atom {})] (try (swap! self (fn [__c] (py-assoc-in __c [:name] name))) (swap! self (fn [__c] (py-assoc-in __c [:count] count-v))) (swap! self (fn [__c] (py-assoc-in __c [:parent] parent))) (swap! self (fn [__c] (py-assoc-in __c [:children] children))) (swap! self (fn [__c] (py-assoc-in __c [:node-link] node-link))) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) nil (throw __e)))) (map->TreeNode @self))))
+(defn make-TreeNode
+  "Create a tree node atom. Children maps names to node atoms."
+  ([name count] (make-TreeNode name count nil {} nil))
+  ([name count parent] (make-TreeNode name count parent {} nil))
+  ([name count parent children] (make-TreeNode name count parent children nil))
+  ([name count parent children node-link]
+   (atom {:name name :count count :parent parent
+          :children children :node-link node-link})))
+
+(defn- deref-node
+  [node]
+  (if (instance? clojure.lang.Atom node) @node node))
 
 (defn TreeNode-repr
-  [self] (str "TreeNode(" (py-str (pr-str (:name @self))) ", " (py-str (pr-str (:count @self))) ", " (py-str (pr-str (:parent @self))) ")"))
+  "TreeNode('name', count, parent-repr-or-None), recursing into parents."
+  [node]
+  (let [{:keys [name count parent]} (deref-node node)]
+    (str "TreeNode('" name "', " count ", "
+         (if (some? parent) (TreeNode-repr parent) "None") ")")))
 
 (defn TreeNode-inc
-  [self num-occur] (swap! self (fn [__c] (py-assoc-in __c [:count] (py-add (py-get-in __c [:count]) num-occur)))) nil)
+  "Add num-occur to the node's count. Returns nil."
+  [node num-occur]
+  (swap! node update :count + num-occur)
+  nil)
 
 (defn TreeNode-disp
-  ([self] (TreeNode-disp self 1))
-  ([self ind] (let [child (atom nil)] (println (clojure.string/join " " [(py-str (str (py-str (py-mul "  " ind)) " " (py-str (:name @self)) "  " (py-str (:count @self))))])) (doseq [__i1 (py-iter (vec (vals (:children @self))))] (reset! child __i1) (TreeNode-disp child (py-add ind 1))) nil)))
+  "Print the subtree indented. Returns nil."
+  ([node] (TreeNode-disp node 1))
+  ([node ind]
+   (let [{:keys [name count children]} (deref-node node)]
+     (println (str (apply str (repeat ind "  ")) " " name "  " count))
+     (doseq [child (vals children)]
+       (TreeNode-disp child (inc ind))))
+   nil))
 
-(defn create-tree "Create Frequent Pattern tree\n\nArgs:\n    data_set: A list of transactions, where each transaction is a list of items.\n    min_sup: The minimum support threshold.\n    Items with support less than this will be pruned. Default is 1.\n\nReturns:\n    The root of the FP-Tree.\n    header_table: The header table dictionary with item information.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> len(header_table)\n4\n>>> header_table[\"A\"]\n[[4, None], TreeNode('A', 4, TreeNode('Null Set', 1, None))]\n>>> header_table[\"E\"][1]  # doctest: +NORMALIZE_WHITESPACE\nTreeNode('E', 1, TreeNode('B', 3, TreeNode('A', 4, TreeNode('Null Set', 1, None))))\n>>> sorted(header_table)\n['A', 'B', 'C', 'E']\n>>> fp_tree.name\n'Null Set'\n>>> sorted(fp_tree.children)\n['A', 'B']\n>>> fp_tree.children['A'].name\n'A'\n>>> sorted(fp_tree.children['A'].children)\n['B', 'C']"
+(defn update-header
+  "Append target-node at the end of node's link chain.
+  Returns the previous last node (like the upstream code)."
+  [node target-node]
+  (loop [current node]
+    (if (some? (:node-link @current))
+      (recur (:node-link @current))
+      (do (swap! current assoc :node-link target-node)
+          current))))
+
+(defn update-tree
+  "Insert items (head-first) under in-tree with the given count, linking new
+  nodes into the header table. Returns the updated header map."
+  [items in-tree header-table txn-count]
+  (let [head (first items)
+        header-table
+        (if (contains? (:children @in-tree) head)
+          (do (TreeNode-inc (get (:children @in-tree) head) txn-count)
+              header-table)
+          (let [child (make-TreeNode head txn-count in-tree)]
+            (swap! in-tree assoc-in [:children head] child)
+            (if (nil? (get-in header-table [head 1]))
+              (assoc-in header-table [head 1] child)
+              (do (update-header (get-in header-table [head 1]) child)
+                  header-table))))]
+    (if (> (count items) 1)
+      (update-tree (vec (rest items))
+                   (get (:children @in-tree) head)
+                   header-table txn-count)
+      header-table)))
+
+(defn create-tree
+  "Build the FP-tree for data-set with minimum support min-sup.
+  Returns [root-node header-table]; the header maps each item to
+  [[support nil] first-node]."
   ([data-set] (create-tree data-set 1))
-  ([data-set min-sup] (let [fp-tree (atom nil) freq-item-set (atom nil) header-table (atom nil) item (atom nil) k (atom nil) key (atom nil) local-d (atom nil) ordered-items (atom nil) sorted-items (atom nil) tran-set (atom nil) trans (atom nil) value (atom nil)] (try (reset! header-table {}) (doseq [__i1 (py-iter data-set)] (reset! trans __i1) (doseq [__i2 (py-iter @trans)] (reset! item __i2) (swap! header-table (fn [__c] (py-assoc-in __c [@item] (get @header-table @item [0 nil])))) (swap! header-table (fn [__c] (py-assoc-in __c [@item 0] (py-add (py-get-in __c [@item 0]) 1)))))) (doseq [__i3 (py-iter (py-list @header-table))] (reset! k __i3) (when (py-truthy (py-lt (py-get (py-get @header-table @k) 0) min-sup)) (swap! header-table (fn [__c] (py-dissoc-in __c [@k]))))) (when (py-truthy (not (py-truthy (do (reset! freq-item-set (py-set @header-table)) @freq-item-set)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [(make-TreeNode "Null Set" 1 nil) {}]}))) (doseq [[__i4 __i5] (py-iter (vec @header-table))] (reset! key __i4) (reset! value __i5) (swap! header-table (fn [__c] (py-assoc-in __c [@key] [@value nil])))) (reset! fp-tree (make-TreeNode "Null Set" 1 nil)) (doseq [__i6 (py-iter data-set)] (reset! tran-set __i6) (reset! local-d (into {} (for [item (py-iter @tran-set) :when (py-truthy (py-in item @freq-item-set))] (list [item (py-get (py-get @header-table item) 0)])))) (when (py-truthy @local-d) (reset! sorted-items (if (py-truthy true) (vec (reverse (sort-by (fn [item-info] (py-get item-info 1)) (vec @local-d)))) (vec (sort-by (fn [item-info] (py-get item-info 1)) (vec @local-d))))) (reset! ordered-items (vec (for [item (py-iter @sorted-items)] (py-get item 0)))) (update-tree @ordered-items @fp-tree @header-table 1))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value [@fp-tree @header-table]})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
+  ([data-set min-sup]
+   (let [counts (reduce (fn [acc trans]
+                          (reduce (fn [a item]
+                                    (assoc a item [[(inc (get-in a [item 0 0] 0))
+                                                    nil] nil]))
+                                  acc trans))
+                        {} data-set)
+         counts (into {} (filter (fn [[_ v]] (>= (get-in v [0 0]) min-sup)))
+                      counts)
+         freq-items (set (keys counts))]
+     (if (empty? freq-items)
+       [(make-TreeNode "Null Set" 1 nil) {}]
+       (let [header (into {} (map (fn [[k v]] [k v])) counts)
+             root (make-TreeNode "Null Set" 1 nil)]
+         [root
+          (reduce (fn [h tran-set]
+                    (let [ordered (->> tran-set
+                                       seq
+                                       distinct
+                                       (filter freq-items)
+                                       (map (fn [item] [item (get-in h [item 0 0])]))
+                                       (sort-by second >)
+                                       (mapv first))]
+                      (if (empty? ordered)
+                        h
+                        (update-tree ordered root h 1))))
+                  header data-set)])))))
 
-(defn update-tree "Update the FP-Tree with a transaction.\n\nArgs:\n    items: List of items in the transaction.\n    in_tree: The current node in the FP-Tree.\n    header_table: The header table dictionary with item information.\n    count: The count of the transaction.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> transaction = ['A', 'B', 'E']\n>>> update_tree(transaction, fp_tree, header_table, 1)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> fp_tree.children['A'].children['B'].children['E'].children\n{}\n>>> fp_tree.children['A'].children['B'].children['E'].count\n2\n>>> header_table['E'][1].name\n'E'"
-  [items in-tree header-table count-v] (let [header-table (atom header-table)] (if (py-truthy (py-in (py-get items 0) (:children in-tree))) (do (TreeNode-inc (atom (py-get (:children in-tree) (py-get items 0))) count-v)) (do nil (if (py-truthy (nil? (py-get (py-get @header-table (py-get items 0)) 1))) (do (swap! header-table (fn [__c] (py-assoc-in __c [(py-get items 0) 1] (py-get (:children in-tree) (py-get items 0)))))) (do (update-header (py-get (py-get @header-table (py-get items 0)) 1) (py-get (:children in-tree) (py-get items 0))))))) (when (py-truthy (py-gt (count items) 1)) (update-tree (py-slice items 1 nil nil) (py-get (:children in-tree) (py-get items 0)) @header-table count-v)) nil))
+(defn ascend-tree
+  "Names from leaf-node up to (excluding) the root, leaf first.
+  Appends onto prefix-path purely and returns the path vector."
+  ([leaf-node] (ascend-tree leaf-node []))
+  ([leaf-node prefix-path]
+   (loop [node (deref-node leaf-node)
+          path (vec prefix-path)]
+     (if (some? (:parent node))
+       (recur (deref-node (:parent node)) (conj path (:name node)))
+       path))))
 
-(defn update-header "Update the header table with a node link.\n\nArgs:\n    node_to_test: The node to be updated in the header table.\n    target_node: The node to link to.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> node1 = TreeNode(\"A\", 3, None)\n>>> node2 = TreeNode(\"B\", 4, None)\n>>> node1\nTreeNode('A', 3, None)\n>>> node1 = update_header(node1, node2)\n>>> node1\nTreeNode('A', 3, None)\n>>> node1.node_link\nTreeNode('B', 4, None)\n>>> node2.node_link is None\nTrue"
-  [node-to-test target-node] (let [node-to-test (atom node-to-test)] (try (while (py-truthy (some? (:node-link @node-to-test))) (reset! node-to-test (:node-link @node-to-test))) (when (py-truthy (nil? (:node-link @node-to-test))) (swap! node-to-test (fn [__c] (py-assoc-in __c [:node-link] target-node)))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @node-to-test})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn find-prefix-path
+  "Conditional pattern base: {prefix-set -> count} for the node chain.
+  (base-pat is unused upstream too; it is kept for signature parity.)"
+  [_base-pat tree-node]
+  (loop [node tree-node
+         cond-pats {}]
+    (if (nil? node)
+      cond-pats
+      (let [path (ascend-tree node)]
+        (recur (:node-link @node)
+               (if (> (count path) 1)
+                 (assoc cond-pats (set (rest path)) (:count @node))
+                 cond-pats))))))
 
-(defn ascend-tree "Ascend the FP-Tree from a leaf node to its root, adding item names to the prefix\npath.\n\nArgs:\n    leaf_node: The leaf node to start ascending from.\n    prefix_path: A list to store the item as they are ascended.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n\n>>> path = []\n>>> ascend_tree(fp_tree.children['A'], path)\n>>> path # ascending from a leaf node 'A'\n['A']"
-  [leaf-node prefix-path] (let [prefix-path (atom prefix-path)] (when (py-truthy (some? (:parent leaf-node))) (swap! prefix-path conj (:name leaf-node)) (ascend-tree (:parent leaf-node) @prefix-path)) nil))
+(defn mine-tree
+  "Discover frequent itemsets. Returns (into freq-item-list new-sets).
 
-(defn find-prefix-path "Find the conditional pattern base for a given base pattern.\n\nArgs:\n    base_pat: The base pattern for which to find the conditional pattern base.\n    tree_node: The node in the FP-Tree.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> len(header_table)\n4\n>>> base_pattern = frozenset(['A'])\n>>> sorted(find_prefix_path(base_pattern, fp_tree.children['A']))\n[]"
-  [base-pat tree-node] (let [tree-node (atom tree-node)] (let [cond-pats (atom nil) prefix-path (atom nil)] (try (reset! cond-pats {}) (while (py-truthy (some? @tree-node)) (reset! prefix-path []) (ascend-tree @tree-node @prefix-path) (when (py-truthy (py-gt (count @prefix-path) 1)) (swap! cond-pats (fn [__c] (py-assoc-in __c [(py-set (py-slice @prefix-path 1 nil nil))] (:count @tree-node))))) (reset! tree-node (:node-link @tree-node))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value @cond-pats})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e)))))))
-
-(defn mine-tree "Mine the FP-Tree recursively to discover frequent itemsets.\n\nArgs:\n    in_tree: The FP-Tree to mine.\n    header_table: The header table dictionary with item information.\n    min_sup: The minimum support threshold.\n    pre_fix: A set of items as a prefix for the itemsets being mined.\n    freq_item_list: A list to store the frequent itemsets.\n\nExample:\n>>> data_set = [\n...    ['A', 'B', 'C'],\n...    ['A', 'C'],\n...    ['A', 'B', 'E'],\n...    ['A', 'B', 'C', 'E'],\n...    ['B', 'E']\n... ]\n>>> min_sup = 2\n>>> fp_tree, header_table = create_tree(data_set, min_sup)\n>>> fp_tree\nTreeNode('Null Set', 1, None)\n>>> frequent_itemsets = []\n>>> mine_tree(fp_tree, header_table, min_sup, set([]), frequent_itemsets)\n>>> expe_itm = [{'C'}, {'C', 'A'}, {'E'}, {'A', 'E'}, {'E', 'B'}, {'A'}, {'B'}]\n>>> all(expected in frequent_itemsets for expected in expe_itm)\nTrue"
-  [& _args]
-  ;; stub: original requires numpy-attr:copy; pure-Clojure port not applicable
-  (throw (ex-info "requires numpy-attr:copy" {:type :UnsupportedOperation})))
-
-(defmethod print-method TreeNode [o w] (.write w (TreeNode-repr (atom o))))
-
-;; NOTE: mine_tree stubbed (numpy-attr:copy)
+  NOTE: the upstream `if my_head is not None` is always true (create-tree
+  returns a map, never None) and its header-link side effect is unobservable
+  through the only output (the itemset list), so this port recurses
+  unconditionally without mutating the caller's header."
+  [in-tree header-table min-sup pre-fix freq-item-list]
+  (let [ordered (mapv first (sort-by #(get-in % [1 0 0]) (seq header-table)))]
+    (reduce (fn [found base-pat]
+              (let [new-set (conj pre-fix base-pat)
+                    found (conj found new-set)
+                    cond-bases (find-prefix-path base-pat
+                                                 (get-in header-table [base-pat 1]))
+                    [cond-tree cond-head] (create-tree (vec (keys cond-bases))
+                                                       min-sup)]
+                (mine-tree cond-tree cond-head min-sup new-set found)))
+            (vec freq-item-list)
+            ordered)))

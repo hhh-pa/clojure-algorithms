@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.volume-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.volume :as sut]))
 
 (deftest test-fn-vol-cube-examples
@@ -66,28 +65,75 @@
   (is (thrown? Exception (sut/vol-prism 1 -1))))
 
 (deftest test-fn-vol-pyramid-examples
-  (is (approx 10.0 (sut/vol-pyramid 10 3))))
+  (is (approx 10.0 (sut/vol-pyramid 10 3)))
+  (is (approx 1.5 (sut/vol-pyramid 1.5 3)))
+  (is (approx 0.8533333333333335 (sut/vol-pyramid 1.6 1.6)))
+  (is (approx 0.0 (sut/vol-pyramid 0 0)))
+  (is (thrown? Exception (sut/vol-pyramid -1 1)))
+  (is (thrown? Exception (sut/vol-pyramid 1 -1))))
 
 (deftest test-fn-vol-sphere-examples
-  (is (approx 523.5987755982989 (sut/vol-sphere 5))))
+  (is (approx 523.5987755982989 (sut/vol-sphere 5)))
+  (is (approx 4.1887902047863905 (sut/vol-sphere 1)))
+  (is (approx 17.15728467880506 (sut/vol-sphere 1.6)))
+  (is (approx 0.0 (sut/vol-sphere 0)))
+  (is (thrown? Exception (sut/vol-sphere -1))))
 
 (deftest test-fn-vol-hemisphere-examples
-  (is (approx 2.0943951023931953 (sut/vol-hemisphere 1))))
+  (is (approx 2.0943951023931953 (sut/vol-hemisphere 1)))
+  (is (approx 718.377520120866 (sut/vol-hemisphere 7)))
+  (is (approx 8.57864233940253 (sut/vol-hemisphere 1.6)))
+  (is (approx 0.0 (sut/vol-hemisphere 0)))
+  (is (thrown? Exception (sut/vol-hemisphere -1))))
 
 (deftest test-fn-vol-circular-cylinder-examples
-  (is (approx 3.141592653589793 (sut/vol-circular-cylinder 1 1))))
+  (is (approx 3.141592653589793 (sut/vol-circular-cylinder 1 1)))
+  (is (approx 150.79644737231007 (sut/vol-circular-cylinder 4 3)))
+  (is (approx 12.867963509103795 (sut/vol-circular-cylinder 1.6 1.6)))
+  (is (approx 0.0 (sut/vol-circular-cylinder 0 0)))
+  (is (thrown? Exception (sut/vol-circular-cylinder -1 1)))
+  (is (thrown? Exception (sut/vol-circular-cylinder 1 -1))))
 
 (deftest test-fn-vol-hollow-circular-cylinder-examples
-  (is (approx 28.274333882308138 (sut/vol-hollow-circular-cylinder 1 2 3))))
+  (is (approx 28.274333882308138 (sut/vol-hollow-circular-cylinder 1 2 3)))
+  (is (approx 47.50088092227767 (sut/vol-hollow-circular-cylinder 1.6 2.6 3.6)))
+  (is (thrown? Exception (sut/vol-hollow-circular-cylinder -1 2 3)))
+  (is (thrown? Exception (sut/vol-hollow-circular-cylinder 1 -2 3)))
+  (is (thrown? Exception (sut/vol-hollow-circular-cylinder 1 2 -3)))
+  (is (thrown? Exception (sut/vol-hollow-circular-cylinder 2 1 3)))
+  (is (thrown? Exception (sut/vol-hollow-circular-cylinder 0 0 0))))
 
 (deftest test-fn-vol-conical-frustum-examples
-  (is (approx 48490.482608158454 (sut/vol-conical-frustum 45 7 28))))
+  (is (approx 48490.482608158454 (sut/vol-conical-frustum 45 7 28)))
+  (is (approx 7.330382858376184 (sut/vol-conical-frustum 1 1 2)))
+  (is (approx 48.7240076620753 (sut/vol-conical-frustum 1.6 2.6 3.6)))
+  (is (approx 0.0 (sut/vol-conical-frustum 0 0 0)))
+  (is (thrown? Exception (sut/vol-conical-frustum -2 2 1)))
+  (is (thrown? Exception (sut/vol-conical-frustum 2 -2 1)))
+  (is (thrown? Exception (sut/vol-conical-frustum 2 2 -1))))
 
 (deftest test-fn-vol-torus-examples
-  (is (approx 19.739208802178716 (sut/vol-torus 1 1))))
+  (is (approx 19.739208802178716 (sut/vol-torus 1 1)))
+  (is (approx 710.6115168784338 (sut/vol-torus 4 3)))
+  (is (approx 947.4820225045784 (sut/vol-torus 3 4)))
+  (is (approx 80.85179925372404 (sut/vol-torus 1.6 1.6)))
+  (is (approx 0.0 (sut/vol-torus 0 0)))
+  (is (thrown? Exception (sut/vol-torus -1 1)))
+  (is (thrown? Exception (sut/vol-torus 1 -1))))
 
 (deftest test-fn-vol-octahedron-examples
-  (is (approx 0.0 (sut/vol-octahedron 0))))
+  (is (approx 7.36569563735987 (sut/vol-octahedron 2.5)))
+  (is (approx 471.40452079103168 (sut/vol-octahedron 10)))
+  (is (approx 58.92556509887896 (sut/vol-octahedron 5)))
+  (is (approx 20.21146882891548 (sut/vol-octahedron 3.5)))
+  (is (approx 0.0 (sut/vol-octahedron 0)))
+  (is (thrown? Exception (sut/vol-octahedron -1))))
 
 (deftest test-fn-vol-icosahedron-examples
-  (is (approx 0.0 (sut/vol-icosahedron 0))))
+  (is (approx 34.088984228514256 (sut/vol-icosahedron 2.5)))
+  (is (approx 2181.694990624912374 (sut/vol-icosahedron 10)))
+  (is (approx 272.711873828114047 (sut/vol-icosahedron 5)))
+  (is (approx 92.740688412033628 (sut/vol-icosahedron 3.49)))
+  (is (approx 0.0 (sut/vol-icosahedron 0)))
+  (is (thrown? Exception (sut/vol-icosahedron -1)))
+  (is (thrown? Exception (sut/vol-icosahedron -0.2))))

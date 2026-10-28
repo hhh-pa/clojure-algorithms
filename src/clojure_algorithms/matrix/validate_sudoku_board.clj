@@ -1,12 +1,37 @@
 (ns clojure-algorithms.matrix.validate-sudoku-board
-  "LeetCode 36. Valid Sudoku\nhttps://leetcode.com/problems/valid-sudoku/\nhttps://en.wikipedia.org/wiki/Sudoku\n\nDetermine if a 9 x 9 Sudoku board is valid. Only the filled cells need to be\nvalidated according to the following rules:\n\n- Each row must contain the digits 1-9 without repetition.\n- Each column must contain the digits 1-9 without repetition.\n- Each of the nine 3 x 3 sub-boxes of the grid must contain the digits 1-9\n  without repetition.\n\nNote:\n\nA Sudoku board (partially filled) could be valid but is not necessarily\nsolvable.\n\nOnly the filled cells need to be validated according to the mentioned rules."
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
-
-(declare is-valid-sudoku-board NUM-SQUARES EMPTY-CELL)
-
-(defn is-valid-sudoku-board "This function validates (but does not solve) a sudoku board.\nThe board may be valid but unsolvable.\n\n>>> is_valid_sudoku_board([\n...  [\"5\",\"3\",\".\",\".\",\"7\",\".\",\".\",\".\",\".\"]\n... ,[\"6\",\".\",\".\",\"1\",\"9\",\"5\",\".\",\".\",\".\"]\n... ,[\".\",\"9\",\"8\",\".\",\".\",\".\",\".\",\"6\",\".\"]\n... ,[\"8\",\".\",\".\",\".\",\"6\",\".\",\".\",\".\",\"3\"]\n... ,[\"4\",\".\",\".\",\"8\",\".\",\"3\",\".\",\".\",\"1\"]\n... ,[\"7\",\".\",\".\",\".\",\"2\",\".\",\".\",\".\",\"6\"]\n... ,[\".\",\"6\",\".\",\".\",\".\",\".\",\"2\",\"8\",\".\"]\n... ,[\".\",\".\",\".\",\"4\",\"1\",\"9\",\".\",\".\",\"5\"]\n... ,[\".\",\".\",\".\",\".\",\"8\",\".\",\".\",\"7\",\"9\"]\n... ])\nTrue\n>>> is_valid_sudoku_board([\n...  [\"8\",\"3\",\".\",\".\",\"7\",\".\",\".\",\".\",\".\"]\n... ,[\"6\",\".\",\".\",\"1\",\"9\",\"5\",\".\",\".\",\".\"]\n... ,[\".\",\"9\",\"8\",\".\",\".\",\".\",\".\",\"6\",\".\"]\n... ,[\"8\",\".\",\".\",\".\",\"6\",\".\",\".\",\".\",\"3\"]\n... ,[\"4\",\".\",\".\",\"8\",\".\",\"3\",\".\",\".\",\"1\"]\n... ,[\"7\",\".\",\".\",\".\",\"2\",\".\",\".\",\".\",\"6\"]\n... ,[\".\",\"6\",\".\",\".\",\".\",\".\",\"2\",\"8\",\".\"]\n... ,[\".\",\".\",\".\",\"4\",\"1\",\"9\",\".\",\".\",\"5\"]\n... ,[\".\",\".\",\".\",\".\",\"8\",\".\",\".\",\"7\",\"9\"]\n... ])\nFalse\n>>> is_valid_sudoku_board([\n...  [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]\n... ,[\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"1\",\"2\",\"3\"]\n... ,[\"7\",\"8\",\"9\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ])\nTrue\n>>> is_valid_sudoku_board([\n...  [\"1\",\"2\",\"3\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\"4\",\"5\",\"6\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\"7\",\"8\",\"9\",\".\",\".\",\".\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\"4\",\"5\",\"6\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\"7\",\"8\",\"9\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\"1\",\"2\",\"3\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\"7\",\"8\",\"9\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\"1\",\"2\",\"3\"]\n... ,[\".\",\".\",\".\",\".\",\".\",\".\",\"4\",\"5\",\"6\"]\n... ])\nTrue\n>>> is_valid_sudoku_board([\n...  [\"1\",\"2\",\"3\",\".\",\".\",\".\",\"5\",\"6\",\"4\"]\n... ,[\"4\",\"5\",\"6\",\".\",\".\",\".\",\"8\",\"9\",\"7\"]\n... ,[\"7\",\"8\",\"9\",\".\",\".\",\".\",\"2\",\"3\",\"1\"]\n... ,[\".\",\".\",\".\",\"4\",\"5\",\"6\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\"7\",\"8\",\"9\",\".\",\".\",\".\"]\n... ,[\".\",\".\",\".\",\"1\",\"2\",\"3\",\".\",\".\",\".\"]\n... ,[\"3\",\"1\",\"2\",\".\",\".\",\".\",\"7\",\"8\",\"9\"]\n... ,[\"6\",\"4\",\"5\",\".\",\".\",\".\",\"1\",\"2\",\"3\"]\n... ,[\"9\",\"7\",\"8\",\".\",\".\",\".\",\"4\",\"5\",\"6\"]\n... ])\nTrue\n>>> is_valid_sudoku_board([\n...  [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]\n... ,[\"2\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"8\"]\n... ,[\"3\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"7\"]\n... ,[\"4\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"6\"]\n... ,[\"5\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"5\"]\n... ,[\"6\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"4\"]\n... ,[\"7\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"3\"]\n... ,[\"8\",\".\",\".\",\".\",\".\",\".\",\".\",\".\",\"2\"]\n... ,[\"9\",\"8\",\"7\",\"6\",\"5\",\"4\",\"3\",\"2\",\"1\"]\n... ])\nFalse\n>>> is_valid_sudoku_board([\n...  [\"1\",\"2\",\"3\",\"8\",\"9\",\"7\",\"5\",\"6\",\"4\"]\n... ,[\"4\",\"5\",\"6\",\"2\",\"3\",\"1\",\"8\",\"9\",\"7\"]\n... ,[\"7\",\"8\",\"9\",\"5\",\"6\",\"4\",\"2\",\"3\",\"1\"]\n... ,[\"2\",\"3\",\"1\",\"4\",\"5\",\"6\",\"9\",\"7\",\"8\"]\n... ,[\"5\",\"6\",\"4\",\"7\",\"8\",\"9\",\"3\",\"1\",\"2\"]\n... ,[\"8\",\"9\",\"7\",\"1\",\"2\",\"3\",\"6\",\"4\",\"5\"]\n... ,[\"3\",\"1\",\"2\",\"6\",\"4\",\"5\",\"7\",\"8\",\"9\"]\n... ,[\"6\",\"4\",\"5\",\"9\",\"7\",\"8\",\"1\",\"2\",\"3\"]\n... ,[\"9\",\"7\",\"8\",\"3\",\"1\",\"2\",\"4\",\"5\",\"6\"]\n... ])\nTrue\n>>> is_valid_sudoku_board([[\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\"]])\nTraceback (most recent call last):\n    ...\nValueError: Sudoku boards must be 9x9 squares.\n>>> is_valid_sudoku_board(\n...        [[\"1\"], [\"2\"], [\"3\"], [\"4\"], [\"5\"], [\"6\"], [\"7\"], [\"8\"], [\"9\"]]\n...  )\nTraceback (most recent call last):\n    ...\nValueError: Sudoku boards must be 9x9 squares."
-  [sudoku-board] (let [box (atom nil) box-values (atom nil) col (atom nil) col-values (atom nil) error-message (atom nil) row (atom nil) row-values (atom nil) value (atom nil)] (try (when (py-truthy (let [__b1 (not (py-eq (count sudoku-board) NUM-SQUARES))] (if (py-truthy __b1) __b1 (boolean (some py-truthy (doall (for [row (py-iter sudoku-board)] (not (py-eq (count row) NUM-SQUARES))))))))) (reset! error-message (str "Sudoku boards must be " (py-str NUM-SQUARES) "x" (py-str NUM-SQUARES) " squares.")) (throw (ex-info (py-str @error-message) {:type :ValueError}))) (reset! row-values {}) (reset! col-values {}) (reset! box-values {}) (doseq [__i2 (py-iter (range NUM-SQUARES))] (reset! row __i2) (doseq [__i3 (py-iter (range NUM-SQUARES))] (try (reset! col __i3) (reset! value (py-get (py-get sudoku-board @row) @col)) (when (py-truthy (py-eq @value EMPTY-CELL)) (throw (ex-info "__continue__" {:__control__ true :__continue__ true}))) (reset! box [(py-floordiv @row 3) (py-floordiv @col 3)]) (when (py-truthy (let [__b5 (py-in @value (py-ddget @row-values @row #{}))] (if (py-truthy __b5) __b5 (let [__b4 (py-in @value (py-ddget @col-values @col #{}))] (if (py-truthy __b4) __b4 (py-in @value (py-ddget @box-values @box #{}))))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (conj (set (py-ddget @row-values @row #{})) @value) (conj (set (py-ddget @col-values @col #{})) @value) (conj (set (py-ddget @box-values @box #{})) @value) (catch clojure.lang.ExceptionInfo __e (if (:__continue__ (ex-data __e)) nil (throw __e)))))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+  "Validates 9x9 Sudoku boards (LeetCode 36).
+  https://leetcode.com/problems/valid-sudoku/")
 
 (def NUM-SQUARES 9)
 
 (def EMPTY-CELL ".")
+
+(defn is-valid-sudoku-board
+  "True when the filled cells of the board respect the row, column and
+  3x3 box rules. The board may be valid but unsolvable."
+  [sudoku-board]
+  (when (or (not= NUM-SQUARES (count sudoku-board))
+            (not (every? #(= NUM-SQUARES (count %)) sudoku-board)))
+    (throw (ex-info (str "Sudoku boards must be " NUM-SQUARES "x"
+                         NUM-SQUARES " squares.")
+                    {:type :ValueError})))
+  (let [cells (for [r (range NUM-SQUARES)
+                    c (range NUM-SQUARES)
+                    :let [v (get-in sudoku-board [r c])]
+                    :when (not= EMPTY-CELL v)]
+                [r c v])]
+    (loop [cells cells rows #{} cols #{} boxes #{}]
+      (if (empty? cells)
+        true
+        (let [[[r c v] & rest-cells] cells
+              row-key [r v]
+              col-key [c v]
+              box-key [(quot r 3) (quot c 3) v]]
+          (if (or (contains? rows row-key)
+                  (contains? cols col-key)
+                  (contains? boxes box-key))
+            false
+            (recur rest-cells
+                   (conj rows row-key)
+                   (conj cols col-key)
+                   (conj boxes box-key))))))))

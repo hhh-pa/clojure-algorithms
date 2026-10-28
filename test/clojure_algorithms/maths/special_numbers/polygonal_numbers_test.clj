@@ -1,7 +1,6 @@
 (ns clojure-algorithms.maths.special-numbers.polygonal-numbers-test
-  (:require [clojure-algorithms.test-utils :refer [approx]] [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
-            [clojure.set :as set]
+  (:require [clojure-algorithms.test-utils :refer [approx]]
+            [clojure.test :refer [deftest is testing]]
             [clojure-algorithms.maths.special-numbers.polygonal-numbers :as sut]))
 
 (deftest test-fn-polygonal-num-examples
@@ -11,3 +10,10 @@
   (is (approx 5 (sut/polygonal-num 2 5)))
   (is (thrown? Exception (sut/polygonal-num -1 0)))
   (is (thrown? Exception (sut/polygonal-num 0 2))))
+
+(deftest test-error-type
+  (is (= :ValueError
+         (try (sut/polygonal-num 0 2)
+              nil
+              (catch clojure.lang.ExceptionInfo e
+                (:type (ex-data e)))))))

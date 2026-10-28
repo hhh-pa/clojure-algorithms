@@ -1,8 +1,34 @@
 (ns clojure-algorithms.maths.special-numbers.kaprekar-number
-  "== Kaprekar Number ==\nA number n is a Kaprekar number if its square can be split into two parts\n(left and right) that add up to n, where the right part is non-zero.\n\nExamples: 1, 9, 45, 55, 99, 297, 703, 999, 2223, 4950, 5050, 7272, 9999\nReference: https://en.wikipedia.org/wiki/Kaprekar_number"
-  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
+  "== Kaprekar Number ==
+A number n is a Kaprekar number if its square can be split into two parts
+(left and right) that add up to n, where the right part is non-zero.
 
-(declare is-kaprekar)
+Examples: 1, 9, 45, 55, 99, 297, 703, 999, 2223, 4950, 5050, 7272, 9999
+Reference: https://en.wikipedia.org/wiki/Kaprekar_number")
 
-(defn is-kaprekar "Returns True if number is a Kaprekar number, False otherwise.\n\n>>> is_kaprekar(1)\nTrue\n>>> is_kaprekar(9)\nTrue\n>>> is_kaprekar(45)\nTrue\n>>> is_kaprekar(55)\nTrue\n>>> is_kaprekar(10)\nFalse\n>>> is_kaprekar(0)\nFalse\n>>> is_kaprekar(-1)\nFalse\n>>> is_kaprekar(2223)\nTrue\n>>> is_kaprekar(1.5)\nTraceback (most recent call last):\n    ...\nTypeError: Input value of [number=1.5] must be an integer"
-  [number] (let [digits (atom nil) left (atom nil) msg (atom nil) right (atom nil) split (atom nil) square (atom nil)] (try (when (py-truthy (not (py-truthy (integer? number)))) (reset! msg (str "Input value of [number=" (py-str number) "] must be an integer")) (throw (ex-info (py-str @msg) {:type :TypeError}))) (when (py-truthy (py-lt number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false}))) (when (py-truthy (py-eq number 1)) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true}))) (reset! square (py-pow number 2)) (reset! digits (count (py-str @square))) (doseq [__i1 (py-iter (range 1 @digits))] (reset! split __i1) (reset! right (py-mod @square (py-pow 10 @split))) (reset! left (py-floordiv @square (py-pow 10 @split))) (when (py-truthy (let [__b2 (py-gt @right 0)] (if (py-truthy __b2) (py-eq (py-add @left @right) number) __b2))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value true})))) (throw (ex-info "__return__" {:__control__ true :__return__ true :value false})) (catch clojure.lang.ExceptionInfo __e (if (:__return__ (ex-data __e)) (:value (ex-data __e)) (throw __e))))))
+(defn- pow-int
+  "Integer power: base**exp computed with exact integer arithmetic."
+  [base exp]
+  (reduce *' 1 (repeat exp base)))
+
+(defn is-kaprekar
+  "Returns true if `number` is a Kaprekar number. Returns false for integers
+below 1. Throws an ex-info with :type :TypeError when `number` is not an
+integer."
+  [number]
+  (when-not (integer? number)
+    (throw (ex-info (str "Input value of [number=" number "] must be an integer")
+                    {:type :TypeError})))
+  (cond
+    (< number 1) false
+    (= number 1) true
+    :else
+    (let [square (*' number number)
+          digits (count (str square))]
+      (boolean
+       (some (fn [split]
+               (let [divisor (pow-int 10 split)
+                     right (rem square divisor)
+                     left (quot square divisor)]
+                 (and (pos? right) (= number (+ left right)))))
+             (range 1 digits))))))
