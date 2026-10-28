@@ -29,7 +29,21 @@
     (is (thrown? clojure.lang.ExceptionInfo (sut/fib-iterative -1)))
     (is (thrown? clojure.lang.ExceptionInfo (sut/fib-memoization -1)))
     (is (thrown? clojure.lang.ExceptionInfo (sut/fib-binet -1))))
-  (testing "documented stubs raise UnsupportedOperation"
-    (is (thrown? clojure.lang.ExceptionInfo (sut/time-func)))
-    (is (thrown? clojure.lang.ExceptionInfo (sut/matrix-pow-np)))
-    (is (thrown? clojure.lang.ExceptionInfo (sut/fib-matrix-np)))))
+  (testing "matrix exponentiation (upstream doctest values)"
+    (let [m [[1 1] [1 0]]]
+      (is (= [[1 0] [0 1]] (sut/matrix-pow-np m 0)))
+      (is (= [[1 1] [1 0]] (sut/matrix-pow-np m 1)))
+      (is (= [[8 5] [5 3]] (sut/matrix-pow-np m 5)))
+      (is (thrown? clojure.lang.ExceptionInfo (sut/matrix-pow-np m -1)))))
+  (testing "fibonacci via matrix exponentiation"
+    (is (= 0 (sut/fib-matrix-np 0)))
+    (is (= 1 (sut/fib-matrix-np 1)))
+    (is (= 5 (sut/fib-matrix-np 5)))
+    (is (= 55 (sut/fib-matrix-np 10)))
+    (is (= 832040 (sut/fib-matrix-np 30)))
+    (is (thrown? clojure.lang.ExceptionInfo (sut/fib-matrix-np -1))))
+  (testing "time-func returns the result and prints the timing"
+    (is (= 5 (sut/time-func (fn [x] x) 5)))
+    (let [out (with-out-str (sut/time-func + 1 2 3))]
+      (is (= 6 (sut/time-func + 1 2 3)))
+      (is (re-find #"runtime: \d+\.\d{4} (s|ms|µs)" out)))))

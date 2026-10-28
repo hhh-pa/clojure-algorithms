@@ -1,56 +1,8 @@
 (ns clojure-algorithms.maths.quadratic-equations-complex-numbers
   "Port of maths/quadratic_equations_complex_numbers.py"
-  (:require [clojure.string :as str]))
+  (:require [clojure-algorithms.runtime.python :refer :all] [clojure.string :as str]))
 
 (declare quadratic-roots main)
-
-(declare py-float-str py-quote py-repr py-str)
-
-(defn- py-float-str [v]
-  (let [s (str (double v))]
-    (if-let [[_ mant exp] (re-matches #"^(-?\d(?:\.\d+)?)E([+-]?\d+)$" s)]
-      (let [e (Long/parseLong exp)]
-        (str mant "e" (if (neg? e) "-" "+") (format "%02d" (Math/abs e))))
-      s)))
-
-(defn- py-quote [s]
-  (let [esc (fn [q] (-> s
-                        (clojure.string/replace "\\" "\\\\")
-                        (clojure.string/replace "\n" "\\n")
-                        (clojure.string/replace "\r" "\\r")
-                        (clojure.string/replace "\t" "\\t")
-                        (clojure.string/replace q (str "\\" q))))]
-    (if (and (clojure.string/includes? s "'") (not (clojure.string/includes? s "\"")))
-      (str "\"" (esc "\"") "\"")
-      (str "'" (esc "'") "'"))))
-
-(defn- py-repr [v]
-  (cond (nil? v) "None"
-        (true? v) "True"
-        (false? v) "False"
-        (string? v) (py-quote v)
-        (float? v) (py-float-str v)
-        (map? v) (str "{" (clojure.string/join ", "
-                                               (map (fn [[k w]] (str (py-repr k) ": " (py-repr w))) v)) "}")
-        (set? v) (if (empty? v) "set()"
-                     (str "{" (clojure.string/join ", " (map py-repr v)) "}"))
-        (sequential? v) (str "[" (clojure.string/join ", " (map py-repr v)) "]")
-        :else (str v)))
-
-(defn- py-str
-  ([] "")
-  ([v]
-   (cond (nil? v) "None"
-         (true? v) "True"
-         (false? v) "False"
-         (string? v) v
-         (float? v) (py-float-str v)
-         (map? v) (str "{" (clojure.string/join ", "
-                                                (map (fn [[k w]] (str (py-repr k) ": " (py-repr w))) v)) "}")
-         (set? v) (if (empty? v) "set()"
-                      (str "{" (clojure.string/join ", " (map py-repr v)) "}"))
-         (sequential? v) (str "[" (clojure.string/join ", " (map py-repr v)) "]")
-         :else (str v))))
 
 (defn quadratic-roots "Given the numerical coefficients a, b and c,\ncalculates the roots for any quadratic equation of the form ax^2 + bx + c\n\n>>> quadratic_roots(a=1, b=3, c=-4)\n(1.0, -4.0)\n>>> quadratic_roots(5, 6, 1)\n(-0.2, -1.0)\n>>> quadratic_roots(1, -6, 25)\n((3+4j), (3-4j))"
   [& _args]

@@ -21,7 +21,7 @@ classic algorithms and data structures implemented in idiomatic Clojure.
 
 - **1,350** implementations, each with a matching `clojure.test` suite
   (**1,350** test namespaces).
-- Full suite: **2,077 tests, 0 failures, 0 errors** (`clojure -M:test`;
+- Full suite: **2,078 tests, 0 failures, 0 errors** (`clojure -M:test`;
   ≈12,040 assertions — the exact figure varies slightly run to run
   because one property test asserts per edge of a random graph).
 - Implementations that depend on Python-only libraries (NumPy, OpenCV,

@@ -36,7 +36,8 @@
 (defn bubble-sort-recursive
   "Sorts `coll` with recursive bubble sort. Returns a sorted vector."
   [coll]
-  (let [[v swapped?] (bubble-pass (vec coll))]
-    (if swapped?
-      (bubble-sort-recursive v)
-      v)))
+  (loop [v (vec coll)]
+    (let [[v2 swapped?] (bubble-pass v)]
+      (if swapped?
+        (recur v2)
+        v2))))
