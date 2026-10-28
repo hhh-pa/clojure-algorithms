@@ -1,0 +1,55 @@
+(ns clojure-algorithms.maths.ear-clipping-polygon-triangulation-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
+            [clojure.set :as set]
+            [clojure-algorithms.maths.ear-clipping-polygon-triangulation :as sut]))
+
+(defn- approx
+  "Tolerant equality for ported tests: exact on integers, 1e-6 on floats."
+  [a b]
+  (cond (and (integer? a) (integer? b)) (= a b)
+        (and (number? a) (number? b))
+        (let [x (double a) y (double b)]
+          (or (= x y) (< (Math/abs (- x y)) 1e-6)))
+        (and (sequential? a) (sequential? b))
+        (and (= (count a) (count b)) (every? true? (map approx a b)))
+        (and (map? a) (map? b))
+        (and (= (count a) (count b))
+             (every? true? (map (fn [[k v]]
+                                  (and (contains? b k) (approx v (get b k))))
+                                a)))
+        (and (set? a) (set? b)) (= a b)
+        :else (= a b)))
+
+(deftest test-fn-is-ear-examples
+  (is (= false (boolean (sut/is-ear [[0 2] [2 2] [2 0] [1 0] [1 1] [0 1]] 4 "counter-clockwise"))))
+  (is (= true (boolean (sut/is-ear [[0 2] [2 2] [2 0] [1 0] [1 1] [0 1]] 3 "counter-clockwise"))))
+  (is (= false (boolean (sut/is-ear [[0 3] [2 2] [3 0] [3 3]] 3 "clockwise"))))
+  (is (= true (boolean (sut/is-ear [[0 0] [1 0] [1 1] [0 1]] 0 "clockwise")))))
+
+(deftest test-fn-is-convex-examples
+  (is (= true (boolean (sut/is-convex [1 1] [2 2] [1 2] "clockwise"))))
+  (is (= false (boolean (sut/is-convex [1 1] [2 2] [1 2] "counter-clockwise"))))
+  (is (= true (boolean (sut/is-convex [1 1] [2 2] [3 3] "clockwise"))))
+  (is (= true (boolean (sut/is-convex [1 1] [2 2] [3 3] "counter-clockwise")))))
+
+(deftest test-fn-cross-product-examples
+  (is (approx 0.5 (sut/cross-product [0 0] [1 0] [1.5 0.5])))
+  (is (approx -0.5 (sut/cross-product [1.5 0.5] [1 1] [1.5 1.5])))
+  (is (approx 0 (sut/cross-product [0 0] [1 1] [2 2]))))
+
+(deftest test-fn-direction-examples
+  (is (approx "clockwise" (sut/direction [[1 1] [2 2] [3 4]])))
+  (is (approx "counter-clockwise" (sut/direction [[1 1] [2 2] [3 -1]]))))
+
+(deftest test-fn-is-point-inside-triangle-examples
+  (is (= false (boolean (sut/is-point-inside-triangle [0 0] [0 2] [2 0] [3 3]))))
+  (is (= true (boolean (sut/is-point-inside-triangle [0 0] [0 2] [2 0] [1 1]))))
+  (is (= false (boolean (sut/is-point-inside-triangle [0 0] [2 1] [2 0] [1 1]))))
+  (is (= true (boolean (sut/is-point-inside-triangle [0 0] [2 1] [2 0] [2 0]))))
+  (is (= true (boolean (sut/is-point-inside-triangle [0 0] [1 1] [2 0] [1 0])))))
+
+(deftest test-fn-triangulate-polygon-examples
+  (is (thrown? Exception (sut/triangulate-polygon [[0 2] [2 2] [2 0] [1 0] [1 1] [0 1]])))
+  (is (thrown? Exception (sut/triangulate-polygon [[0 3] [2 2] [3 0] [3 3]])))
+  (is (thrown? Exception (sut/triangulate-polygon [[0 0] [2 0] [1 1] [2 2] [0 2]]))))

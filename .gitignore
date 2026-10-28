@@ -1,0 +1,10 @@
+/target/
+/classes/
+.cpcache/
+.clj-kondo/.cache/
+.lsp/
+*.jar
+*.class
+/out/
+node_modules/
+.DS_Store

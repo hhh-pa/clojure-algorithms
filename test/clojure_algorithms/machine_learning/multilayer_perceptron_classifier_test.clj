@@ -1,0 +1,25 @@
+(ns clojure-algorithms.machine-learning.multilayer-perceptron-classifier-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure-algorithms.machine-learning.multilayer-perceptron-classifier :as sut]))
+
+(deftest test-vars-exist
+  (is (some? #'sut/make-Dataloader))
+  (is (some? #'sut/Dataloader-get-train-test-data))
+  (is (some? #'sut/Dataloader-shuffle-data))
+  (is (some? #'sut/poly-get-inout-dim))
+  (is (some? #'sut/Dataloader-get-inout-dim))
+  (is (some? #'sut/Dataloader-one-hot-encode))
+  (is (some? #'sut/make-MLP))
+  (is (some? #'sut/MLP-get-inout-dim))
+  (is (some? #'sut/MLP-initialize))
+  (is (some? #'sut/MLP-relu))
+  (is (some? #'sut/MLP-relu-derivative))
+  (is (some? #'sut/MLP-forward))
+  (is (some? #'sut/MLP-back-prop))
+  (is (some? #'sut/MLP-update-weights))
+  (is (some? #'sut/MLP-update-learning-rate))
+  (is (some? #'sut/MLP-accuracy))
+  (is (some? #'sut/MLP-loss))
+  (is (some? #'sut/MLP-get-acc-loss))
+  (is (some? #'sut/MLP-train))
+  (is (some? #'sut/rng)))

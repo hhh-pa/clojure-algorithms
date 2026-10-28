@@ -1,0 +1,11 @@
+(ns clojure-algorithms.matrix.inverse-of-matrix
+  "Port of matrix/inverse_of_matrix.py")
+
+(declare inverse-of-matrix)
+
+(defn inverse-of-matrix "A matrix multiplied with its inverse gives the identity matrix.\nThis function finds the inverse of a 2x2 and 3x3 matrix.\nIf the determinant of a matrix is 0, its inverse does not exist.\n\nSources for fixing inaccurate float arithmetic:\nhttps://stackoverflow.com/questions/6563058/how-do-i-use-accurate-float-arithmetic-in-python\nhttps://docs.python.org/3/library/decimal.html\n\nDoctests for 2x2\n>>> inverse_of_matrix([[2, 5], [2, 0]])\n[[0.0, 0.5], [0.2, -0.2]]\n>>> inverse_of_matrix([[2.5, 5], [1, 2]])\nTraceback (most recent call last):\n    ...\nValueError: This matrix has no inverse.\n>>> inverse_of_matrix([[12, -16], [-9, 0]])\n[[0.0, -0.1111111111111111], [-0.0625, -0.08333333333333333]]\n>>> inverse_of_matrix([[12, 3], [16, 8]])\n[[0.16666666666666666, -0.0625], [-0.3333333333333333, 0.25]]\n>>> inverse_of_matrix([[10, 5], [3, 2.5]])\n[[0.25, -0.5], [-0.3, 1.0]]\n\nDoctests for 3x3\n>>> inverse_of_matrix([[2, 5, 7], [2, 0, 1], [1, 2, 3]])\n[[2.0, 1.0, -5.0], [5.0, 1.0, -12.0], [-4.0, -1.0, 10.0]]\n>>> inverse_of_matrix([[1, 2, 2], [1, 2, 2], [3, 2, -1]])\nTraceback (most recent call last):\n    ...\nValueError: This matrix has no inverse.\n\n>>> inverse_of_matrix([[],[]])\nTraceback (most recent call last):\n    ...\nValueError: Please provide a matrix of size 2x2 or 3x3.\n\n>>> inverse_of_matrix([[1, 2], [3, 4], [5, 6]])\nTraceback (most recent call last):\n    ...\nValueError: Please provide a matrix of size 2x2 or 3x3.\n\n>>> inverse_of_matrix([[1, 2, 1], [0,3, 4]])\nTraceback (most recent call last):\n    ...\nValueError: Please provide a matrix of size 2x2 or 3x3.\n\n>>> inverse_of_matrix([[1, 2, 3], [7, 8, 9], [7, 8, 9]])\nTraceback (most recent call last):\n    ...\nValueError: This matrix has no inverse.\n\n>>> inverse_of_matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])\n[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]"
+  [& _args]
+  ;; stub: original requires array; pure-Clojure port not applicable
+  (throw (ex-info "requires array" {:type :UnsupportedOperation})))
+
+;; NOTE: inverse_of_matrix stubbed (array)

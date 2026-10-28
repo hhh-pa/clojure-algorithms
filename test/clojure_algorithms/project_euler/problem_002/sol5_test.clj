@@ -1,0 +1,10 @@
+(ns clojure-algorithms.project-euler.problem-002.sol5-test
+  (:require [clojure.test :refer [deftest is]]
+            [clojure-algorithms.project-euler.problem-002.sol5 :refer [solution]]))
+
+(deftest solution-test
+  (is (= 10 (solution 10)))
+  (is (= 10 (solution 15)))
+  (is (= 2 (solution 2)))
+  (is (= 0 (solution 1)))
+  (is (= 44 (solution 34))))
