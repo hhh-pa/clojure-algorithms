@@ -18,7 +18,7 @@
                 :version version
                 :basis @basis
                 :src-dirs ["src"]})
-  (b/copy-dir {:src-dirs ["src"]
+  (b/copy-dir {:src-dirs ["src" "resources"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir
           :jar-file jar-file}))

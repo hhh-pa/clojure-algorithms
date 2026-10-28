@@ -23,17 +23,12 @@
   (reduce (fn [m w] (update m (signature w) (fnil conj []) w))
           {} word-list))
 
-(def ^:private dictionary-paths
-  ["resources/words.txt"
-   "/tmp/clj-port/native-10/resources/words.txt"
-   "/tmp/TheAlgorithms-Python/strings/words.txt"])
-
 (def word-by-signature
-  "Lazily loaded {signature [words]} index over words.txt."
+  "Lazily loaded {signature [words]} index over the bundled words.txt."
   (delay
-    (if-let [path (first (filter #(.exists (io/file %)) dictionary-paths))]
-      (build-index (load-word-list path))
-      {})))
+    (if-let [url (io/resource "words.txt")]
+      (build-index (load-word-list url))
+      (throw (ex-info "words.txt not found on classpath" {})))))
 
 (defn anagram
   "Returns every anagram of `word` found in the dictionary index."

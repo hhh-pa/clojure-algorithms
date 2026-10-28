@@ -21,7 +21,7 @@ classic algorithms and data structures implemented in idiomatic Clojure.
 
 - **1,350** implementations, each with a matching `clojure.test` suite
   (**1,350** test namespaces).
-- Full suite: **2,076 tests, 12,031 assertions, 0 failures, 0 errors**
+- Full suite: **2,077 tests, 12,047 assertions, 0 failures, 0 errors**
   (`clojure -M:test`).
 - Implementations that depend on Python-only libraries (NumPy, OpenCV,
   network APIs) are ported as pure-Clojure logic where possible, otherwise
@@ -57,6 +57,9 @@ src/clojure_algorithms/
 test/clojure_algorithms/
   core_test.clj
   <category>/...     # matching test suites
+resources/
+  words.txt          # vendored from upstream (strings/anagrams)
+  dictionary.txt     # vendored from upstream (strings/detecting-english)
 ```
 
 ## Coverage

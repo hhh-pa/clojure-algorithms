@@ -8,18 +8,13 @@
   "Characters kept by remove-non-letters."
   (set (str "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz \t\n")))
 
-(def ^:private dictionary-paths
-  ["resources/dictionary.txt"
-   "/tmp/clj-port/native-10/resources/dictionary.txt"
-   "/tmp/TheAlgorithms-Python/strings/dictionary.txt"])
-
 (defn load-dictionary
   "Loads the English word set from the bundled dictionary.txt."
   []
-  (if-let [path (first (filter #(.exists (io/file %)) dictionary-paths))]
-    (with-open [r (io/reader path)]
+  (if-let [url (io/resource "dictionary.txt")]
+    (with-open [r (io/reader url)]
       (set (line-seq r)))
-    #{}))
+    (throw (ex-info "dictionary.txt not found on classpath" {}))))
 
 (def english-words
   "Lazily loaded dictionary word set."
