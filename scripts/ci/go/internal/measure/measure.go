@@ -15,8 +15,11 @@ const PerfEvents = "instructions:u,cycles:u"
 // ToolVersion tags the report.
 const ToolVersion = 1
 
-// DefaultCommandTemplate runs one namespace on the JVM.
-const DefaultCommandTemplate = "java -cp {cp} clojure.main perf/driver.clj {ns}"
+// DefaultCommandTemplate runs one namespace on the JVM. The
+// locale is pinned: several namespaces format doubles with
+// `format` (locale-sensitive), so a comma-decimal host locale
+// would fail assertions and perturb instruction counts.
+const DefaultCommandTemplate = "java -Duser.language=en -Duser.country=US -cp {cp} clojure.main perf/driver.clj {ns}"
 
 // EpsilonFlags make heap-used-at-exit equal total allocation.
 var EpsilonFlags = []string{

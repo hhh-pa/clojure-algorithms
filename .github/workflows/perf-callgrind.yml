@@ -323,8 +323,13 @@ jobs:
 
       - name: Diff JVM vs native test counts
         run: |
+          # Two namespaces assert per edge of a random graph, so
+          # their :pass counts vary run to run by design
+          # (:test/:fail/:error still compare exactly).
+          vary='["clojure-algorithms.graphs.karger-test","clojure-algorithms.graphs.random-graph-generator-test"]'
           for leg in jvm clojure-rs; do
-            jq -S '[.results[] | select(.ok) | {(.label): .test_counts}] | add' \
+            jq --argjson vary "$vary" -S \
+              '[.results[] | select(.ok) | .label as $l | {($l): (if ($l | IN($vary[])) then (.test_counts | .pass = 0) else .test_counts end)}] | add' \
               sweep-results-$leg-merged/sweep-results-merged.json > $leg-counts.json
           done
           diff jvm-counts.json clojure-rs-counts.json

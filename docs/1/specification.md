@@ -116,8 +116,11 @@ Same driver both legs (identical workload):
 
 Invocations:
 
-- JVM: `java -cp '<jars>:src:test:resources' clojure.main
-  perf/driver.clj <ns>` (jars: clojure 1.12.0 + spec.alpha
+- JVM: `java -Duser.language=en -Duser.country=US -cp
+  '<jars>:src:test:resources' clojure.main perf/driver.clj
+  <ns>` (the locale pin keeps `format`-based assertions and
+  instruction counts host-independent; jars: clojure 1.12.0 +
+  spec.alpha
   0.5.238 + core.specs.alpha 0.4.74, Maven-cached like the
   snippet CI — no Clojure CLI needed, test-runner not
   needed since the driver calls `clojure.test` directly).
@@ -132,8 +135,11 @@ Invocations:
   dedicated `report-compare` job diffs the recorded
   `test_counts` maps with jq); any mismatch fails the
   report (behavioral drift can never hide behind perf
-  numbers). Randomized tests keep assertion counts stable,
-  so equality is expected.
+  numbers). Two namespaces (`graphs.karger-test`,
+  `graphs.random-graph-generator-test`) assert per edge of
+  a random graph, so their `:pass` counts vary by design
+  and are normalized before the diff (`:test`/`:fail`/`:error`
+  still compare exactly).
 - Timeouts are split: `--timeout` (default 1800s) budgets
   the native-speed runs (whose SUMMARY gate must stay
   decisive — the slowest namespace needs ~11min on the

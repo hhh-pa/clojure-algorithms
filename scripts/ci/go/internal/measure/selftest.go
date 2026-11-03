@@ -59,7 +59,7 @@ func SelfTest(out io.Writer) int {
 
 	// Templates.
 	argv, err := BuildInnerCommand(DefaultCommandTemplate, "a.jar:b", "foo.bar-test")
-	want := []string{"java", "-cp", "a.jar:b", "clojure.main", "perf/driver.clj", "foo.bar-test"}
+	want := []string{"java", "-Duser.language=en", "-Duser.country=US", "-cp", "a.jar:b", "clojure.main", "perf/driver.clj", "foo.bar-test"}
 	add("template-jvm", err == nil && equalStrs(argv, want), fmt.Sprint(argv, err))
 	argv, err = BuildInnerCommand("clojure-rs run perf/driver.clj {ns} src test", "", "foo.bar-test")
 	want = []string{"clojure-rs", "run", "perf/driver.clj", "foo.bar-test", "src", "test"}
