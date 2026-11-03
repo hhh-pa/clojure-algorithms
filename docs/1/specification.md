@@ -175,7 +175,8 @@ snippet repo's `scripts/ci/go/internal/measure`:
   40-char SHA validated) — same as the snippet repo.
 - `perf-callgrind` matrix: `shard: [0..7]` x
   `runtime: [jvm, clojure-rs]` (16 legs).
-  - JVM leg: temurin 21 + cached Maven jars.
+  - JVM leg: pinned temurin 21.0.13 (deterministic
+    history) + cached Maven jars.
   - Native leg: stable Rust (`dtolnay/rust-toolchain`),
     checkout `hhh-pa/clojure` at the resolved SHA, `cargo
     build --release --locked --no-default-features` in
