@@ -1,5 +1,6 @@
 (ns clojure-algorithms.ciphers.xor-cipher
-  "XOR cipher over characters.")
+  "XOR cipher over characters."
+  (:require clojure.java.io))
 
 (defn- effective-key
   [key]

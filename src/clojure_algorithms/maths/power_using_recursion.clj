@@ -27,8 +27,10 @@ by an integer concatenates; anything else raises a TypeError."
 (defn power
   "Calculate the power of a base raised to an exponent using recursion."
   [base exponent]
-  (if (and (number? exponent) (zero? exponent))
-    1
-    (if (number? exponent)
-      (mul-strict base (power base (dec-strict exponent)))
-      (dec-strict exponent))))
+  (if (and (number? exponent) (neg? exponent))
+    (throw (ex-info "negative exponent" {:type :IllegalArgumentException}))
+    (if (and (number? exponent) (zero? exponent))
+      1
+      (if (number? exponent)
+        (mul-strict base (power base (dec-strict exponent)))
+        (dec-strict exponent)))))

@@ -115,6 +115,27 @@ resources/
 | web_programming | `web-programming` | 35 | 35 |
 | **Total** | | **1,350** | **1,350** |
 
+## Perf (JVM vs clojure-rs)
+
+Every push runs a deterministic callgrind sweep over all test
+namespaces under both JVM Clojure and
+[clojure-rs](https://github.com/hhh-pa/clojure)
+(`.github/workflows/perf-callgrind.yml`), reporting
+`callgrind_instructions` and `callgrind_allocated_bytes` per
+namespace to Bencher (same benchmark names, distinct testbeds —
+see `docs/1/specification.md`).
+
+- Each namespace runs `perf/driver.clj`, which prints one
+  `SUMMARY {:test :pass :fail :error}` line; the sweep gates on
+  it (failures fail loudly), and a report job diffs the counts
+  between runtimes so behavioral drift can never hide behind
+  perf numbers.
+- Semantic note: the JVM allocation number is EpsilonGC
+  heap-used-at-exit, the native number is malloc-request bytes
+  (LD_PRELOAD counting shim). Both are "total requested
+  allocation" for the same program run — ratio-meaningful per
+  benchmark, not bit-comparable absolutes.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

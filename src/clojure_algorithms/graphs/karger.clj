@@ -1,5 +1,6 @@
 (ns clojure-algorithms.graphs.karger
-  "Graph partitioning via Karger's randomized contraction.")
+  "Graph partitioning via Karger's randomized contraction."
+  (:require clojure.set))
 
 (defn partition-graph
   "Contracts random edges until two nodes remain; returns the cutset

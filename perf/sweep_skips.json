@@ -1,0 +1,4 @@
+{
+  "clojure-algorithms.maths.matrix-exponentiation-test": "exceeds the sweep budgets: native run needs >1800s on CI (big-int fib benchmark), JVM EpsilonGC needs >2g heap. Still covered by ci.yml.",
+  "clojure-algorithms.project-euler.problem-056.sol1-test": "JVM EpsilonGC needs 7.4g heap (measured), exceeding the 2g budget; raising it would OOM the runners at jobs=2. Still covered by ci.yml."
+}

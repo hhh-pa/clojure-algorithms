@@ -1,0 +1,335 @@
+name: perf-callgrind
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      clojure_rs_sha:
+        description: 'Pin clojure-rs to this revision instead of master HEAD (40-char SHA; empty = float)'
+        required: false
+        default: ''
+
+# Full-matrix callgrind sweep: every test namespace's gungraun-run
+# measures (callgrind_instructions + callgrind_allocated_bytes) on
+# every push, for JVM Clojure and clojure-rs alike. This is the
+# only perf signal. Lean recipe (--repeat 1, --no-alloc since the
+# callgrind phase itself yields allocation): ~25s/namespace all-in
+# on CI hardware x ~170 namespaces/shard / 2 jobs ~= 35min per
+# shard. A valgrind/toolchain failure fails the push: the sweep is
+# a required signal.
+#
+# The perf-callgrind native leg always builds clojure-rs master HEAD
+# (interpreter-only build; `run` needs no LLVM), resolved once per
+# run by the resolve-rs job below. A bad upstream commit fails
+# loudly (the sweep SUMMARY-gates every namespace), and Bencher
+# shows the delta; to bisect or repro, dispatch manually with
+# `clojure_rs_sha`.
+
+jobs:
+  # Resolve the clojure-rs revision ONCE per run so all 16 sweep
+  # legs build the same commit even if upstream master moves
+  # mid-sweep. Default: master HEAD (float); a manual dispatch may
+  # pin `clojure_rs_sha` instead.
+  resolve-rs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - id: resolve
+        run: |
+          if [ -n "${{ inputs.clojure_rs_sha }}" ]; then
+            sha="${{ inputs.clojure_rs_sha }}"
+            echo "using dispatch-pinned revision"
+          else
+            sha=$(git ls-remote https://github.com/hhh-pa/clojure HEAD | awk '{print $1}')
+          fi
+          if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "error: resolved clojure-rs revision is not a 40-char SHA: '$sha'" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "clojure-rs revision: \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # Correctness gate for the sweep (same steps as ci.yml): never
+  # sweep a red tree. (A cross-workflow `needs` is impossible, so
+  # the job is duplicated here; keep the two in sync. Named `gate`
+  # so its check never collides with ci.yml's `test`.)
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Clojure
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: Fetch dependencies
+        run: clojure -P
+
+      - name: Check formatting
+        run: clojure -M:cljfmt
+
+      - name: Run tests
+        run: clojure -M:test
+
+  perf-callgrind:
+    needs: [gate, resolve-rs]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    strategy:
+      # Let every shard finish so partial artifacts upload for diagnosis.
+      fail-fast: false
+      matrix:
+        # One entry per compiler/runtime; benchmark names stay
+        # identical across runtimes (Bencher compares via testbeds,
+        # derived below as ubuntu-latest-<runtime>). Keep the
+        # runtime list in sync with the report-callgrind job below.
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+        runtime: [jvm, clojure-rs]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/algoperf-tools
+        with:
+          cache-key: algoperf-${{ runner.os }}-${{ hashFiles('.github/actions/algoperf-tools/**', 'scripts/ci/go/go.mod', 'scripts/ci/go/cmd/algoperf/**', 'scripts/ci/go/internal/algocore/**', 'scripts/ci/go/internal/pyjson/**', 'scripts/ci/go/internal/measure/**') }}
+
+      # Pinned (not floating "21" like ci.yml): JDK micro
+      # versions move instruction counts, and the sweep's Bencher
+      # history must stay comparable. Bump deliberately.
+      - name: Set up JDK 21
+        if: matrix.runtime == 'jvm'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21.0.13'
+
+      - name: Cache Clojure jars
+        if: matrix.runtime == 'jvm'
+        id: jars-cache
+        uses: actions/cache@v4
+        with:
+          path: .ci/jars
+          key: clojure-jars-1.12.0-spec0.5.238-core0.4.74-v1
+
+      - name: Download Clojure jars
+        if: matrix.runtime == 'jvm' && steps.jars-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .ci/jars
+          base=https://repo1.maven.org/maven2
+          curl -fsSL -o .ci/jars/clojure.jar "$base/org/clojure/clojure/1.12.0/clojure-1.12.0.jar"
+          curl -fsSL -o .ci/jars/spec.alpha.jar "$base/org/clojure/spec.alpha/0.5.238/spec.alpha-0.5.238.jar"
+          curl -fsSL -o .ci/jars/core.specs.alpha.jar "$base/org/clojure/core.specs.alpha/0.4.74/core.specs.alpha-0.4.74.jar"
+
+      # clojure-rs leg: interpreter-only release build (no LLVM:
+      # `run` needs just the interpreter crates). The revision is
+      # master HEAD resolved once per run (see resolve-rs); the
+      # sweep SUMMARY-gates every namespace, so a bad upstream
+      # commit fails loudly, and Bencher shows the perf delta.
+      - name: Install Rust toolchain
+        if: matrix.runtime == 'clojure-rs'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check out clojure-rs
+        if: matrix.runtime == 'clojure-rs'
+        uses: actions/checkout@v4
+        with:
+          repository: hhh-pa/clojure
+          ref: ${{ needs.resolve-rs.outputs.sha }}
+          path: clojure-rs
+
+      - name: Cache cargo build
+        if: matrix.runtime == 'clojure-rs'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: clojure-rs/rust
+
+      - name: Build clojure-rs
+        if: matrix.runtime == 'clojure-rs'
+        run: |
+          cd clojure-rs/rust
+          cargo build --release --locked --no-default-features
+          mkdir -p "$GITHUB_WORKSPACE/cljrs-bin"
+          cp target/release/clojure-rs "$GITHUB_WORKSPACE/cljrs-bin/"
+          echo "$GITHUB_WORKSPACE/cljrs-bin" >> "$GITHUB_PATH"
+
+      - name: Install measurement tools
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+        with:
+          # gcc builds algoperf's LD_PRELOAD allocation-counting
+          # shim on demand (native legs); preinstalled on the
+          # hosted image, listed here so the dependency is
+          # explicit.
+          packages: time linux-tools-common linux-tools-generic valgrind gcc
+          version: 1.0
+
+      - name: Measure callgrind sweep (deterministic metrics)
+        # Lean recipe: one timed run (SUMMARY gate) + the callgrind
+        # phase per namespace (JVM: one -Xint+EpsilonGC run; native:
+        # one plain callgrind run plus one LD_PRELOAD counting run).
+        # No --alloc (the callgrind phase itself yields
+        # allocation).
+        run: |
+          flags=(--runtime "${{ matrix.runtime }}")
+          if [ "${{ matrix.runtime }}" = "clojure-rs" ]; then
+            flags+=(--command-template 'clojure-rs run perf/driver.clj {ns} src test resources')
+          else
+            jars=".ci/jars/clojure.jar:.ci/jars/spec.alpha.jar:.ci/jars/core.specs.alpha.jar"
+            flags+=(--cp "$jars:src:test:resources")
+          fi
+          "$GITHUB_WORKSPACE/algoperf-bin/algoperf" measure \
+            --repeat 1 --no-alloc --jobs 2 --timeout 1800 \
+            --callgrind-timeout 600 \
+            "${flags[@]}" \
+            --shard ${{ matrix.shard }}/8 \
+            --callgrind --callgrind-repeat 1 \
+            --output sweep-results.json --bmf-output sweep-bmf.json \
+            --summary-file "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Bencher CLI
+        uses: bencherdev/bencher@main
+
+      # Threshold policy: callgrind_instructions (percentage) only,
+      # same flags on both testbeds (the clojure-rs testbed starts
+      # with empty history and arms after 10 samples). Both
+      # gungraun-run measures are tracked; the overlapping
+      # cpu_time/peak_memory entries are stripped before reporting
+      # (the sweep is repeat-1 timing, not a timing signal; no
+      # allocated_bytes here: --no-alloc). A fixed 1% upper
+      # boundary sits far above callgrind wobble; min/max sample
+      # 10/64. callgrind_allocated_bytes rides threshold-free
+      # until its own wobble is characterized. Each shard reports
+      # its own stripped subset (~170 benchmarks x 2 measures).
+      - name: Track callgrind benchmarks with Bencher
+        run: |
+          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= {callgrind_instructions, callgrind_allocated_bytes})' \
+            sweep-bmf.json > sweep-bench.json
+          if [ "$(jq 'length' sweep-bench.json)" = "0" ]; then
+            echo "no callgrind data in shard; skipping Bencher report"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bencher run \
+              --project clojure-algorithms \
+              --key '${{ secrets.BENCHER_API_KEY }}' \
+              --branch "${{ github.head_ref }}" \
+              --hash "${{ github.event.pull_request.head.sha }}" \
+              --start-point "${{ github.base_ref }}" \
+              --start-point-hash "${{ github.event.pull_request.base.sha }}" \
+              --start-point-clone-thresholds \
+              --testbed ubuntu-latest-${{ matrix.runtime }} \
+              --adapter json \
+              --file sweep-bench.json \
+              --github-actions "${{ secrets.GITHUB_TOKEN }}"
+          else
+            bencher run \
+              --project clojure-algorithms \
+              --key '${{ secrets.BENCHER_API_KEY }}' \
+              --branch "${{ github.ref_name }}" \
+              --testbed ubuntu-latest-${{ matrix.runtime }} \
+              --threshold-measure callgrind_instructions \
+              --threshold-test percentage \
+              --threshold-min-sample-size 10 \
+              --threshold-max-sample-size 64 \
+              --threshold-upper-boundary 0.01 \
+              --adapter json \
+              --file sweep-bench.json \
+              --github-actions "${{ secrets.GITHUB_TOKEN }}"
+          fi
+
+      - name: Upload sweep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-results-${{ matrix.runtime }}-shard-${{ matrix.shard }}
+          path: |
+            sweep-results.json
+            sweep-bmf.json
+            sweep-bench.json
+
+  report-callgrind:
+    needs: perf-callgrind
+    runs-on: ubuntu-latest
+    # No Bencher run here by design: one merged ~1351-benchmark
+    # file would re-truncate the check summary.
+    permissions:
+      contents: read
+    # One merge per runtime; keep in sync with the perf-callgrind
+    # job's runtime list above.
+    strategy:
+      matrix:
+        runtime: [jvm, clojure-rs]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/algoperf-tools
+        with:
+          cache-key: algoperf-${{ runner.os }}-${{ hashFiles('.github/actions/algoperf-tools/**', 'scripts/ci/go/go.mod', 'scripts/ci/go/cmd/algoperf/**', 'scripts/ci/go/internal/algocore/**', 'scripts/ci/go/internal/pyjson/**', 'scripts/ci/go/internal/measure/**') }}
+
+      - name: Download sweep results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sweep-results-${{ matrix.runtime }}-shard-*
+
+      - name: Merge sweep reports
+        run: |
+          "$GITHUB_WORKSPACE/algoperf-bin/algoperf" measure --merge sweep-results-*/sweep-results.json \
+            --output sweep-results-merged.json \
+            --bmf-output sweep-bmf-merged.json \
+            --summary-file "$GITHUB_STEP_SUMMARY"
+
+      # The merge must equal the plain BMF union: sharding is
+      # namespace-cohesive, so no benchmark straddles two shards.
+      - name: Verify merge matches per-shard BMFs
+        run: |
+          jq -s 'add' sweep-results-*/sweep-bmf.json > sweep-bmf-jq.json
+          diff <(jq -S . sweep-bmf-merged.json) <(jq -S . sweep-bmf-jq.json)
+
+      - name: Upload merged sweep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-results-${{ matrix.runtime }}-merged
+          path: |
+            sweep-results-merged.json
+            sweep-bmf-merged.json
+
+  # Behavioral drift gate: every namespace's SUMMARY counts must
+  # match between the two runtimes. Perf numbers mean nothing if
+  # the two legs ran different tests.
+  report-compare:
+    needs: report-callgrind
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download merged sweep results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sweep-results-*-merged
+
+      - name: Diff JVM vs native test counts
+        run: |
+          # Two namespaces assert per edge of a random graph, so
+          # their :pass counts vary run to run by design
+          # (:test/:fail/:error still compare exactly).
+          vary='["clojure-algorithms.graphs.karger-test","clojure-algorithms.graphs.random-graph-generator-test"]'
+          for leg in jvm clojure-rs; do
+            jq --argjson vary "$vary" -S \
+              '[.results[] | select(.ok) | .label as $l | {($l): (if ($l | IN($vary[])) then (.test_counts | .pass = 0) else .test_counts end)}] | add' \
+              sweep-results-$leg-merged/sweep-results-merged.json > $leg-counts.json
+          done
+          diff jvm-counts.json clojure-rs-counts.json
