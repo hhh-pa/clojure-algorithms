@@ -17,7 +17,7 @@ Acceptance criteria:
   runtime{jvm, clojure-rs} matrix; `report-callgrind` merges
   per runtime; `ci.yml` `test` is unchanged.
 - `algoperf measure --runtime clojure-rs --command-template
-  'clojure-rs run perf/driver.clj {ns} src test' --callgrind`
+  'clojure-rs run perf/driver.clj {ns} src test resources' --callgrind`
   reports both gungraun-run measures per namespace (valgrind
   Ir + allocator-shim total); the JVM recipe behaves exactly
   like T1211 (same flags, same parsers, same BMF shape).
@@ -57,9 +57,14 @@ Non-goals:
 - No full-stdout diff gate: namespaces print
   nondeterministically (timing, random samples, hash order),
   so the SUMMARY line is the gate (see design).
-- No changes to `src/`, `test/`, `deps.edn`, or `build.clj`:
-  this is a pure CI addition (`perf/`, `scripts/`,
-  `.github/workflows/`, `docs/` only).
+- No changes to `deps.edn` or `build.clj`. The `src/` +
+  `test/` changes on this branch are limited to the four
+  test-isolation fixes the sweep itself surfaced (three
+  missing `:require`s that only passed by ambient load
+  order, plus a fail-fast negative-exponent guard replacing
+  a stack-exhaustion dependency — the underlying
+  abort-vs-`StackOverflowError` port gap is tracked at
+  hhh-pa/clojure#220).
 - No Bencher-side threshold tuning past the T1211 1%
   `callgrind_instructions` policy; no branch-protection edit
   on this branch — both are merge-time admin steps (below).
@@ -100,7 +105,7 @@ Same driver both legs (identical workload):
 ```
 
 - JVM leg passes no load-path (the `-cp` covers `src`/`test`);
-  the native leg passes `src test` (verified: require +
+  the native leg passes `src test resources` (verified: require +
   run-tests + SUMMARY all work under `clojure-rs run`).
 - No `System/exit` (unemulated on the native leg): the gate
   parses the SUMMARY line and fails the case on `:fail`/`:error`
@@ -111,27 +116,31 @@ Same driver both legs (identical workload):
 
 Invocations:
 
-- JVM: `java -cp '<jars>:src:test' clojure.main
+- JVM: `java -cp '<jars>:src:test:resources' clojure.main
   perf/driver.clj <ns>` (jars: clojure 1.12.0 + spec.alpha
   0.5.238 + core.specs.alpha 0.4.74, Maven-cached like the
   snippet CI — no Clojure CLI needed, test-runner not
   needed since the driver calls `clojure.test` directly).
-- Native: `clojure-rs run perf/driver.clj <ns> src test`.
+- Native: `clojure-rs run perf/driver.clj <ns> src test resources`.
 
 ### SUMMARY gate + cross-leg comparison
 
 - Per leg, per namespace: exit 0 + SUMMARY parsed +
   `:fail`/`:error` zero, else the case fails loudly.
 - At `report-callgrind` time: diff the per-namespace
-  `(test,pass,fail,error)` tuples JVM vs clojure-rs; any
-  mismatch fails the report (behavioral drift can never
-  hide behind perf numbers). Randomized tests keep
-  assertion counts stable, so equality is expected.
-- Timeout degrades to `callgrind_skipped` with a reason
-  (visible in JSON, excluded from BMF) — the T1211 policy.
-  The timeout starts at 600s per namespace (heavy
-  namespaces under callgrind are uncalibrated; tune from
-  CI data).
+  `(test,pass,fail,error)` tuples JVM vs clojure-rs (a
+  dedicated `report-compare` job diffs the recorded
+  `test_counts` maps with jq); any mismatch fails the
+  report (behavioral drift can never hide behind perf
+  numbers). Randomized tests keep assertion counts stable,
+  so equality is expected.
+- Timeouts are split: `--timeout` (default 1800s) budgets
+  the native-speed runs (whose SUMMARY gate must stay
+  decisive — the slowest namespace needs ~11min on the
+  native leg), while `--callgrind-timeout` (default 600s)
+  budgets the instrumented phase, which degrades to
+  `callgrind_skipped` with a reason (visible in JSON,
+  excluded from BMF) — the T1211 policy. Tune from CI data.
 
 ### `algoperf measure`: vendored recipe, native discovery
 

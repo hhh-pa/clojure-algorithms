@@ -1,0 +1,37 @@
+name: algoperf-tools
+description: >
+  Provide the algoperf binary from a prebuilt binary kept in the
+  Actions cache (rebuilt on miss); no external dependencies beyond
+  setup-go. Callers invoke algoperf-bin/algoperf themselves.
+inputs:
+  cache-key:
+    description: >
+      Full cache key for the prebuilt algoperf binary, shared by
+      every job on the OS: algoperf-<os>-<hash>, where the hash
+      covers this action's sources plus exactly the Go inputs the
+      build reads (go.mod, cmd/algoperf, the internal packages
+      algoperf imports).
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v5
+      with:
+        path: algoperf-bin
+        key: ${{ inputs.cache-key }}
+    - if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: scripts/ci/go/go.mod
+        cache: false
+    # NO working-directory KEY anywhere in this manifest: a build
+    # step with an explicit working-directory key can silently
+    # produce no file, while the identical command with an
+    # in-script cd works. Every path uses the quoted
+    # $GITHUB_WORKSPACE env.
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cd "$GITHUB_WORKSPACE/scripts/ci/go"
+        CGO_ENABLED=0 go build -o "$GITHUB_WORKSPACE/algoperf-bin/algoperf" ./cmd/algoperf

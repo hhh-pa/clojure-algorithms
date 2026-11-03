@@ -1,5 +1,6 @@
 (ns clojure-algorithms.data-structures.disjoint-set.disjoint-set-test
   (:require [clojure.test :refer [deftest is]]
+            clojure.set
             [clojure-algorithms.data-structures.disjoint-set.disjoint-set
              :refer [make-set find-set union-set find-python-set]]))
 
