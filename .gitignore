@@ -8,3 +8,6 @@
 /out/
 node_modules/
 .DS_Store
+.gradle/
+/bench/build/
+!/bench/gradle/wrapper/gradle-wrapper.jar

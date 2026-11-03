@@ -1,0 +1,51 @@
+name: CodSpeed Benchmarks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # `workflow_dispatch` allows CodSpeed to trigger backtest
+  # performance analysis in order to generate initial data.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # required for actions/checkout
+  id-token: write # required for OIDC authentication with CodSpeed
+
+jobs:
+  benchmarks:
+    name: Run benchmarks
+    # CodSpeed macro runners give much more stable walltime measurements.
+    # Switch to `runs-on: codspeed-macro` once they are enabled for this
+    # organization: https://codspeed.io/docs/features/macro-runners
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only fetch the CodSpeed JMH fork and its native hooks, not the
+      # example submodules bundled with codspeed-jvm.
+      - name: Fetch the CodSpeed JMH fork
+        run: |
+          git submodule update --init third-party/codspeed-jvm
+          git -C third-party/codspeed-jvm submodule update --init \
+            jmh-fork/jmh-core/native-instrument-hooks/instrument-hooks
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build the benchmark jar
+        working-directory: bench
+        run: ./gradlew --no-daemon jmhJar
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: walltime
+          run: java -jar bench/build/libs/clojure-algorithms-bench-jmh.jar -gc true
