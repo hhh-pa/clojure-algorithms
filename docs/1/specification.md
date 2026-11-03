@@ -149,11 +149,14 @@ Invocations:
   excluded from BMF) — the T1211 policy. Tune from CI data.
 - `perf/sweep_skips.json` excludes named namespaces with a
   reviewed reason (recorded in the report as `skipped`, never
-  silent). Seeded with one entry:
-  `maths.matrix-exponentiation-test` exceeds both legs'
-  budgets (native run >1800s on CI, JVM EpsilonGC >2g heap)
-  while yielding no Bencher signal (its callgrind phase
-  would always skip); `ci.yml` still covers it.
+  silent). Seeded with two entries, both still covered by
+  `ci.yml`: `maths.matrix-exponentiation-test` (native run
+  >1800s on CI, JVM EpsilonGC >2g heap, and its callgrind
+  phase would always skip — no Bencher signal either way)
+  and `project-euler.problem-056.sol1-test` (JVM EpsilonGC
+  needs 7.4g measured; raising the 2g budget would OOM the
+  runners at jobs=2 — the next-heaviest namespace needs
+  0.67g, so 2g stays).
 - The shim cross-check compares `:test`/`:fail`/`:error`
   plus `:pass > 0` (not exact `:pass`): the two random-graph
   namespaces legitimately tally different assertion counts
