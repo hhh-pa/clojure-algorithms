@@ -143,13 +143,24 @@ func runMeasure(argv []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	skips, err := LoadSkips(root, found)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 
 	type task struct {
 		ns, stem string
 	}
 	var tasks []task
+	var skipped []measure.CaseResult
+	driver := filepath.Join(root, "perf", "driver.clj")
 	for _, entry := range found {
 		if only != "" && !strings.Contains(entry.Ns, only) {
+			continue
+		}
+		if reason, excluded := skips[entry.Ns]; excluded {
+			skipped = append(skipped, measure.SkippedResult(entry.Ns, entry.Stem, "perf/driver.clj", "run", reason))
 			continue
 		}
 		tasks = append(tasks, task{entry.Ns, entry.Stem})
@@ -179,7 +190,6 @@ func runMeasure(argv []string) int {
 		effectiveCg = callgrindRepeat
 	}
 
-	driver := filepath.Join(root, "perf", "driver.clj")
 	results := make([]measure.CaseResult, len(tasks))
 	work := make(chan int)
 	total := len(tasks)
@@ -213,6 +223,10 @@ func runMeasure(argv []string) int {
 		close(work)
 	}()
 	workers.Wait()
+	for _, s := range skipped {
+		fmt.Printf("measure [skip] %s/%s/%s: %s\n", s.Label, s.Stem, s.Case, *s.Skipped)
+	}
+	results = append(results, skipped...)
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].Label != results[j].Label {
 			return results[i].Label < results[j].Label

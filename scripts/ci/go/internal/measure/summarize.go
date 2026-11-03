@@ -66,6 +66,18 @@ type CaseResult struct {
 	Summary          *CaseSummary `json:"summary"`
 	TestCounts       *TestCounts  `json:"test_counts"`
 	CallgrindSkipped *string      `json:"callgrind_skipped,omitempty"`
+	Skipped          *string      `json:"skipped,omitempty"`
+}
+
+// SkippedResult records a sweep_skips.json exclusion: Ok stays
+// true (the exclusion is deliberate and reviewed), no runs exist,
+// and BMF/summary builders skip it.
+func SkippedResult(label, stem, script, cas, reason string) CaseResult {
+	return CaseResult{
+		Label: label, Stem: stem, Script: script, Case: cas,
+		Ok: true, Runs: []RunMetrics{}, AllocRuns: []int64{},
+		Skipped: &reason,
+	}
 }
 
 // TestCounts is the driver's SUMMARY counts for one namespace.

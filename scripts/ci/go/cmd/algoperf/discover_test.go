@@ -43,6 +43,47 @@ func TestDiscoverNamespaces(t *testing.T) {
 	}
 }
 
+func TestLoadSkips(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "test", "clojure_algorithms", "odd_test.clj")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("(ns clojure-algorithms.odd-test)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	found, err := DiscoverNamespaces(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Absent file: no skips.
+	skips, err := LoadSkips(root, found)
+	if err != nil || len(skips) != 0 {
+		t.Fatalf("absent skips: %v %v", skips, err)
+	}
+	// Known ns: loads.
+	perf := filepath.Join(root, "perf")
+	if err := os.MkdirAll(perf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"clojure-algorithms.odd-test": "too slow"}`
+	if err := os.WriteFile(filepath.Join(perf, "sweep_skips.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	skips, err = LoadSkips(root, found)
+	if err != nil || skips["clojure-algorithms.odd-test"] != "too slow" {
+		t.Fatalf("load skips: %v %v", skips, err)
+	}
+	// Unknown ns: error.
+	body = `{"clojure-algorithms.nope-test": "x"}`
+	if err := os.WriteFile(filepath.Join(perf, "sweep_skips.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadSkips(root, found); err == nil {
+		t.Fatal("unknown ns must error")
+	}
+}
+
 func TestDiscoverNamespacesRejectsMismatch(t *testing.T) {
 	root := t.TempDir()
 	p := filepath.Join(root, "test", "clojure_algorithms", "odd_test.clj")

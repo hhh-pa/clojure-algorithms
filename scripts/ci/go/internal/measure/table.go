@@ -22,6 +22,10 @@ func PrintTable(out io.Writer, results []CaseResult, failures []string) {
 			fmt.Fprintf(out, "FAIL %s\n", errText)
 			continue
 		}
+		if res.Skipped != nil {
+			fmt.Fprintf(out, "%s: skipped (%s)\n", tag, *res.Skipped)
+			continue
+		}
 		s := res.Summary
 		insn := "None"
 		if s.Instructions != nil {
@@ -100,10 +104,17 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 		runtimeVersion = fmt.Sprintf(", runtime: %s", *report.Runtime.RuntimeVersion)
 	}
 	ok := 0
+	skipped := 0
 	for _, r := range report.Results {
-		if r.Ok {
+		if r.Skipped != nil {
+			skipped++
+		} else if r.Ok {
 			ok++
 		}
+	}
+	skippedNote := ""
+	if skipped > 0 {
+		skippedNote = fmt.Sprintf(", %d skipped", skipped)
 	}
 	lines := []string{
 		"## Perf measurement (`algoperf measure`)",
@@ -111,7 +122,7 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 		fmt.Sprintf("- %s (%s), java: %s%s", report.TimestampUTC, cpuModel, javaVersion, runtimeVersion),
 		fmt.Sprintf("- runtime: %s, perf counters: %s, repeat: %d, jobs: %d, alloc_repeat: %s",
 			report.Runtime.Name, perfUsed, report.Config.Repeat, report.Config.Jobs, allocRepeat),
-		fmt.Sprintf("- %d ok, %d failed", ok, len(report.Failures)),
+		fmt.Sprintf("- %d ok%s, %d failed", ok, skippedNote, len(report.Failures)),
 		"- Primary signals: min CPU time, max peak RSS, min allocated " +
 			"bytes, median instructions (load-independent); wall time is " +
 			"secondary. Compare same-machine ratios only.",
@@ -122,7 +133,7 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 	perNsWall := map[string]float64{}
 	perNsInsn := map[string][]*pyjson.Num{}
 	for _, res := range report.Results {
-		if !res.Ok {
+		if !res.Ok || res.Skipped != nil {
 			continue
 		}
 		key := res.Label

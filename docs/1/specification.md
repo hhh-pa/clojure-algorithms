@@ -147,6 +147,17 @@ Invocations:
   budgets the instrumented phase, which degrades to
   `callgrind_skipped` with a reason (visible in JSON,
   excluded from BMF) — the T1211 policy. Tune from CI data.
+- `perf/sweep_skips.json` excludes named namespaces with a
+  reviewed reason (recorded in the report as `skipped`, never
+  silent). Seeded with one entry:
+  `maths.matrix-exponentiation-test` exceeds both legs'
+  budgets (native run >1800s on CI, JVM EpsilonGC >2g heap)
+  while yielding no Bencher signal (its callgrind phase
+  would always skip); `ci.yml` still covers it.
+- The shim cross-check compares `:test`/`:fail`/`:error`
+  plus `:pass > 0` (not exact `:pass`): the two random-graph
+  namespaces legitimately tally different assertion counts
+  run to run.
 
 ### `algoperf measure`: vendored recipe, native discovery
 

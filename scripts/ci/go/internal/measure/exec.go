@@ -308,7 +308,11 @@ func jvmCallgrindOnce(inner []string, timeout int) ([]byte, int64, int64, string
 		return nil, 0, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
 	}
 	if err != nil {
-		return nil, 0, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+		msg := fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+		if strings.Contains(string(stderr), "OutOfMemoryError") {
+			msg += " (Epsilon heap exhausted; raise -Xmx in EPSILON_FLAGS)"
+		}
+		return nil, 0, 0, msg
 	}
 	raw, err := os.ReadFile(outFile)
 	if err != nil {
@@ -390,7 +394,7 @@ func MeasureShimAllocOnce(inner []string, wantStdout []byte, timeout int) (int64
 	}
 	wantSum, wantErr := ParseSummary(string(wantStdout))
 	gotSum, gotErr := ParseSummary(string(stdout))
-	if wantErr != nil || gotErr != nil || wantSum != gotSum {
+	if wantErr != nil || gotErr != nil || !summariesAgree(wantSum, gotSum) {
 		return 0, "alloc-shim output mismatch: counter run diverged from the callgrind run"
 	}
 	used, err := ParseAllocShimTotal(string(stderr))

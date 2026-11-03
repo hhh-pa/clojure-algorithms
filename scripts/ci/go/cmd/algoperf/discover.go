@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,6 +59,34 @@ func DiscoverNamespaces(root string) ([]Namespace, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Ns < out[j].Ns })
 	return out, nil
+}
+
+// LoadSkips reads perf/sweep_skips.json (ns symbol -> reason),
+// returning an empty map when the file is absent. Unknown
+// namespaces are an error (a skip must name a real benchmark).
+func LoadSkips(root string, known []Namespace) (map[string]string, error) {
+	path := filepath.Join(root, "perf", "sweep_skips.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	var skips map[string]string
+	if err := json.Unmarshal(raw, &skips); err != nil {
+		return nil, fmt.Errorf("%s: %v", path, err)
+	}
+	knownSet := map[string]bool{}
+	for _, n := range known {
+		knownSet[n.Ns] = true
+	}
+	for ns := range skips {
+		if !knownSet[ns] {
+			return nil, fmt.Errorf("%s: unknown namespace %q", path, ns)
+		}
+	}
+	return skips, nil
 }
 
 // readNsDecl reads the ns symbol from a file's ns decl (the first
