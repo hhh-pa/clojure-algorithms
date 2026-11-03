@@ -1,5 +1,7 @@
 # Clojure Algorithms
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/hhh-pa/clojure-algorithms?utm_source=badge)
+
 A Clojure port of [TheAlgorithms/Python](https://github.com/TheAlgorithms/Python) —
 classic algorithms and data structures implemented in idiomatic Clojure.
 
@@ -50,6 +52,29 @@ clojure -M:cljfmt
 
 # Build a jar
 clojure -T:build jar
+```
+
+## Benchmarks
+
+Performance is tracked continuously with [CodSpeed](https://codspeed.io)
+using [JMH](https://github.com/openjdk/jmh) through the CodSpeed JMH fork
+(`third-party/codspeed-jvm`, a git submodule). The benchmarks live in
+`bench/`: Java JMH classes in `bench/src/jmh/java` call the Clojure
+functions directly, with deterministic inputs built in
+`bench/src/jmh/clojure/clojure_algorithms/bench/fixtures.clj`.
+
+```bash
+# Fetch the CodSpeed JMH fork
+git submodule update --init third-party/codspeed-jvm
+git -C third-party/codspeed-jvm submodule update --init \
+  jmh-fork/jmh-core/native-instrument-hooks/instrument-hooks
+
+# Run all benchmarks (or a subset with -Pbench=<regex>, e.g. -Pbench=Sorts)
+(cd bench && ./gradlew jmh)
+
+# Run them with the CodSpeed runner
+(cd bench && ./gradlew jmhJar)
+codspeed run --mode walltime -- java -jar bench/build/libs/clojure-algorithms-bench-jmh.jar
 ```
 
 ## Structure
