@@ -117,13 +117,15 @@ resources/
 
 ## Perf (JVM vs clojure-rs)
 
-Every push runs a deterministic callgrind sweep over all test
-namespaces under both JVM Clojure and
+Every push runs a deterministic instrumentation sweep (callgrind
++ Intel Pin) over all test namespaces under both JVM Clojure and
 [clojure-rs](https://github.com/hhh-pa/clojure)
-(`.github/workflows/perf-callgrind.yml`), reporting
-`callgrind_instructions` and `callgrind_allocated_bytes` per
-namespace to Bencher (same benchmark names, distinct testbeds —
-see `docs/1/specification.md`).
+(`.github/workflows/perf-instrumentation.yml`), reporting
+`callgrind_instructions`, `callgrind_allocated_bytes`, and
+`pin_instructions` per namespace to Bencher (same benchmark
+names, distinct testbeds — see `docs/1/specification.md`).
+Pin counts instructions only; memory is benchmarked via peak
+RSS (in BMF and the summary table).
 
 - Each namespace runs `perf/driver.clj`, which prints one
   `SUMMARY {:test :pass :fail :error}` line; the sweep gates on

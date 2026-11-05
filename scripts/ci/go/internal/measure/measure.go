@@ -12,8 +12,9 @@ const TimeFormat = "wall=%e user=%U sys=%S maxrss_kb=%M cpu_pct=%P major_faults=
 // PerfEvents are the user-space counters (PERF_EVENTS).
 const PerfEvents = "instructions:u,cycles:u"
 
-// ToolVersion tags the report.
-const ToolVersion = 1
+// ToolVersion tags the report; 2 adds the pin_instructions
+// signal plus pin_version provenance.
+const ToolVersion = 2
 
 // DefaultCommandTemplate runs one namespace on the JVM. The
 // locale is pinned: several namespaces format doubles with
@@ -34,3 +35,8 @@ const AllocRepeatDefault = 3
 
 // CallgrindRepeatDefault mirrors the one-shot gungraun default.
 const CallgrindRepeatDefault = 1
+
+// PinRepeatDefault runs two Pin counts per namespace: native
+// counts agree to ~0.1% and JVM counts to a few percent, enough
+// to catch instrument flakiness without paying for more runs.
+const PinRepeatDefault = 2

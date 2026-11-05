@@ -46,13 +46,15 @@ type CaseSummary struct {
 	AllocatedBytes          *AllocSummary `json:"allocated_bytes"`
 	CallgrindInstructions   *MinMedMax    `json:"callgrind_instructions"`
 	CallgrindAllocatedBytes *AllocSummary `json:"callgrind_allocated_bytes"`
+	PinInstructions         *MinMedMax    `json:"pin_instructions"`
 }
 
 // CaseResult is one measured namespace. Error is nil (null) on
 // success. CallgrindSkipped records a degraded callgrind phase:
 // the timed data is valid (Ok stays true) but the namespace
 // exceeded the callgrind budget, so no callgrind summaries were
-// recorded. TestCounts records the driver's SUMMARY counts so the
+// recorded. PinSkipped is the same degradation for the Pin count
+// phase. TestCounts records the driver's SUMMARY counts so the
 // report can diff JVM vs native behavior.
 type CaseResult struct {
 	Label            string       `json:"label"`
@@ -66,6 +68,7 @@ type CaseResult struct {
 	Summary          *CaseSummary `json:"summary"`
 	TestCounts       *TestCounts  `json:"test_counts"`
 	CallgrindSkipped *string      `json:"callgrind_skipped,omitempty"`
+	PinSkipped       *string      `json:"pin_skipped,omitempty"`
 	Skipped          *string      `json:"skipped,omitempty"`
 }
 

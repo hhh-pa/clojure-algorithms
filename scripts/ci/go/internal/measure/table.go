@@ -27,6 +27,28 @@ func PrintTable(out io.Writer, results []CaseResult, failures []string) {
 			continue
 		}
 		s := res.Summary
+		if s == nil {
+			fmt.Fprintf(out, "%s: ok no timed runs\n", tag)
+			continue
+		}
+		if s.Runs == 0 {
+			// Pin-only (--repeat 0): no timed signals, so
+			// report the instrument counts instead of zeros.
+			var parts []string
+			if s.PinInstructions != nil {
+				parts = append(parts, fmt.Sprintf("pin_min=%s pin_med=%s pin_max=%s",
+					numPlain(s.PinInstructions.Min), numPlain(s.PinInstructions.Median), numPlain(s.PinInstructions.Max)))
+			}
+			if s.CallgrindInstructions != nil {
+				parts = append(parts, fmt.Sprintf("cg_min=%s cg_med=%s cg_max=%s",
+					numPlain(s.CallgrindInstructions.Min), numPlain(s.CallgrindInstructions.Median), numPlain(s.CallgrindInstructions.Max)))
+			}
+			if len(parts) == 0 {
+				parts = append(parts, "no timed runs")
+			}
+			fmt.Fprintf(out, "%s: ok %s\n", tag, strings.Join(parts, " "))
+			continue
+		}
 		insn := "None"
 		if s.Instructions != nil {
 			insn = numPlain(s.Instructions.Median)
@@ -58,17 +80,21 @@ func numPlain(n pyjson.Num) string {
 }
 
 // AppendSummary appends the Markdown results table, with the
-// conditional cg_insn / cg_alloc columns (present only when some
-// benchmark reports callgrind data).
+// conditional cg_insn / cg_alloc / pin_insn columns (present
+// only when some benchmark reports that data).
 func AppendSummary(path string, report Report, bmf BMF) error {
 	showCg := false
 	showCgAlloc := false
+	showPin := false
 	for _, m := range bmf {
 		if m.CallgrindInstructions != nil {
 			showCg = true
 		}
 		if m.CallgrindAllocatedBytes != nil {
 			showCgAlloc = true
+		}
+		if m.PinInstructions != nil {
+			showPin = true
 		}
 	}
 	header := "| namespace | cpu total (s) | peak RSS (MB) | alloc total (MB) | instructions |"
@@ -79,6 +105,10 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 	}
 	if showCgAlloc {
 		header += " cg_alloc (MB) |"
+		sep += " ---: |"
+	}
+	if showPin {
+		header += " pin_insn |"
 		sep += " ---: |"
 	}
 	header += " wall total (s) |"
@@ -133,7 +163,7 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 	perNsWall := map[string]float64{}
 	perNsInsn := map[string][]*pyjson.Num{}
 	for _, res := range report.Results {
-		if !res.Ok || res.Skipped != nil {
+		if !res.Ok || res.Skipped != nil || res.Summary == nil {
 			continue
 		}
 		key := res.Label
@@ -187,6 +217,13 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 				cga = fmt.Sprintf("%.1f", m.CallgrindAllocatedBytes.Value.Float64()/1048576)
 			}
 			row += fmt.Sprintf(" %s |", cga)
+		}
+		if showPin {
+			pi := "n/a"
+			if m.PinInstructions != nil {
+				pi = numPlain(m.PinInstructions.Value)
+			}
+			row += fmt.Sprintf(" %s |", pi)
 		}
 		row += fmt.Sprintf(" %.3f |", perNsWall[name])
 		lines = append(lines, row)

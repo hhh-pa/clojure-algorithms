@@ -1,4 +1,4 @@
-name: perf-callgrind
+name: perf-instrumentation
 
 on:
   push:
@@ -11,16 +11,19 @@ on:
         required: false
         default: ''
 
-# Full-matrix callgrind sweep: every test namespace's gungraun-run
-# measures (callgrind_instructions + callgrind_allocated_bytes) on
-# every push, for JVM Clojure and clojure-rs alike. This is the
-# only perf signal. Lean recipe (--repeat 1, --no-alloc since the
-# callgrind phase itself yields allocation): ~25s/namespace all-in
-# on CI hardware x ~170 namespaces/shard / 2 jobs ~= 35min per
-# shard. A valgrind/toolchain failure fails the push: the sweep is
-# a required signal.
+# Full-matrix instrumentation sweep: every test namespace's
+# callgrind measures (callgrind_instructions +
+# callgrind_allocated_bytes) plus Pin instruction counts
+# (pin_instructions) on every push, for JVM Clojure and
+# clojure-rs alike. These are the only perf signals. Lean recipe
+# (--repeat 1, --no-alloc since the instrument phases themselves
+# yield allocation, one callgrind run + two Pin count runs per
+# namespace): ~25s/namespace all-in for the callgrind half on CI
+# hardware x ~170 namespaces/shard / 2 jobs, plus the two Pin
+# runs (faster than callgrind each). A valgrind/Pin/toolchain
+# failure fails the push: the sweep is a required signal.
 #
-# The perf-callgrind native leg always builds clojure-rs master HEAD
+# The perf-instrumentation native leg always builds clojure-rs master HEAD
 # (interpreter-only build; `run` needs no LLVM), resolved once per
 # run by the resolve-rs job below. A bad upstream commit fails
 # loudly (the sweep SUMMARY-gates every namespace), and Bencher
@@ -85,7 +88,40 @@ jobs:
       - name: Run tests
         run: clojure -M:test
 
-  perf-callgrind:
+  # Pin install smoke: proves setup-pin restores (or builds) a
+  # working kit + tool, that the Count line parses, and that
+  # counts are stable across runs. One cheap leg; it also warms
+  # the cache the future --pin sweep legs will share.
+  # Independent of gate: a broken Pin install must fail fast,
+  # not wait behind the test suite.
+  pin-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - id: pin
+        uses: ./.github/actions/setup-pin
+        with:
+          cache-key: pin-${{ runner.os }}-${{ hashFiles('.github/actions/setup-pin/**', 'scripts/ci/pin/**') }}
+
+      - name: Smoke-test Pin counts (deterministic)
+        run: |
+          set -euo pipefail
+          for i in 1 2; do
+            "${{ steps.pin.outputs.pin-bin }}" -t "${{ steps.pin.outputs.pin-tool }}" -o "pin-smoke-$i.out" -- /bin/echo hello > "echo-$i.txt"
+          done
+          test "$(cat echo-1.txt)" = "hello"
+          grep -Eq '^Count [1-9][0-9]*$' pin-smoke-1.out
+          # Counts agree to <1% across runs (ASLR-dependent libc
+          # paths wobble the low bits; the sweep takes the min of
+          # repeats).
+          c1=$(awk '/^Count / {print $2}' pin-smoke-1.out)
+          c2=$(awk '/^Count / {print $2}' pin-smoke-2.out)
+          awk -v c1="$c1" -v c2="$c2" 'BEGIN { d = (c1 > c2) ? (c1 - c2) : (c2 - c1); if (d / c1 >= 0.01) { print "count wobble too large:", c1, c2; exit 1 } }'
+          cat pin-smoke-1.out >> "$GITHUB_STEP_SUMMARY"
+
+  perf-instrumentation:
     needs: [gate, resolve-rs]
     runs-on: ubuntu-latest
     permissions:
@@ -99,7 +135,7 @@ jobs:
         # One entry per compiler/runtime; benchmark names stay
         # identical across runtimes (Bencher compares via testbeds,
         # derived below as ubuntu-latest-<runtime>). Keep the
-        # runtime list in sync with the report-callgrind job below.
+        # runtime list in sync with the report-instrumentation job below.
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
         runtime: [jvm, clojure-rs]
     steps:
@@ -107,6 +143,12 @@ jobs:
       - uses: ./.github/actions/algoperf-tools
         with:
           cache-key: algoperf-${{ runner.os }}-${{ hashFiles('.github/actions/algoperf-tools/**', 'scripts/ci/go/go.mod', 'scripts/ci/go/cmd/algoperf/**', 'scripts/ci/go/internal/algocore/**', 'scripts/ci/go/internal/pyjson/**', 'scripts/ci/go/internal/measure/**') }}
+      # Early (before the slow Rust/JDK setups): a broken Pin
+      # download must fail fast, not after a 10-minute build.
+      - id: pin
+        uses: ./.github/actions/setup-pin
+        with:
+          cache-key: pin-${{ runner.os }}-${{ hashFiles('.github/actions/setup-pin/**', 'scripts/ci/pin/**') }}
 
       # Pinned (not floating "21" like ci.yml): JDK micro
       # versions move instruction counts, and the sweep's Bencher
@@ -177,12 +219,13 @@ jobs:
           packages: time linux-tools-common linux-tools-generic valgrind gcc
           version: 1.0
 
-      - name: Measure callgrind sweep (deterministic metrics)
+      - name: Measure instrumentation sweep (deterministic metrics)
         # Lean recipe: one timed run (SUMMARY gate) + the callgrind
         # phase per namespace (JVM: one -Xint+EpsilonGC run; native:
-        # one plain callgrind run plus one LD_PRELOAD counting run).
-        # No --alloc (the callgrind phase itself yields
-        # allocation).
+        # one plain callgrind run plus one LD_PRELOAD counting run)
+        # + two Pin count runs (JVM legs run HotSpot under Pin
+        # with -Xrs; see measure --pin). No --alloc (the
+        # callgrind phase itself yields allocation).
         run: |
           flags=(--runtime "${{ matrix.runtime }}")
           if [ "${{ matrix.runtime }}" = "clojure-rs" ]; then
@@ -194,9 +237,13 @@ jobs:
           "$GITHUB_WORKSPACE/algoperf-bin/algoperf" measure \
             --repeat 1 --no-alloc --jobs 2 --timeout 1800 \
             --callgrind-timeout 600 \
+            --pin-timeout 600 \
             "${flags[@]}" \
             --shard ${{ matrix.shard }}/8 \
             --callgrind --callgrind-repeat 1 \
+            --pin --pin-repeat 2 \
+            --pin-bin "${{ steps.pin.outputs.pin-bin }}" \
+            --pin-tool "${{ steps.pin.outputs.pin-tool }}" \
             --output sweep-results.json --bmf-output sweep-bmf.json \
             --summary-file "$GITHUB_STEP_SUMMARY"
 
@@ -205,18 +252,21 @@ jobs:
 
       # Threshold policy: callgrind_instructions (percentage) only,
       # same flags on both testbeds (the clojure-rs testbed starts
-      # with empty history and arms after 10 samples). Both
-      # gungraun-run measures are tracked; the overlapping
+      # with empty history and arms after 10 samples). All three
+      # instrument measures are tracked; the overlapping
       # cpu_time/peak_memory entries are stripped before reporting
       # (the sweep is repeat-1 timing, not a timing signal; no
       # allocated_bytes here: --no-alloc). A fixed 1% upper
       # boundary sits far above callgrind wobble; min/max sample
-      # 10/64. callgrind_allocated_bytes rides threshold-free
-      # until its own wobble is characterized. Each shard reports
-      # its own stripped subset (~170 benchmarks x 2 measures).
-      - name: Track callgrind benchmarks with Bencher
+      # 10/64. callgrind_allocated_bytes and pin_instructions ride
+      # threshold-free until their own wobble is characterized.
+      # Gating stays on the callgrind pair (existing behavior when
+      # Pin degrades to a skip); pin_instructions attaches when
+      # present. Each shard reports its own stripped subset (~170
+      # benchmarks x up to 3 measures).
+      - name: Track instrumentation benchmarks with Bencher
         run: |
-          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= {callgrind_instructions, callgrind_allocated_bytes})' \
+          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= ({callgrind_instructions, callgrind_allocated_bytes, pin_instructions} | with_entries(select(.value != null))))' \
             sweep-bmf.json > sweep-bench.json
           if [ "$(jq 'length' sweep-bench.json)" = "0" ]; then
             echo "no callgrind data in shard; skipping Bencher report"
@@ -261,14 +311,14 @@ jobs:
             sweep-bmf.json
             sweep-bench.json
 
-  report-callgrind:
-    needs: perf-callgrind
+  report-instrumentation:
+    needs: perf-instrumentation
     runs-on: ubuntu-latest
     # No Bencher run here by design: one merged ~1351-benchmark
     # file would re-truncate the check summary.
     permissions:
       contents: read
-    # One merge per runtime; keep in sync with the perf-callgrind
+    # One merge per runtime; keep in sync with the perf-instrumentation
     # job's runtime list above.
     strategy:
       matrix:
@@ -311,7 +361,7 @@ jobs:
   # match between the two runtimes. Perf numbers mean nothing if
   # the two legs ran different tests.
   report-compare:
-    needs: report-callgrind
+    needs: report-instrumentation
     runs-on: ubuntu-latest
     permissions:
       contents: read

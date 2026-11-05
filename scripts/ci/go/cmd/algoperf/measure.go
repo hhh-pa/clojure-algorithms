@@ -20,7 +20,9 @@ const measureUsage = `Load-independent performance measurement for the algorithm
 
 Runs perf/driver.clj once per test namespace and records cpu_s,
 maxrss_kb, allocated_bytes, instructions/cycles, plus (under the
-new flags) callgrind instruction counts.
+new flags) callgrind instruction counts and Pin instruction counts.
+--repeat 0 skips the timed phase and runs only the instrument
+phases (pin-only legs).
 
 Usage: algoperf measure [--cp CP] [--repeat N] [--jobs N] [--timeout S]
                         [--only SUBSTR] [--output F] [--bmf-output F]
@@ -29,6 +31,8 @@ Usage: algoperf measure [--cp CP] [--repeat N] [--jobs N] [--timeout S]
                         [--alloc-repeat N | --no-alloc]
                         [--callgrind] [--callgrind-repeat N]
                         [--callgrind-timeout S]
+                        [--pin] [--pin-bin BIN] [--pin-tool SO]
+                        [--pin-repeat N] [--pin-timeout S]
 
        algoperf measure --merge INPUT... [--output F] [--bmf-output F]
                         [--summary-file F]
@@ -38,7 +42,7 @@ Usage: algoperf measure [--cp CP] [--repeat N] [--jobs N] [--timeout S]
 
 func runMeasure(argv []string) int {
 	root := algocore.RepoRoot()
-	var cp, only, output, bmfOutput, summaryFile, timeBin, shard string
+	var cp, only, output, bmfOutput, summaryFile, timeBin, shard, pinBin, pinTool string
 	runtimeName := "jvm"
 	template := measure.DefaultCommandTemplate
 	jobs := 1
@@ -47,28 +51,33 @@ func runMeasure(argv []string) int {
 	allocRepeat := measure.AllocRepeatDefault
 	callgrindRepeat := measure.CallgrindRepeatDefault
 	callgrindTimeout := 600
+	pinRepeat := measure.PinRepeatDefault
+	pinTimeout := 600
 	perf := true
 	alloc := true
 	merge := false
 	selfTest := false
 	callgrind := false
+	pin := false
 	positionals, err := parseFlags("measure", argv, flagSpec{
 		Strs: map[string]*string{
 			"cp": &cp, "only": &only,
 			"output": &output, "bmf-output": &bmfOutput,
 			"summary-file": &summaryFile, "time-bin": &timeBin,
 			"runtime": &runtimeName, "command-template": &template,
-			"shard": &shard,
+			"shard": &shard, "pin-bin": &pinBin, "pin-tool": &pinTool,
 		},
 		Ints: map[string]*int{
 			"jobs": &jobs, "timeout": &timeout, "repeat": &repeat,
 			"alloc-repeat":      &allocRepeat,
 			"callgrind-repeat":  &callgrindRepeat,
 			"callgrind-timeout": &callgrindTimeout,
+			"pin-repeat":        &pinRepeat,
+			"pin-timeout":       &pinTimeout,
 		},
 		Bools: map[string]*bool{
 			"perf": &perf, "alloc": &alloc, "merge": &merge,
-			"self-test": &selfTest, "callgrind": &callgrind,
+			"self-test": &selfTest, "callgrind": &callgrind, "pin": &pin,
 		},
 	})
 	if err != nil {
@@ -85,8 +94,8 @@ func runMeasure(argv []string) int {
 	if merge {
 		return runMerge(positionals, output, bmfOutput, summaryFile)
 	}
-	if repeat < 1 {
-		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat must be >= 1")
+	if repeat < 0 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat must be >= 0")
 		return 2
 	}
 	if allocRepeat < 1 {
@@ -103,6 +112,14 @@ func runMeasure(argv []string) int {
 	}
 	if callgrindTimeout < 1 {
 		fmt.Fprintln(os.Stderr, "algoperf measure: --callgrind-timeout must be >= 1")
+		return 2
+	}
+	if pinRepeat < 1 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --pin-repeat must be >= 1")
+		return 2
+	}
+	if pinTimeout < 1 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --pin-timeout must be >= 1")
 		return 2
 	}
 	var shardParsed *[2]int
@@ -127,6 +144,18 @@ func runMeasure(argv []string) int {
 	useCallgrind := callgrind && measure.CallgrindUsable()
 	if callgrind && !useCallgrind {
 		fmt.Fprintln(os.Stderr, "warning: valgrind unavailable; callgrind_instructions will be null")
+	}
+	usePin := pin && measure.PinUsable(pinBin, pinTool)
+	if pin && !usePin {
+		fmt.Fprintln(os.Stderr, "warning: pin unavailable (need --pin-bin launcher and --pin-tool inscount .so); pin_instructions will be null")
+	}
+	var pinVersion *string
+	if usePin {
+		pinVersion = measure.PinVersion(pinBin)
+	}
+	if usePin && measure.TemplateHeadIsJava(template) && !measure.PinNoASLRUsable() {
+		fmt.Fprintln(os.Stderr, "algoperf measure: jvm pin legs need setarch (util-linux) to fix the address layout")
+		return 2
 	}
 	classpath, err := algocore.ResolveClasspath(root, cp)
 	if err != nil {
@@ -189,6 +218,14 @@ func runMeasure(argv []string) int {
 	if useCallgrind {
 		effectiveCg = callgrindRepeat
 	}
+	effectivePin := 0
+	if usePin {
+		effectivePin = pinRepeat
+	}
+	if repeat == 0 && effectiveAlloc == 0 && effectiveCg == 0 && effectivePin == 0 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat 0 needs a measurement phase (--alloc, --callgrind, or --pin)")
+		return 2
+	}
 
 	results := make([]measure.CaseResult, len(tasks))
 	work := make(chan int)
@@ -208,6 +245,8 @@ func runMeasure(argv []string) int {
 					Script: driver, Case: "run", Ns: t.ns, Repeat: repeat,
 					AllocRepeat: effectiveAlloc, CallgrindRepeat: effectiveCg,
 					Timeout: timeout, CallgrindTimeout: callgrindTimeout, Root: root,
+					PinBin: pinBin, PinTool: pinTool, PinRepeat: effectivePin,
+					PinTimeout: pinTimeout,
 				})
 				n := done.Add(1)
 				printMu.Lock()
@@ -274,11 +313,13 @@ func runMeasure(argv []string) int {
 			JavaVersion: javaVersion, RuntimeVersion: runtimeVersion,
 			Classpath: classpath,
 			TimeBin:   timeBinPath, PerfUsed: usePerf, CallgrindUsed: effectiveCg > 0,
+			PinUsed: effectivePin > 0, PinVersion: pinVersion,
 		},
 		Config: measure.Config{
 			Repeat: repeat, Jobs: jobs, Timeout: timeout, Only: only,
 			Shard: strOrNil(shard), AllocRepeat: &effectiveAlloc,
 			CallgrindRepeat: effectiveCg, CallgrindTimeout: callgrindTimeout,
+			PinRepeat: effectivePin, PinTimeout: pinTimeout,
 		},
 		Results: results, Failures: failures,
 	}
@@ -325,6 +366,8 @@ func formatCaseProgress(done, total int, res measure.CaseResult) string {
 		}
 	} else if res.CallgrindSkipped != nil {
 		outcome = "ok (callgrind skipped: " + *res.CallgrindSkipped + ")"
+	} else if res.PinSkipped != nil {
+		outcome = "ok (pin skipped: " + *res.PinSkipped + ")"
 	}
 	return fmt.Sprintf("measure [%d/%d] %s/%s/%s: %s",
 		done, total, res.Label, res.Stem, res.Case, outcome)
