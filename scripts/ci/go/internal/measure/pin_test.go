@@ -3,12 +3,35 @@ package measure
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/hhh-pa/clojure-algorithms/scripts/ci/go/internal/pyjson"
 )
+
+func TestPinLauncher(t *testing.T) {
+	got := pinLauncher("/opt/pin/pin")
+	if got[len(got)-1] != "/opt/pin/pin" {
+		t.Fatalf("launcher must end with the pin binary: %q", got)
+	}
+	if runtime.GOOS == "linux" {
+		if _, err := exec.LookPath("setarch"); err != nil {
+			if len(got) != 1 {
+				t.Fatalf("without setarch must run pin directly: %q", got)
+			}
+		} else if len(got) != 3 || got[1] != "-R" || !strings.HasSuffix(got[0], "setarch") {
+			t.Fatalf("with setarch must prefix [setarch -R]: %q", got)
+		}
+		if !PinNoASLRUsable() {
+			t.Fatal("PinNoASLRUsable must hold where setarch exists")
+		}
+	} else if len(got) != 1 {
+		t.Fatalf("non-linux must run pin directly: %q", got)
+	}
+}
 
 func TestParsePinCount(t *testing.T) {
 	if n, err := ParsePinCount("Count 846018869\n"); err != nil || n != 846018869 {

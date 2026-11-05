@@ -153,6 +153,10 @@ func runMeasure(argv []string) int {
 	if usePin {
 		pinVersion = measure.PinVersion(pinBin)
 	}
+	if usePin && measure.TemplateHeadIsJava(template) && !measure.PinNoASLRUsable() {
+		fmt.Fprintln(os.Stderr, "algoperf measure: jvm pin legs need setarch (util-linux) to fix the address layout")
+		return 2
+	}
 	classpath, err := algocore.ResolveClasspath(root, cp)
 	if err != nil {
 		if !algocore.TemplateNeedsClasspath(template) {
