@@ -47,7 +47,6 @@ type CaseSummary struct {
 	CallgrindInstructions   *MinMedMax    `json:"callgrind_instructions"`
 	CallgrindAllocatedBytes *AllocSummary `json:"callgrind_allocated_bytes"`
 	PinInstructions         *MinMedMax    `json:"pin_instructions"`
-	PinAllocatedBytes       *MinMedMax    `json:"pin_allocated_bytes"`
 }
 
 // CaseResult is one measured namespace. Error is nil (null) on

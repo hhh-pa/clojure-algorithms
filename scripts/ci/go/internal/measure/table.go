@@ -39,10 +39,6 @@ func PrintTable(out io.Writer, results []CaseResult, failures []string) {
 				parts = append(parts, fmt.Sprintf("pin_min=%s pin_med=%s pin_max=%s",
 					numPlain(s.PinInstructions.Min), numPlain(s.PinInstructions.Median), numPlain(s.PinInstructions.Max)))
 			}
-			if s.PinAllocatedBytes != nil {
-				parts = append(parts, fmt.Sprintf("alloc_min=%s alloc_med=%s alloc_max=%s",
-					numPlain(s.PinAllocatedBytes.Min), numPlain(s.PinAllocatedBytes.Median), numPlain(s.PinAllocatedBytes.Max)))
-			}
 			if s.CallgrindInstructions != nil {
 				parts = append(parts, fmt.Sprintf("cg_min=%s cg_med=%s cg_max=%s",
 					numPlain(s.CallgrindInstructions.Min), numPlain(s.CallgrindInstructions.Median), numPlain(s.CallgrindInstructions.Max)))
@@ -84,13 +80,12 @@ func numPlain(n pyjson.Num) string {
 }
 
 // AppendSummary appends the Markdown results table, with the
-// conditional cg_insn / cg_alloc / pin_insn / pin_alloc columns
-// (present only when some benchmark reports that data).
+// conditional cg_insn / cg_alloc / pin_insn columns (present
+// only when some benchmark reports that data).
 func AppendSummary(path string, report Report, bmf BMF) error {
 	showCg := false
 	showCgAlloc := false
 	showPin := false
-	showPinAlloc := false
 	for _, m := range bmf {
 		if m.CallgrindInstructions != nil {
 			showCg = true
@@ -100,9 +95,6 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 		}
 		if m.PinInstructions != nil {
 			showPin = true
-		}
-		if m.PinAllocatedBytes != nil {
-			showPinAlloc = true
 		}
 	}
 	header := "| namespace | cpu total (s) | peak RSS (MB) | alloc total (MB) | instructions |"
@@ -117,10 +109,6 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 	}
 	if showPin {
 		header += " pin_insn |"
-		sep += " ---: |"
-	}
-	if showPinAlloc {
-		header += " pin_alloc (MB) |"
 		sep += " ---: |"
 	}
 	header += " wall total (s) |"
@@ -236,13 +224,6 @@ func AppendSummary(path string, report Report, bmf BMF) error {
 				pi = numPlain(m.PinInstructions.Value)
 			}
 			row += fmt.Sprintf(" %s |", pi)
-		}
-		if showPinAlloc {
-			pa := "n/a"
-			if m.PinAllocatedBytes != nil {
-				pa = fmt.Sprintf("%.1f", m.PinAllocatedBytes.Value.Float64()/1048576)
-			}
-			row += fmt.Sprintf(" %s |", pa)
 		}
 		row += fmt.Sprintf(" %.3f |", perNsWall[name])
 		lines = append(lines, row)

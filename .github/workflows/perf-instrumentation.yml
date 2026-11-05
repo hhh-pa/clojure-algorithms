@@ -13,8 +13,8 @@ on:
 
 # Full-matrix instrumentation sweep: every test namespace's
 # callgrind measures (callgrind_instructions +
-# callgrind_allocated_bytes) plus Pin measures (pin_instructions
-# + pin_allocated_bytes) on every push, for JVM Clojure and
+# callgrind_allocated_bytes) plus Pin instruction counts
+# (pin_instructions) on every push, for JVM Clojure and
 # clojure-rs alike. These are the only perf signals. Lean recipe
 # (--repeat 1, --no-alloc since the instrument phases themselves
 # yield allocation, one callgrind run + two Pin count runs per
@@ -89,11 +89,11 @@ jobs:
         run: clojure -M:test
 
   # Pin install smoke: proves setup-pin restores (or builds) a
-  # working kit + tool, that Count/Alloc parse, that counts are
-  # deterministic, and that the malloc probes fire. One cheap
-  # leg; it also warms the cache the future --pin sweep legs
-  # will share. Independent of gate: a broken Pin install must
-  # fail fast, not wait behind the test suite.
+  # working kit + tool, that the Count line parses, and that
+  # counts are stable across runs. One cheap leg; it also warms
+  # the cache the future --pin sweep legs will share.
+  # Independent of gate: a broken Pin install must fail fast,
+  # not wait behind the test suite.
   pin-smoke:
     runs-on: ubuntu-latest
     permissions:
@@ -113,41 +113,13 @@ jobs:
           done
           test "$(cat echo-1.txt)" = "hello"
           grep -Eq '^Count [1-9][0-9]*$' pin-smoke-1.out
-          grep -Eq '^Alloc [0-9]+$' pin-smoke-1.out
           # Counts agree to <1% across runs (ASLR-dependent libc
           # paths wobble the low bits; the sweep takes the min of
-          # repeats). Alloc sums requested sizes, so it is
-          # bit-identical.
+          # repeats).
           c1=$(awk '/^Count / {print $2}' pin-smoke-1.out)
           c2=$(awk '/^Count / {print $2}' pin-smoke-2.out)
-          test "$(awk '/^Alloc / {print $2}' pin-smoke-1.out)" = "$(awk '/^Alloc / {print $2}' pin-smoke-2.out)"
           awk -v c1="$c1" -v c2="$c2" 'BEGIN { d = (c1 > c2) ? (c1 - c2) : (c2 - c1); if (d / c1 >= 0.01) { print "count wobble too large:", c1, c2; exit 1 } }'
           cat pin-smoke-1.out >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Smoke-test Pin malloc probes
-        run: |
-          set -euo pipefail
-          cat > /tmp/malloc_probe.c <<'EOF'
-          #include <stdio.h>
-          #include <stdlib.h>
-          int main(void) {
-              /* volatile: -O2 must not drop these calls. */
-              void *volatile p = malloc(1234);
-              void *volatile q = calloc(10, 100);
-              void *volatile r = realloc(0, 512);
-              if (!p || !q || !r) return 1;
-              printf("ok\n");
-              return 0;
-          }
-          EOF
-          cc -O2 -o /tmp/malloc_probe /tmp/malloc_probe.c
-          "${{ steps.pin.outputs.pin-bin }}" -t "${{ steps.pin.outputs.pin-tool }}" -o pin-malloc.out -- /tmp/malloc_probe > malloc-stdout.txt
-          test "$(cat malloc-stdout.txt)" = "ok"
-          grep -Eq '^Count [1-9][0-9]*$' pin-malloc.out
-          # 1234 + 10*100 + 512, plus whatever libc startup
-          # allocates: the probes must see at least our bytes.
-          test "$(awk '/^Alloc / {print ($2 >= 2746)}' pin-malloc.out)" = "1"
-          cat pin-malloc.out >> "$GITHUB_STEP_SUMMARY"
 
   perf-instrumentation:
     needs: [gate, resolve-rs]
@@ -253,7 +225,7 @@ jobs:
         # one plain callgrind run plus one LD_PRELOAD counting run)
         # + two Pin count runs (JVM legs run HotSpot under Pin
         # with -Xrs; see measure --pin). No --alloc (the
-        # instrument phases themselves yield allocation).
+        # callgrind phase itself yields allocation).
         run: |
           flags=(--runtime "${{ matrix.runtime }}")
           if [ "${{ matrix.runtime }}" = "clojure-rs" ]; then
@@ -280,21 +252,21 @@ jobs:
 
       # Threshold policy: callgrind_instructions (percentage) only,
       # same flags on both testbeds (the clojure-rs testbed starts
-      # with empty history and arms after 10 samples). All four
+      # with empty history and arms after 10 samples). All three
       # instrument measures are tracked; the overlapping
       # cpu_time/peak_memory entries are stripped before reporting
       # (the sweep is repeat-1 timing, not a timing signal; no
       # allocated_bytes here: --no-alloc). A fixed 1% upper
       # boundary sits far above callgrind wobble; min/max sample
-      # 10/64. callgrind_allocated_bytes and the pin pair ride
+      # 10/64. callgrind_allocated_bytes and pin_instructions ride
       # threshold-free until their own wobble is characterized.
       # Gating stays on the callgrind pair (existing behavior when
-      # Pin degrades to a skip); the pin pair attaches when
+      # Pin degrades to a skip); pin_instructions attaches when
       # present. Each shard reports its own stripped subset (~170
-      # benchmarks x up to 4 measures).
+      # benchmarks x up to 3 measures).
       - name: Track instrumentation benchmarks with Bencher
         run: |
-          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= ({callgrind_instructions, callgrind_allocated_bytes, pin_instructions, pin_allocated_bytes} | with_entries(select(.value != null))))' \
+          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= ({callgrind_instructions, callgrind_allocated_bytes, pin_instructions} | with_entries(select(.value != null))))' \
             sweep-bmf.json > sweep-bench.json
           if [ "$(jq 'length' sweep-bench.json)" = "0" ]; then
             echo "no callgrind data in shard; skipping Bencher report"

@@ -21,7 +21,6 @@ type Benchmark struct {
 	CallgrindInstructions   *Measure `json:"callgrind_instructions,omitempty"`
 	CallgrindAllocatedBytes *Measure `json:"callgrind_allocated_bytes,omitempty"`
 	PinInstructions         *Measure `json:"pin_instructions,omitempty"`
-	PinAllocatedBytes       *Measure `json:"pin_allocated_bytes,omitempty"`
 }
 
 // BMF maps benchmark name (the ns symbol) to measures.
@@ -29,7 +28,7 @@ type BMF map[string]Benchmark
 
 // BuildBMF builds one Benchmark per namespace with
 // cpu_time/peak_memory plus allocated_bytes, the callgrind pair,
-// and the pin pair when the namespace reports them.
+// and pin_instructions when the namespace reports them.
 func BuildBMF(results []CaseResult) BMF {
 	out := BMF{}
 	for i := range results {
@@ -86,13 +85,6 @@ func BuildBMF(results []CaseResult) BMF {
 				Value:      s.PinInstructions.Min,
 				LowerValue: s.PinInstructions.Min,
 				UpperValue: s.PinInstructions.Max,
-			}
-		}
-		if s.PinAllocatedBytes != nil {
-			bench.PinAllocatedBytes = &Measure{
-				Value:      s.PinAllocatedBytes.Min,
-				LowerValue: s.PinAllocatedBytes.Min,
-				UpperValue: s.PinAllocatedBytes.Max,
 			}
 		}
 		out[res.Label] = bench
