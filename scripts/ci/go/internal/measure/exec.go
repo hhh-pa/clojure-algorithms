@@ -267,6 +267,125 @@ func IsAllocShimSkip(runErr string) bool {
 	return strings.HasPrefix(runErr, "alloc-shim ")
 }
 
+// PinJVMFlags keeps HotSpot stable under Intel Pin: -Xrs stops
+// the JVM from installing its full OS signal handlers (which
+// would fight Pin's signal interception) and
+// -XX:+AllowUserSignalHandlers lets Pin's own handlers coexist
+// with the remaining JVM signal use (implicit null checks, thread
+// coordination).
+var PinJVMFlags = []string{"-Xrs", "-XX:+AllowUserSignalHandlers"}
+
+// PinUsable reports whether Pin count runs can execute: the pin
+// launcher resolves and the inscount tool file exists.
+func PinUsable(pinBin, tool string) bool {
+	if pinBin == "" || tool == "" {
+		return false
+	}
+	if _, err := os.Stat(tool); err != nil {
+		return false
+	}
+	if strings.Contains(pinBin, string(os.PathSeparator)) {
+		info, err := os.Stat(pinBin)
+		return err == nil && info.Mode()&0o111 != 0
+	}
+	_, err := exec.LookPath(pinBin)
+	return err == nil
+}
+
+// PinVersion probes `pin -version` for report provenance, or nil
+// when the launcher cannot answer. Compared runs must share one
+// Pin version: counts are only comparable within a version.
+func PinVersion(pinBin string) *string {
+	stdout, _, err := algocore.Run([]string{pinBin, "-version"}, nil, 30)
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(stdout), "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return &trimmed
+		}
+	}
+	return nil
+}
+
+// IsPinTimeout reports whether a PinOnce error text is a deadline
+// timeout rather than a crash: timeouts mean the namespace
+// exceeds the instrument's budget, so it degrades to a skip.
+func IsPinTimeout(runErr string) bool {
+	return strings.Contains(runErr, "TIMEOUT")
+}
+
+// PinOnce runs inner once under Intel Pin with the inscount tool
+// and returns stdout plus the total instruction count,
+// dispatching on the resolved argv0: the JVM recipe (below) for
+// java, the plain recipe (no JVM flags) otherwise.
+func PinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	if !InnerIsJava(inner) {
+		return nativePinOnce(pinBin, tool, inner, timeout)
+	}
+	return jvmPinOnce(pinBin, tool, inner, timeout)
+}
+
+// jvmPinOnce runs a JVM argv once under Pin with PinJVMFlags
+// injected right after the resolved java binary (JVM options must
+// precede -D/-cp and the main class).
+func jvmPinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	outFile, err := tempFile("algoperf-pin-")
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	defer os.Remove(outFile)
+	cmd := []string{pinBin, "-t", tool, "-o", outFile, "--", ResolveArgv0(inner[0])}
+	cmd = append(cmd, PinJVMFlags...)
+	cmd = append(cmd, inner[1:]...)
+	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
+	var timeoutErr *algocore.TimeoutError
+	if errors.As(err, &timeoutErr) {
+		return nil, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
+	}
+	if err != nil {
+		return nil, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+	}
+	raw, err := os.ReadFile(outFile)
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	count, err := ParsePinCount(string(raw))
+	if err != nil {
+		return nil, 0, err.Error()
+	}
+	return stdout, count, ""
+}
+
+// nativePinOnce runs a native argv once under Pin with the
+// inscount tool (same -o plumbing, no JVM flags).
+func nativePinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	outFile, err := tempFile("algoperf-pin-")
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	defer os.Remove(outFile)
+	cmd := []string{pinBin, "-t", tool, "-o", outFile, "--", ResolveArgv0(inner[0])}
+	cmd = append(cmd, inner[1:]...)
+	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
+	var timeoutErr *algocore.TimeoutError
+	if errors.As(err, &timeoutErr) {
+		return nil, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
+	}
+	if err != nil {
+		return nil, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+	}
+	raw, err := os.ReadFile(outFile)
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	count, err := ParsePinCount(string(raw))
+	if err != nil {
+		return nil, 0, err.Error()
+	}
+	return stdout, count, ""
+}
+
 // CallgrindOnce runs inner once under valgrind callgrind and
 // returns stdout plus total Ir and total allocation, dispatching on
 // the resolved argv0: the JVM recipe (below) for java, the native
@@ -416,8 +535,8 @@ func tempFile(prefix string) (string, error) {
 
 // CaseOpts bundles MeasureCase inputs. Timeout budgets the
 // native-speed runs (timed + alloc); CallgrindTimeout budgets the
-// instrumented callgrind phase, which degrades to a skip on
-// expiry instead of failing.
+// instrumented callgrind phase and PinTimeout the Pin count phase,
+// both of which degrade to a skip on expiry instead of failing.
 type CaseOpts struct {
 	TimeBin          string
 	UsePerf          bool
@@ -433,6 +552,10 @@ type CaseOpts struct {
 	CallgrindRepeat  int
 	Timeout          int
 	CallgrindTimeout int
+	PinBin           string
+	PinTool          string
+	PinRepeat        int
+	PinTimeout       int
 	Root             string
 }
 
@@ -537,6 +660,35 @@ func MeasureCase(o CaseOpts) CaseResult {
 			s := SummarizeInts(irs)
 			res.Summary.CallgrindInstructions = &s
 			res.Summary.CallgrindAllocatedBytes = SummarizeAlloc(cgAllocs)
+		}
+	}
+	if o.PinRepeat > 0 {
+		var counts []int64
+		for i := 0; i < o.PinRepeat; i++ {
+			stdout, count, runErr := PinOnce(o.PinBin, o.PinTool, inner, o.PinTimeout)
+			if runErr != "" {
+				if IsPinTimeout(runErr) {
+					skip := runErr
+					res.PinSkipped = &skip
+					fmt.Fprintf(os.Stderr, "warning: %s/%s/%s: pin skipped (%s)\n",
+						o.Label, o.Stem, o.Case, runErr)
+					break
+				}
+				msg := fmt.Sprintf("%s/%s: pin: %s", o.Label, o.Case, runErr)
+				res.Error = &msg
+				return res
+			}
+			if i == 0 {
+				if msg := gate("pin", stdout); msg != "" {
+					res.Error = &msg
+					return res
+				}
+			}
+			counts = append(counts, count)
+		}
+		if res.PinSkipped == nil {
+			s := SummarizeInts(counts)
+			res.Summary.PinInstructions = &s
 		}
 	}
 	res.Ok = true
