@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -130,16 +131,6 @@ func PerfUsable() bool {
 	return counters.Instructions != nil || counters.Cycles != nil
 }
 
-// CallgrindUsable reports whether valgrind callgrind runs can execute.
-func CallgrindUsable() bool {
-	path, err := exec.LookPath("valgrind")
-	if err != nil {
-		return false
-	}
-	_, _, err = algocore.Run([]string{path, "--version"}, nil, 30)
-	return err == nil
-}
-
 // BuildCommand wraps the driver directly (perf outside, time inside).
 func BuildCommand(timeBin, timeFile string, usePerf bool, perfFile string, inner []string) []string {
 	timed := append([]string{timeBin, "-f", TimeFormat, "-o", timeFile}, inner...)
@@ -234,10 +225,11 @@ func MeasureAllocOnce(inner []string, timeout int) ([]byte, int64, string) {
 	return stdout, used, ""
 }
 
-// ResolveArgv0 finds the real binary behind PATH/symlinks: under
-// valgrind the /bin/java alternatives symlink loses libjli.so
-// (exit 127), so callgrind runs need the resolved path. Used for
-// JVM and native legs alike.
+// ResolveArgv0 finds the real binary behind PATH/symlinks: the
+// /bin/java alternatives symlink loses libjli.so when launched
+// through an instrumenting launcher (exit 127), so instrumented
+// runs need the resolved path. Used for JVM and native legs
+// alike.
 func ResolveArgv0(argv0 string) string {
 	path := argv0
 	if !strings.Contains(path, string(os.PathSeparator)) {
@@ -251,157 +243,170 @@ func ResolveArgv0(argv0 string) string {
 	return argv0
 }
 
-// IsCallgrindTimeout reports whether a CallgrindOnce error text is a
-// deadline timeout rather than a crash or gate failure: timeouts
-// mean the namespace exceeds the instrument's budget, so it
-// degrades to a skip instead of failing the run.
-func IsCallgrindTimeout(runErr string) bool {
+// InnerIsJava reports whether a resolved driver argv runs the JVM.
+func InnerIsJava(inner []string) bool {
+	return len(inner) > 0 && filepath.Base(inner[0]) == "java"
+}
+
+// TemplateHeadIsJava reports whether a command template's argv0 is
+// the JVM.
+func TemplateHeadIsJava(template string) bool {
+	fields := strings.Fields(template)
+	if len(fields) == 0 {
+		return false
+	}
+	return filepath.Base(strings.Trim(fields[0], `"'`)) == "java"
+}
+
+// PinJVMFlags keeps HotSpot stable under Intel Pin: -Xrs stops
+// the JVM from installing its full OS signal handlers (which
+// would fight Pin's signal interception) and
+// -XX:+AllowUserSignalHandlers lets Pin's own handlers coexist
+// with the remaining JVM signal use (implicit null checks, thread
+// coordination).
+var PinJVMFlags = []string{"-Xrs", "-XX:+AllowUserSignalHandlers"}
+
+// PinUsable reports whether Pin count runs can execute: the pin
+// launcher resolves and the inscount tool file exists.
+func PinUsable(pinBin, tool string) bool {
+	if pinBin == "" || tool == "" {
+		return false
+	}
+	if _, err := os.Stat(tool); err != nil {
+		return false
+	}
+	if strings.Contains(pinBin, string(os.PathSeparator)) {
+		info, err := os.Stat(pinBin)
+		return err == nil && info.Mode()&0o111 != 0
+	}
+	_, err := exec.LookPath(pinBin)
+	return err == nil
+}
+
+// PinVersion probes `pin -version` for report provenance, or nil
+// when the launcher cannot answer. Compared runs must share one
+// Pin version: counts are only comparable within a version.
+func PinVersion(pinBin string) *string {
+	stdout, _, err := algocore.Run([]string{pinBin, "-version"}, nil, 30)
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(stdout), "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return &trimmed
+		}
+	}
+	return nil
+}
+
+// IsPinTimeout reports whether a PinOnce error text is a deadline
+// timeout rather than a crash: timeouts mean the namespace
+// exceeds the instrument's budget, so it degrades to a skip.
+func IsPinTimeout(runErr string) bool {
 	return strings.Contains(runErr, "TIMEOUT")
 }
 
-// IsAllocShimSkip reports whether a CallgrindOnce error text is a
-// native-leg counter problem (missing toolchain, timeout, unreadable
-// total) rather than a program failure: the Ir leg already gated
-// correctness, so counter problems degrade to a skip.
-func IsAllocShimSkip(runErr string) bool {
-	return strings.HasPrefix(runErr, "alloc-shim ")
-}
-
-// CallgrindOnce runs inner once under valgrind callgrind and
-// returns stdout plus total Ir and total allocation, dispatching on
-// the resolved argv0: the JVM recipe (below) for java, the native
-// recipe (no JVM flags, LD_PRELOAD-counted allocation) otherwise.
-func CallgrindOnce(inner []string, timeout int) ([]byte, int64, int64, string) {
-	if !InnerIsJava(inner) {
-		return nativeCallgrindOnce(inner, timeout)
-	}
-	return jvmCallgrindOnce(inner, timeout)
-}
-
-// jvmCallgrindOnce runs inner once under valgrind callgrind with the
-// deterministic recipe (-Xint, EpsilonGC, fixed heap, no perfdata)
-// and returns stdout plus total Ir and EpsilonGC total allocation.
-// The allocation comes from the JVM's own GC log, not from valgrind:
-// valgrind-side heap profilers (Massif/DHAT) see only HotSpot's
-// bulk-mmaped heap reservation, never Java objects.
-func jvmCallgrindOnce(inner []string, timeout int) ([]byte, int64, int64, string) {
-	outFile, err := tempFile("algoperf-cg-")
-	if err != nil {
-		return nil, 0, 0, "callgrind output unreadable: " + err.Error()
-	}
-	defer os.Remove(outFile)
-	gcFile, err := tempFile("algoperf-cg-gc-")
-	if err != nil {
-		return nil, 0, 0, "epsilon log unreadable: " + err.Error()
-	}
-	defer os.Remove(gcFile)
-	jvmFlags := append([]string{"-Xint"}, EpsilonFlags...)
-	jvmFlags = append(jvmFlags, "-XX:-UsePerfData", "-Xlog:gc:"+gcFile)
-	cmd := []string{"valgrind", "--tool=callgrind",
-		"--cache-sim=no", "--branch-sim=no", "--collect-jumps=no",
-		"--callgrind-out-file=" + outFile, ResolveArgv0(inner[0])}
-	cmd = append(cmd, jvmFlags...)
-	cmd = append(cmd, inner[1:]...)
-	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
-	var timeoutErr *algocore.TimeoutError
-	if errors.As(err, &timeoutErr) {
-		return nil, 0, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
-	}
-	if err != nil {
-		msg := fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
-		if strings.Contains(string(stderr), "OutOfMemoryError") {
-			msg += " (Epsilon heap exhausted; raise -Xmx in EPSILON_FLAGS)"
+// pinLauncher prefixes the Pin command with setarch -R on Linux:
+// HotSpot's heap reserve otherwise loses an ASLR lottery against
+// Pin 4.4's mappings (mmap-overlap exit 127 on ~half the runs),
+// while the fixed no-ASLR layout places them deterministically
+// apart. Every compared leg runs the same fixed layout, so
+// layout can never bias a comparison either way.
+func pinLauncher(pinBin string) []string {
+	if runtime.GOOS == "linux" {
+		if setarch, err := exec.LookPath("setarch"); err == nil {
+			return []string{setarch, "-R", pinBin}
 		}
-		return nil, 0, 0, msg
 	}
-	raw, err := os.ReadFile(outFile)
-	if err != nil {
-		return nil, 0, 0, "callgrind output unreadable: " + err.Error()
-	}
-	ir, err := ParseCallgrindSummary(string(raw))
-	if err != nil {
-		return nil, 0, 0, err.Error()
-	}
-	gcRaw, err := os.ReadFile(gcFile)
-	if err != nil {
-		return nil, 0, 0, "epsilon log unreadable: " + err.Error()
-	}
-	used, err := ParseEpsilonUsed(string(gcRaw))
-	if err != nil {
-		return nil, 0, 0, "epsilon log unreadable: " + err.Error()
-	}
-	return stdout, ir, used, ""
+	return []string{pinBin}
 }
 
-// nativeCallgrindOnce runs a native binary once under valgrind
-// callgrind (same no-sim flags, no JVM flags) for Ir, plus one
-// near-native-speed LD_PRELOAD counting run for allocation. The Ir
-// leg is authoritative — its crashes fail like the JVM path — while
-// every counter-leg problem degrades to an "alloc-shim ..." skip
-// reason (a broken counter must never fail correct runs).
-func nativeCallgrindOnce(inner []string, timeout int) ([]byte, int64, int64, string) {
-	outFile, err := tempFile("algoperf-cg-")
-	if err != nil {
-		return nil, 0, 0, "callgrind output unreadable: " + err.Error()
+// PinNoASLRUsable reports whether JVM pin legs can fix the
+// address layout (Linux setarch present; non-Linux has no Pin
+// legs to protect).
+func PinNoASLRUsable() bool {
+	if runtime.GOOS != "linux" {
+		return true
 	}
-	defer os.Remove(outFile)
-	cmd := []string{"valgrind", "--tool=callgrind",
-		"--cache-sim=no", "--branch-sim=no", "--collect-jumps=no",
-		"--callgrind-out-file=" + outFile, ResolveArgv0(inner[0])}
-	cmd = append(cmd, inner[1:]...)
-	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
-	var timeoutErr *algocore.TimeoutError
-	if errors.As(err, &timeoutErr) {
-		return nil, 0, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
-	}
-	if err != nil {
-		return nil, 0, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
-	}
-	raw, err := os.ReadFile(outFile)
-	if err != nil {
-		return nil, 0, 0, "callgrind output unreadable: " + err.Error()
-	}
-	ir, err := ParseCallgrindSummary(string(raw))
-	if err != nil {
-		return nil, 0, 0, err.Error()
-	}
-	used, skip := MeasureShimAllocOnce(inner, stdout, timeout)
-	if skip != "" {
-		return nil, 0, 0, skip
-	}
-	return stdout, ir, used, ""
+	_, err := exec.LookPath("setarch")
+	return err == nil
 }
 
-// MeasureShimAllocOnce runs inner once under the LD_PRELOAD
-// counting shim and returns total allocated bytes. wantStdout is
-// the Ir leg's stdout: the two runs must agree on the SUMMARY
-// line (full stdout is nondeterministic), else the counter run
-// diverged, which degrades like any other counter problem. Every
-// failure returns a skip reason (never a hard error); "" means
-// success.
-func MeasureShimAllocOnce(inner []string, wantStdout []byte, timeout int) (int64, string) {
-	so, err := EnsureAllocShim()
+// PinOnce runs inner once under Intel Pin with the inscount tool
+// and returns stdout plus the total instruction count,
+// dispatching on the resolved argv0: the JVM recipe (below) for
+// java, the plain recipe (no JVM flags) otherwise.
+func PinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	if !InnerIsJava(inner) {
+		return nativePinOnce(pinBin, tool, inner, timeout)
+	}
+	return jvmPinOnce(pinBin, tool, inner, timeout)
+}
+
+// parsePinOutput reads the Count line from one tool run.
+func parsePinOutput(outFile string) (int64, string) {
+	raw, err := os.ReadFile(outFile)
 	if err != nil {
-		return 0, "alloc-shim unavailable: " + err.Error()
+		return 0, "pin output unreadable: " + err.Error()
 	}
-	stdout, stderr, err := algocore.RunEnv(inner, nil, timeout, []string{"LD_PRELOAD=" + so})
-	var timeoutErr *algocore.TimeoutError
-	if errors.As(err, &timeoutErr) {
-		return 0, fmt.Sprintf("alloc-shim TIMEOUT (>%ds)", timeout)
-	}
-	if err != nil {
-		return 0, fmt.Sprintf("alloc-shim exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
-	}
-	wantSum, wantErr := ParseSummary(string(wantStdout))
-	gotSum, gotErr := ParseSummary(string(stdout))
-	if wantErr != nil || gotErr != nil || !summariesAgree(wantSum, gotSum) {
-		return 0, "alloc-shim output mismatch: counter run diverged from the callgrind run"
-	}
-	used, err := ParseAllocShimTotal(string(stderr))
+	count, err := ParsePinCount(string(raw))
 	if err != nil {
 		return 0, err.Error()
 	}
-	return used, ""
+	return count, ""
+}
+
+// jvmPinOnce runs a JVM argv once under Pin with PinJVMFlags
+// injected right after the resolved java binary (JVM options must
+// precede -D/-cp and the main class).
+func jvmPinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	outFile, err := tempFile("algoperf-pin-")
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	defer os.Remove(outFile)
+	cmd := pinLauncher(pinBin)
+	cmd = append(cmd, "-t", tool, "-o", outFile, "--", ResolveArgv0(inner[0]))
+	cmd = append(cmd, PinJVMFlags...)
+	cmd = append(cmd, inner[1:]...)
+	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
+	var timeoutErr *algocore.TimeoutError
+	if errors.As(err, &timeoutErr) {
+		return nil, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
+	}
+	if err != nil {
+		return nil, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+	}
+	count, runErr := parsePinOutput(outFile)
+	if runErr != "" {
+		return nil, 0, runErr
+	}
+	return stdout, count, ""
+}
+
+// nativePinOnce runs a native argv once under Pin with the
+// inscount tool (same -o plumbing, no JVM flags).
+func nativePinOnce(pinBin, tool string, inner []string, timeout int) ([]byte, int64, string) {
+	outFile, err := tempFile("algoperf-pin-")
+	if err != nil {
+		return nil, 0, "pin output unreadable: " + err.Error()
+	}
+	defer os.Remove(outFile)
+	cmd := []string{pinBin, "-t", tool, "-o", outFile, "--", ResolveArgv0(inner[0])}
+	cmd = append(cmd, inner[1:]...)
+	stdout, stderr, err := algocore.Run(cmd, nil, timeout)
+	var timeoutErr *algocore.TimeoutError
+	if errors.As(err, &timeoutErr) {
+		return nil, 0, fmt.Sprintf("TIMEOUT (>%ds)", timeout)
+	}
+	if err != nil {
+		return nil, 0, fmt.Sprintf("exit %d: %s", algocore.ExitCode(err), algocore.LastLine(stderr))
+	}
+	count, runErr := parsePinOutput(outFile)
+	if runErr != "" {
+		return nil, 0, runErr
+	}
+	return stdout, count, ""
 }
 
 func tempFile(prefix string) (string, error) {
@@ -415,29 +420,31 @@ func tempFile(prefix string) (string, error) {
 }
 
 // CaseOpts bundles MeasureCase inputs. Timeout budgets the
-// native-speed runs (timed + alloc); CallgrindTimeout budgets the
-// instrumented callgrind phase, which degrades to a skip on
-// expiry instead of failing.
+// native-speed runs (timed + alloc); PinTimeout budgets the Pin
+// count phase, which degrades to a skip on expiry instead of
+// failing.
 type CaseOpts struct {
-	TimeBin          string
-	UsePerf          bool
-	Template         string
-	Classpath        string
-	Label            string
-	Stem             string
-	Script           string
-	Case             string
-	Ns               string
-	Repeat           int
-	AllocRepeat      int
-	CallgrindRepeat  int
-	Timeout          int
-	CallgrindTimeout int
-	Root             string
+	TimeBin     string
+	UsePerf     bool
+	Template    string
+	Classpath   string
+	Label       string
+	Stem        string
+	Script      string
+	Case        string
+	Ns          string
+	Repeat      int
+	AllocRepeat int
+	Timeout     int
+	PinBin      string
+	PinTool     string
+	PinRepeat   int
+	PinTimeout  int
+	Root        string
 }
 
 // MeasureCase measures one namespace: timed runs, EpsilonGC
-// allocation runs, then the callgrind phase. Every phase's first
+// allocation runs, then the Pin count phase. Every phase's first
 // run passes the SUMMARY gate (missing SUMMARY or :fail/:error
 // fails the namespace loudly).
 func MeasureCase(o CaseOpts) CaseResult {
@@ -468,7 +475,10 @@ func MeasureCase(o CaseOpts) CaseResult {
 		if reason := CheckSummary(sum); reason != "" {
 			return fmt.Sprintf("%s: %s", prefix, reason)
 		}
-		if phase == "" && res.TestCounts == nil {
+		// Recorded from the first gated phase: the timed
+		// runs when they exist, else the first instrument
+		// phase (--repeat 0).
+		if res.TestCounts == nil {
 			res.TestCounts = &TestCounts{Test: sum.Test, Pass: sum.Pass, Fail: sum.Fail, Error: sum.Error}
 		}
 		return ""
@@ -489,6 +499,13 @@ func MeasureCase(o CaseOpts) CaseResult {
 		res.Runs = append(res.Runs, *metrics)
 	}
 	res.Summary = SummarizeCase(res.Runs)
+	if res.Summary == nil && (o.AllocRepeat > 0 || o.PinRepeat > 0) {
+		// --repeat 0 skips the timed phase; the instrument
+		// phases still need a summary to hang their signals
+		// on (Runs stays 0, which table/BMF renderers use to
+		// tell pin-only results from timed ones).
+		res.Summary = &CaseSummary{}
+	}
 	if o.AllocRepeat > 0 {
 		for i := 0; i < o.AllocRepeat; i++ {
 			stdout, used, runErr := MeasureAllocOnce(inner, o.Timeout)
@@ -507,36 +524,33 @@ func MeasureCase(o CaseOpts) CaseResult {
 		}
 		res.Summary.AllocatedBytes = SummarizeAlloc(res.AllocRuns)
 	}
-	if o.CallgrindRepeat > 0 {
-		var irs []int64
-		var cgAllocs []int64
-		for i := 0; i < o.CallgrindRepeat; i++ {
-			stdout, ir, used, runErr := CallgrindOnce(inner, o.CallgrindTimeout)
+	if o.PinRepeat > 0 {
+		var counts []int64
+		for i := 0; i < o.PinRepeat; i++ {
+			stdout, count, runErr := PinOnce(o.PinBin, o.PinTool, inner, o.PinTimeout)
 			if runErr != "" {
-				if IsCallgrindTimeout(runErr) || IsAllocShimSkip(runErr) {
+				if IsPinTimeout(runErr) {
 					skip := runErr
-					res.CallgrindSkipped = &skip
-					fmt.Fprintf(os.Stderr, "warning: %s/%s/%s: callgrind skipped (%s)\n",
+					res.PinSkipped = &skip
+					fmt.Fprintf(os.Stderr, "warning: %s/%s/%s: pin skipped (%s)\n",
 						o.Label, o.Stem, o.Case, runErr)
 					break
 				}
-				msg := fmt.Sprintf("%s/%s: callgrind: %s", o.Label, o.Case, runErr)
+				msg := fmt.Sprintf("%s/%s: pin: %s", o.Label, o.Case, runErr)
 				res.Error = &msg
 				return res
 			}
 			if i == 0 {
-				if msg := gate("callgrind", stdout); msg != "" {
+				if msg := gate("pin", stdout); msg != "" {
 					res.Error = &msg
 					return res
 				}
 			}
-			irs = append(irs, ir)
-			cgAllocs = append(cgAllocs, used)
+			counts = append(counts, count)
 		}
-		if res.CallgrindSkipped == nil {
-			s := SummarizeInts(irs)
-			res.Summary.CallgrindInstructions = &s
-			res.Summary.CallgrindAllocatedBytes = SummarizeAlloc(cgAllocs)
+		if res.PinSkipped == nil {
+			s := SummarizeInts(counts)
+			res.Summary.PinInstructions = &s
 		}
 	}
 	res.Ok = true

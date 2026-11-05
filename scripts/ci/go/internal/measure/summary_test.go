@@ -50,29 +50,6 @@ func TestParseSummaryMalformed(t *testing.T) {
 	}
 }
 
-func TestSummariesAgree(t *testing.T) {
-	base := Summary{Test: 1, Pass: 26}
-	if !summariesAgree(base, Summary{Test: 1, Pass: 22}) {
-		t.Fatal("pass-only variance (random-graph) must agree")
-	}
-	if !summariesAgree(base, base) {
-		t.Fatal("identical must agree")
-	}
-	for _, other := range []Summary{
-		{Test: 2, Pass: 26},           // different tests
-		{Test: 1, Pass: 26, Fail: 1},  // failures
-		{Test: 1, Pass: 26, Error: 1}, // errors
-		{Test: 1, Pass: 0},            // no assertions
-	} {
-		if summariesAgree(base, other) {
-			t.Fatalf("must disagree: %+v vs %+v", base, other)
-		}
-	}
-	if summariesAgree(Summary{Test: 1, Fail: 1}, base) {
-		t.Fatal("failed first side must disagree")
-	}
-}
-
 func TestCheckSummary(t *testing.T) {
 	ok := Summary{Test: 2, Pass: 10}
 	if err := CheckSummary(ok); err != "" {

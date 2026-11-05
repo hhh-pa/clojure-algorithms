@@ -1,4 +1,4 @@
-;; Per-namespace benchmark driver for the perf-callgrind sweep (issue #1).
+;; Per-namespace benchmark driver for the perf-pin sweep (issue #1).
 ;; Same driver on both legs (identical workload):
 ;;   JVM:    java -cp '<jars>:src:test' clojure.main perf/driver.clj <ns>
 ;;   native: clojure-rs run perf/driver.clj <ns> src test

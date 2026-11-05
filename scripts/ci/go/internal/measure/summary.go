@@ -76,15 +76,3 @@ func CheckSummary(sum Summary) string {
 	}
 	return ""
 }
-
-// summariesAgree compares two runs of the same namespace for the
-// shim cross-check: same tests, no failures/errors either side,
-// and assertions on both sides. :pass itself is excluded — two
-// namespaces assert per edge of a random graph, so their tallies
-// legitimately differ run to run. (Cross-runtime drift detection
-// in report-compare stays strict with explicit exceptions; this
-// check only guards counter-run divergence.)
-func summariesAgree(a, b Summary) bool {
-	return a.Test == b.Test && a.Fail == 0 && a.Error == 0 &&
-		b.Fail == 0 && b.Error == 0 && a.Pass > 0 && b.Pass > 0
-}

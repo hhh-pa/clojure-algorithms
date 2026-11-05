@@ -1,6 +1,6 @@
 // Command algoperf measures the algorithms repo's test namespaces
-// under load-independent instruments (GNU time, perf, valgrind
-// callgrind) for JVM-vs-native comparison:
+// under load-independent instruments (GNU time, perf, Intel Pin)
+// for JVM-vs-native comparison:
 //
 //	algoperf measure  per-namespace perf sweep (see measure.go)
 //
