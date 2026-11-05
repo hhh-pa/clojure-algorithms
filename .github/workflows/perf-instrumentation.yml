@@ -1,4 +1,4 @@
-name: perf-callgrind
+name: perf-instrumentation
 
 on:
   push:
@@ -20,7 +20,7 @@ on:
 # shard. A valgrind/toolchain failure fails the push: the sweep is
 # a required signal.
 #
-# The perf-callgrind native leg always builds clojure-rs master HEAD
+# The perf-instrumentation native leg always builds clojure-rs master HEAD
 # (interpreter-only build; `run` needs no LLVM), resolved once per
 # run by the resolve-rs job below. A bad upstream commit fails
 # loudly (the sweep SUMMARY-gates every namespace), and Bencher
@@ -85,7 +85,7 @@ jobs:
       - name: Run tests
         run: clojure -M:test
 
-  perf-callgrind:
+  perf-instrumentation:
     needs: [gate, resolve-rs]
     runs-on: ubuntu-latest
     permissions:
@@ -99,7 +99,7 @@ jobs:
         # One entry per compiler/runtime; benchmark names stay
         # identical across runtimes (Bencher compares via testbeds,
         # derived below as ubuntu-latest-<runtime>). Keep the
-        # runtime list in sync with the report-callgrind job below.
+        # runtime list in sync with the report-instrumentation job below.
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
         runtime: [jvm, clojure-rs]
     steps:
@@ -261,14 +261,14 @@ jobs:
             sweep-bmf.json
             sweep-bench.json
 
-  report-callgrind:
-    needs: perf-callgrind
+  report-instrumentation:
+    needs: perf-instrumentation
     runs-on: ubuntu-latest
     # No Bencher run here by design: one merged ~1351-benchmark
     # file would re-truncate the check summary.
     permissions:
       contents: read
-    # One merge per runtime; keep in sync with the perf-callgrind
+    # One merge per runtime; keep in sync with the perf-instrumentation
     # job's runtime list above.
     strategy:
       matrix:
@@ -311,7 +311,7 @@ jobs:
   # match between the two runtimes. Perf numbers mean nothing if
   # the two legs ran different tests.
   report-compare:
-    needs: report-callgrind
+    needs: report-instrumentation
     runs-on: ubuntu-latest
     permissions:
       contents: read

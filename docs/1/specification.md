@@ -13,8 +13,8 @@ from script-x-case benchmarks to test-namespace benchmarks.
 
 Acceptance criteria:
 
-- New `perf-callgrind.yml` runs a shard(8) x
-  runtime{jvm, clojure-rs} matrix; `report-callgrind` merges
+- New `perf-instrumentation.yml` runs a shard(8) x
+  runtime{jvm, clojure-rs} matrix; `report-instrumentation` merges
   per runtime; `ci.yml` `test` is unchanged.
 - `algoperf measure --runtime clojure-rs --command-template
   'clojure-rs run perf/driver.clj {ns} src test resources' --callgrind`
@@ -28,7 +28,7 @@ Acceptance criteria:
   ./...` is green; `python3 -c yaml.safe_load` passes on the
   workflow; `git diff --check` is clean.
 - The pushed branch shows green `test` + all 16 sweep legs +
-  both `report-callgrind` merges, with per-shard Bencher
+  both `report-instrumentation` merges, with per-shard Bencher
   reports for both runtimes and merged tables in the report
   summaries.
 - Every per-shard Bencher check stays under GitHub's ~64KB
@@ -77,8 +77,8 @@ branch):
   `bencher run` reports against it; without the secret the
   Bencher steps fail — keep the PR in draft until the
   secret exists, or accept red Bencher steps as known).
-- Optionally require the new `perf-callgrind (...)` /
-  `report-callgrind (...)` checks in branch protection
+- Optionally require the new `perf-instrumentation (...)` /
+  `report-instrumentation (...)` checks in branch protection
   (exact names taken from this PR's checks).
 
 ## Part 2 — design
@@ -130,7 +130,7 @@ Invocations:
 
 - Per leg, per namespace: exit 0 + SUMMARY parsed +
   `:fail`/`:error` zero, else the case fails loudly.
-- At `report-callgrind` time: diff the per-namespace
+- At `report-instrumentation` time: diff the per-namespace
   `(test,pass,fail,error)` tuples JVM vs clojure-rs (a
   dedicated `report-compare` job diffs the recorded
   `test_counts` maps with jq); any mismatch fails the
@@ -188,12 +188,12 @@ snippet repo's `scripts/ci/go/internal/measure`:
   malloc-request bytes — ratio-meaningful per benchmark,
   not bit-comparable absolutes (T1211 wording).
 
-### Workflow (`perf-callgrind.yml`)
+### Workflow (`perf-instrumentation.yml`)
 
 - `resolve-rs`: resolve clojure-rs master HEAD once per
   run (float; manual dispatch may pin `clojure_rs_sha`,
   40-char SHA validated) — same as the snippet repo.
-- `perf-callgrind` matrix: `shard: [0..7]` x
+- `perf-instrumentation` matrix: `shard: [0..7]` x
   `runtime: [jvm, clojure-rs]` (16 legs).
   - JVM leg: pinned temurin 21.0.13 (deterministic
     history) + cached Maven jars.
@@ -210,7 +210,7 @@ snippet repo's `scripts/ci/go/internal/measure`:
     `ubuntu-latest-{jvm,clojure-rs}`; `jq` strip +
     artifact upload runtime-agnostic (names carry
     runtime+shard).
-- `report-callgrind` matrix over runtimes: merge +
+- `report-instrumentation` matrix over runtimes: merge +
   `jq -s add` verify + SUMMARY cross-leg diff + upload,
   merged tables in the summary.
 

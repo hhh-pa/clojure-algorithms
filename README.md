@@ -120,7 +120,7 @@ resources/
 Every push runs a deterministic callgrind sweep over all test
 namespaces under both JVM Clojure and
 [clojure-rs](https://github.com/hhh-pa/clojure)
-(`.github/workflows/perf-callgrind.yml`), reporting
+(`.github/workflows/perf-instrumentation.yml`), reporting
 `callgrind_instructions` and `callgrind_allocated_bytes` per
 namespace to Bencher (same benchmark names, distinct testbeds —
 see `docs/1/specification.md`).
