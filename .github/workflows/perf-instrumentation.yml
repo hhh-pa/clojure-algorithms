@@ -114,7 +114,14 @@ jobs:
           test "$(cat echo-1.txt)" = "hello"
           grep -Eq '^Count [1-9][0-9]*$' pin-smoke-1.out
           grep -Eq '^Alloc [0-9]+$' pin-smoke-1.out
-          diff pin-smoke-1.out pin-smoke-2.out
+          # Counts agree to <1% across runs (ASLR-dependent libc
+          # paths wobble the low bits; the sweep takes the min of
+          # repeats). Alloc sums requested sizes, so it is
+          # bit-identical.
+          c1=$(awk '/^Count / {print $2}' pin-smoke-1.out)
+          c2=$(awk '/^Count / {print $2}' pin-smoke-2.out)
+          test "$(awk '/^Alloc / {print $2}' pin-smoke-1.out)" = "$(awk '/^Alloc / {print $2}' pin-smoke-2.out)"
+          awk -v c1="$c1" -v c2="$c2" 'BEGIN { d = (c1 > c2) ? (c1 - c2) : (c2 - c1); if (d / c1 >= 0.01) { print "count wobble too large:", c1, c2; exit 1 } }'
           cat pin-smoke-1.out >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke-test Pin malloc probes
