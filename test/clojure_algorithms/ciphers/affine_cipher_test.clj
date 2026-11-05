@@ -10,3 +10,10 @@
                                       "{xIp~{HL}Gi"))))
   (let [k (c/get-random-key) msg "This is a test!"]
     (is (= msg (c/decrypt-message k (c/encrypt-message k msg))))))
+(deftest random-key-never-weak-test
+  ;; Regression: get-random-key admitted k = 1 (~1/73 draws), which
+  ;; check-keys rejects in encrypt mode, flaking this namespace.
+  (doseq [k (repeatedly 500 c/get-random-key)]
+    (let [[a _] ((juxt quot rem) k (count c/symbols))]
+      (is (pos? a))
+      (is (not= 1 a)))))

@@ -58,7 +58,10 @@
   []
   (loop []
     (let [k (inc (rand-int (inc (count symbols))))]
-      (if (and (= 1 (gcd k (count symbols)))
+      ;; k = 1 passes the coprimality checks but check-keys rejects
+      ;; key-a 1 in encrypt mode, so exclude it (was a ~1/73 flake).
+      (if (and (> k 1)
+               (= 1 (gcd k (count symbols)))
                (not (zero? (mod k (count symbols)))))
         (+ (* k (count symbols)) k)
         (recur)))))
