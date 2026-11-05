@@ -20,15 +20,16 @@ type Benchmark struct {
 	AllocatedBytes          *Measure `json:"allocated_bytes,omitempty"`
 	CallgrindInstructions   *Measure `json:"callgrind_instructions,omitempty"`
 	CallgrindAllocatedBytes *Measure `json:"callgrind_allocated_bytes,omitempty"`
+	PinInstructions         *Measure `json:"pin_instructions,omitempty"`
+	PinAllocatedBytes       *Measure `json:"pin_allocated_bytes,omitempty"`
 }
 
 // BMF maps benchmark name (the ns symbol) to measures.
 type BMF map[string]Benchmark
 
 // BuildBMF builds one Benchmark per namespace with
-// cpu_time/peak_memory plus allocated_bytes,
-// callgrind_instructions, and callgrind_allocated_bytes when the
-// namespace reports them.
+// cpu_time/peak_memory plus allocated_bytes, the callgrind pair,
+// and the pin pair when the namespace reports them.
 func BuildBMF(results []CaseResult) BMF {
 	out := BMF{}
 	for i := range results {
@@ -75,6 +76,23 @@ func BuildBMF(results []CaseResult) BMF {
 				Value:      pyjson.IntNum(s.CallgrindAllocatedBytes.Min),
 				LowerValue: pyjson.IntNum(s.CallgrindAllocatedBytes.Min),
 				UpperValue: pyjson.IntNum(s.CallgrindAllocatedBytes.Max),
+			}
+		}
+		// Pin noise is one-sided like callgrind (cold paths only
+		// add instructions), so the minimum is the point estimate
+		// here too.
+		if s.PinInstructions != nil {
+			bench.PinInstructions = &Measure{
+				Value:      s.PinInstructions.Min,
+				LowerValue: s.PinInstructions.Min,
+				UpperValue: s.PinInstructions.Max,
+			}
+		}
+		if s.PinAllocatedBytes != nil {
+			bench.PinAllocatedBytes = &Measure{
+				Value:      s.PinAllocatedBytes.Min,
+				LowerValue: s.PinAllocatedBytes.Min,
+				UpperValue: s.PinAllocatedBytes.Max,
 			}
 		}
 		out[res.Label] = bench

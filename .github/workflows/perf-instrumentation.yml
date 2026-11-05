@@ -11,14 +11,17 @@ on:
         required: false
         default: ''
 
-# Full-matrix callgrind sweep: every test namespace's gungraun-run
-# measures (callgrind_instructions + callgrind_allocated_bytes) on
-# every push, for JVM Clojure and clojure-rs alike. This is the
-# only perf signal. Lean recipe (--repeat 1, --no-alloc since the
-# callgrind phase itself yields allocation): ~25s/namespace all-in
-# on CI hardware x ~170 namespaces/shard / 2 jobs ~= 35min per
-# shard. A valgrind/toolchain failure fails the push: the sweep is
-# a required signal.
+# Full-matrix instrumentation sweep: every test namespace's
+# callgrind measures (callgrind_instructions +
+# callgrind_allocated_bytes) plus Pin measures (pin_instructions
+# + pin_allocated_bytes) on every push, for JVM Clojure and
+# clojure-rs alike. These are the only perf signals. Lean recipe
+# (--repeat 1, --no-alloc since the instrument phases themselves
+# yield allocation, one callgrind run + two Pin count runs per
+# namespace): ~25s/namespace all-in for the callgrind half on CI
+# hardware x ~170 namespaces/shard / 2 jobs, plus the two Pin
+# runs (faster than callgrind each). A valgrind/Pin/toolchain
+# failure fails the push: the sweep is a required signal.
 #
 # The perf-instrumentation native leg always builds clojure-rs master HEAD
 # (interpreter-only build; `run` needs no LLVM), resolved once per
@@ -85,6 +88,60 @@ jobs:
       - name: Run tests
         run: clojure -M:test
 
+  # Pin install smoke: proves setup-pin restores (or builds) a
+  # working kit + tool, that Count/Alloc parse, that counts are
+  # deterministic, and that the malloc probes fire. One cheap
+  # leg; it also warms the cache the future --pin sweep legs
+  # will share. Independent of gate: a broken Pin install must
+  # fail fast, not wait behind the test suite.
+  pin-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - id: pin
+        uses: ./.github/actions/setup-pin
+        with:
+          cache-key: pin-${{ runner.os }}-${{ hashFiles('.github/actions/setup-pin/**', 'scripts/ci/pin/**') }}
+
+      - name: Smoke-test Pin counts (deterministic)
+        run: |
+          set -euo pipefail
+          for i in 1 2; do
+            "${{ steps.pin.outputs.pin-bin }}" -t "${{ steps.pin.outputs.pin-tool }}" -o "pin-smoke-$i.out" -- /bin/echo hello > "echo-$i.txt"
+          done
+          test "$(cat echo-1.txt)" = "hello"
+          grep -Eq '^Count [1-9][0-9]*$' pin-smoke-1.out
+          grep -Eq '^Alloc [0-9]+$' pin-smoke-1.out
+          diff pin-smoke-1.out pin-smoke-2.out
+          cat pin-smoke-1.out >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke-test Pin malloc probes
+        run: |
+          set -euo pipefail
+          cat > /tmp/malloc_probe.c <<'EOF'
+          #include <stdio.h>
+          #include <stdlib.h>
+          int main(void) {
+              /* volatile: -O2 must not drop these calls. */
+              void *volatile p = malloc(1234);
+              void *volatile q = calloc(10, 100);
+              void *volatile r = realloc(0, 512);
+              if (!p || !q || !r) return 1;
+              printf("ok\n");
+              return 0;
+          }
+          EOF
+          cc -O2 -o /tmp/malloc_probe /tmp/malloc_probe.c
+          "${{ steps.pin.outputs.pin-bin }}" -t "${{ steps.pin.outputs.pin-tool }}" -o pin-malloc.out -- /tmp/malloc_probe > malloc-stdout.txt
+          test "$(cat malloc-stdout.txt)" = "ok"
+          grep -Eq '^Count [1-9][0-9]*$' pin-malloc.out
+          # 1234 + 10*100 + 512, plus whatever libc startup
+          # allocates: the probes must see at least our bytes.
+          test "$(awk '/^Alloc / {print ($2 >= 2746)}' pin-malloc.out)" = "1"
+          cat pin-malloc.out >> "$GITHUB_STEP_SUMMARY"
+
   perf-instrumentation:
     needs: [gate, resolve-rs]
     runs-on: ubuntu-latest
@@ -107,6 +164,12 @@ jobs:
       - uses: ./.github/actions/algoperf-tools
         with:
           cache-key: algoperf-${{ runner.os }}-${{ hashFiles('.github/actions/algoperf-tools/**', 'scripts/ci/go/go.mod', 'scripts/ci/go/cmd/algoperf/**', 'scripts/ci/go/internal/algocore/**', 'scripts/ci/go/internal/pyjson/**', 'scripts/ci/go/internal/measure/**') }}
+      # Early (before the slow Rust/JDK setups): a broken Pin
+      # download must fail fast, not after a 10-minute build.
+      - id: pin
+        uses: ./.github/actions/setup-pin
+        with:
+          cache-key: pin-${{ runner.os }}-${{ hashFiles('.github/actions/setup-pin/**', 'scripts/ci/pin/**') }}
 
       # Pinned (not floating "21" like ci.yml): JDK micro
       # versions move instruction counts, and the sweep's Bencher
@@ -177,12 +240,13 @@ jobs:
           packages: time linux-tools-common linux-tools-generic valgrind gcc
           version: 1.0
 
-      - name: Measure callgrind sweep (deterministic metrics)
+      - name: Measure instrumentation sweep (deterministic metrics)
         # Lean recipe: one timed run (SUMMARY gate) + the callgrind
         # phase per namespace (JVM: one -Xint+EpsilonGC run; native:
-        # one plain callgrind run plus one LD_PRELOAD counting run).
-        # No --alloc (the callgrind phase itself yields
-        # allocation).
+        # one plain callgrind run plus one LD_PRELOAD counting run)
+        # + two Pin count runs (JVM legs run HotSpot under Pin
+        # with -Xrs; see measure --pin). No --alloc (the
+        # instrument phases themselves yield allocation).
         run: |
           flags=(--runtime "${{ matrix.runtime }}")
           if [ "${{ matrix.runtime }}" = "clojure-rs" ]; then
@@ -194,9 +258,13 @@ jobs:
           "$GITHUB_WORKSPACE/algoperf-bin/algoperf" measure \
             --repeat 1 --no-alloc --jobs 2 --timeout 1800 \
             --callgrind-timeout 600 \
+            --pin-timeout 600 \
             "${flags[@]}" \
             --shard ${{ matrix.shard }}/8 \
             --callgrind --callgrind-repeat 1 \
+            --pin --pin-repeat 2 \
+            --pin-bin "${{ steps.pin.outputs.pin-bin }}" \
+            --pin-tool "${{ steps.pin.outputs.pin-tool }}" \
             --output sweep-results.json --bmf-output sweep-bmf.json \
             --summary-file "$GITHUB_STEP_SUMMARY"
 
@@ -205,18 +273,21 @@ jobs:
 
       # Threshold policy: callgrind_instructions (percentage) only,
       # same flags on both testbeds (the clojure-rs testbed starts
-      # with empty history and arms after 10 samples). Both
-      # gungraun-run measures are tracked; the overlapping
+      # with empty history and arms after 10 samples). All four
+      # instrument measures are tracked; the overlapping
       # cpu_time/peak_memory entries are stripped before reporting
       # (the sweep is repeat-1 timing, not a timing signal; no
       # allocated_bytes here: --no-alloc). A fixed 1% upper
       # boundary sits far above callgrind wobble; min/max sample
-      # 10/64. callgrind_allocated_bytes rides threshold-free
-      # until its own wobble is characterized. Each shard reports
-      # its own stripped subset (~170 benchmarks x 2 measures).
-      - name: Track callgrind benchmarks with Bencher
+      # 10/64. callgrind_allocated_bytes and the pin pair ride
+      # threshold-free until their own wobble is characterized.
+      # Gating stays on the callgrind pair (existing behavior when
+      # Pin degrades to a skip); the pin pair attaches when
+      # present. Each shard reports its own stripped subset (~170
+      # benchmarks x up to 4 measures).
+      - name: Track instrumentation benchmarks with Bencher
         run: |
-          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= {callgrind_instructions, callgrind_allocated_bytes})' \
+          jq 'with_entries(select(.value.callgrind_instructions != null and .value.callgrind_allocated_bytes != null) | .value |= ({callgrind_instructions, callgrind_allocated_bytes, pin_instructions, pin_allocated_bytes} | with_entries(select(.value != null))))' \
             sweep-bmf.json > sweep-bench.json
           if [ "$(jq 'length' sweep-bench.json)" = "0" ]; then
             echo "no callgrind data in shard; skipping Bencher report"

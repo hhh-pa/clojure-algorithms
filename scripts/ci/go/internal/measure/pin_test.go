@@ -2,6 +2,8 @@ package measure
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,6 +61,79 @@ func TestParsePinAlloc(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildBMFPin(t *testing.T) {
+	pin := MinMedMax{Min: pyjson.IntNum(100), Median: pyjson.IntNum(150), Max: pyjson.IntNum(200)}
+	alloc := MinMedMax{Min: pyjson.IntNum(1048576), Median: pyjson.IntNum(1048576), Max: pyjson.IntNum(2097152)}
+	timed := func() CaseResult {
+		return CaseResult{Label: "l", Stem: "s", Case: "run", Ok: true,
+			Summary: &CaseSummary{
+				Runs:              1,
+				CpuS:              MinMedMax{Min: pyjson.FloatNum(1), Median: pyjson.FloatNum(1), Max: pyjson.FloatNum(1)},
+				MaxRSSKb:          MinMedMax{Min: pyjson.IntNum(8), Median: pyjson.IntNum(8), Max: pyjson.IntNum(8)},
+				WallS:             MinMedMax{Min: pyjson.FloatNum(1), Median: pyjson.FloatNum(1), Max: pyjson.FloatNum(1)},
+				PinInstructions:   &pin,
+				PinAllocatedBytes: &alloc,
+			}}
+	}
+	bmf := BuildBMF([]CaseResult{timed()})
+	bench, ok := bmf["l"]
+	if !ok {
+		t.Fatal("timed result with pin counts must land in BMF")
+	}
+	if bench.PinInstructions == nil || bench.PinInstructions.Value != pyjson.IntNum(100) {
+		t.Fatalf("pin_instructions must use the min as point estimate: %+v", bench.PinInstructions)
+	}
+	if bench.PinInstructions.UpperValue != pyjson.IntNum(200) {
+		t.Fatalf("pin_instructions upper must be the max: %+v", bench.PinInstructions)
+	}
+	if bench.PinAllocatedBytes == nil || bench.PinAllocatedBytes.Value != pyjson.IntNum(1048576) {
+		t.Fatalf("pin_allocated_bytes must use the min as point estimate: %+v", bench.PinAllocatedBytes)
+	}
+	// Without pin counts the fields stay absent (omitempty keeps
+	// old callgrind-only reports byte-identical).
+	res := timed()
+	res.Summary.PinInstructions = nil
+	res.Summary.PinAllocatedBytes = nil
+	bench = BuildBMF([]CaseResult{res})["l"]
+	if bench.PinInstructions != nil || bench.PinAllocatedBytes != nil {
+		t.Fatalf("pin fields must be absent without pin counts: %+v", bench)
+	}
+}
+
+func TestAppendSummaryPinColumns(t *testing.T) {
+	pin := MinMedMax{Min: pyjson.IntNum(100), Median: pyjson.IntNum(150), Max: pyjson.IntNum(200)}
+	alloc := MinMedMax{Min: pyjson.IntNum(1048576), Median: pyjson.IntNum(1048576), Max: pyjson.IntNum(1048576)}
+	results := []CaseResult{{Label: "l", Stem: "s", Case: "run", Ok: true,
+		Summary: &CaseSummary{
+			Runs:              1,
+			CpuS:              MinMedMax{Min: pyjson.FloatNum(1), Median: pyjson.FloatNum(1), Max: pyjson.FloatNum(1)},
+			MaxRSSKb:          MinMedMax{Min: pyjson.IntNum(8), Median: pyjson.IntNum(8), Max: pyjson.IntNum(8)},
+			WallS:             MinMedMax{Min: pyjson.FloatNum(2), Median: pyjson.FloatNum(2), Max: pyjson.FloatNum(2)},
+			PinInstructions:   &pin,
+			PinAllocatedBytes: &alloc,
+		}}}
+	report := Report{
+		Tool: "algoperf measure", TimestampUTC: "t",
+		Host:    Host{CpuModel: strptr("cpu")},
+		Runtime: Runtime{Name: "jvm"},
+		Config:  Config{Repeat: 1, Jobs: 1},
+		Results: results,
+	}
+	path := filepath.Join(t.TempDir(), "summary.md")
+	if err := AppendSummary(path, report, BuildBMF(results)); err != nil {
+		t.Fatalf("AppendSummary: %v", err)
+	}
+	raw, _ := os.ReadFile(path)
+	text := string(raw)
+	for _, want := range []string{"pin_insn", "pin_alloc (MB)", "| l |", " 100 |", " 1.0 |"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("summary must contain %q:\n%s", want, text)
+		}
+	}
+}
+
+func strptr(s string) *string { return &s }
 
 func TestIsPinTimeout(t *testing.T) {
 	if !IsPinTimeout("TIMEOUT (>900s)") {
