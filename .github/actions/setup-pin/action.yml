@@ -1,0 +1,69 @@
+name: setup-pin
+description: >
+  Provide Intel Pin plus the built algoperf_count tool from the
+  Actions cache (downloaded and built on miss). Callers run
+  algoperf measure --pin-bin/--pin-tool with the outputs.
+inputs:
+  cache-key:
+    description: >
+      Full cache key for the extracted Pin kit plus built tool,
+      shared by every job on the OS: pin-<os>-<hash>, where the
+      hash covers this action's sources plus scripts/ci/pin.
+    required: true
+outputs:
+  pin-bin:
+    description: Absolute path to the pin launcher.
+    value: ${{ steps.resolve.outputs.pin-bin }}
+  pin-tool:
+    description: Absolute path to the built algoperf_count.so tool.
+    value: ${{ steps.resolve.outputs.pin-tool }}
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v4
+      with:
+        path: .ci/pin
+        key: ${{ inputs.cache-key }}
+    # Pinned kit: bump the URL, SHA256, and directory together.
+    # Counts are only comparable within one Pin version, so the
+    # version also rides in the cache key via this file's hash.
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        PIN_URL="https://software.intel.com/sites/landingpage/pintool/downloads/pin-external-4.4-99977-g54fbb8814-gcc-linux.tar.gz"
+        PIN_SHA256="3138183a5d2b51ea5c8f29edd148b67ac9c249e2c510cc0e9e2a5880f523a34c"
+        PIN_DIR="pin-external-4.4-99977-g54fbb8814-gcc-linux"
+        PIN_DEST="$GITHUB_WORKSPACE/.ci/pin"
+        mkdir -p "$PIN_DEST"
+        curl -fsSL --retry 3 -o "$PIN_DEST/pin.tar.gz" "$PIN_URL"
+        echo "$PIN_SHA256  $PIN_DEST/pin.tar.gz" | sha256sum -c -
+        tar -xzf "$PIN_DEST/pin.tar.gz" -C "$PIN_DEST"
+        rm "$PIN_DEST/pin.tar.gz"
+        PIN_ROOT="$PIN_DEST/$PIN_DIR"
+        TOOL_DIR="$PIN_ROOT/source/tools/algoperf"
+        mkdir -p "$TOOL_DIR"
+        cp "$GITHUB_WORKSPACE/scripts/ci/pin/algoperf_count.cpp" "$TOOL_DIR/"
+        cp "$GITHUB_WORKSPACE/scripts/ci/pin/makefile.rules" "$TOOL_DIR/"
+        # The makefile boilerplate ships with the kit (do not
+        # vendor a copy: it must match the kit's own Config).
+        cp "$PIN_ROOT/source/tools/Config/makefile.tmpl" "$TOOL_DIR/makefile"
+        make -C "$TOOL_DIR" TARGET=intel64 -j"$(nproc)"
+        test -x "$PIN_ROOT/pin"
+        test -f "$TOOL_DIR/obj-intel64/algoperf_count.so"
+    - id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        PIN_DIR="pin-external-4.4-99977-g54fbb8814-gcc-linux"
+        PIN_ROOT="$GITHUB_WORKSPACE/.ci/pin/$PIN_DIR"
+        PIN_BIN="$PIN_ROOT/pin"
+        PIN_TOOL="$PIN_ROOT/source/tools/algoperf/obj-intel64/algoperf_count.so"
+        test -x "$PIN_BIN" || { echo "setup-pin: missing $PIN_BIN (incomplete cache?)" >&2; exit 1; }
+        test -f "$PIN_TOOL" || { echo "setup-pin: missing $PIN_TOOL (incomplete cache?)" >&2; exit 1; }
+        {
+          echo "pin-bin=$PIN_BIN"
+          echo "pin-tool=$PIN_TOOL"
+        } >> "$GITHUB_OUTPUT"
+        "$PIN_BIN" -version | tee -a "$GITHUB_STEP_SUMMARY"

@@ -37,36 +37,35 @@ type AllocSummary struct {
 
 // CaseSummary aggregates one namespace's runs.
 type CaseSummary struct {
-	CpuS                    MinMedMax     `json:"cpu_s"`
-	MaxRSSKb                MinMedMax     `json:"maxrss_kb"`
-	WallS                   MinMedMax     `json:"wall_s"`
-	Runs                    int           `json:"runs"`
-	Instructions            *MinMedMax    `json:"instructions"`
-	Cycles                  *MinMedMax    `json:"cycles"`
-	AllocatedBytes          *AllocSummary `json:"allocated_bytes"`
-	CallgrindInstructions   *MinMedMax    `json:"callgrind_instructions"`
-	CallgrindAllocatedBytes *AllocSummary `json:"callgrind_allocated_bytes"`
+	CpuS            MinMedMax     `json:"cpu_s"`
+	MaxRSSKb        MinMedMax     `json:"maxrss_kb"`
+	WallS           MinMedMax     `json:"wall_s"`
+	Runs            int           `json:"runs"`
+	Instructions    *MinMedMax    `json:"instructions"`
+	Cycles          *MinMedMax    `json:"cycles"`
+	AllocatedBytes  *AllocSummary `json:"allocated_bytes"`
+	PinInstructions *MinMedMax    `json:"pin_instructions"`
 }
 
 // CaseResult is one measured namespace. Error is nil (null) on
-// success. CallgrindSkipped records a degraded callgrind phase:
-// the timed data is valid (Ok stays true) but the namespace
-// exceeded the callgrind budget, so no callgrind summaries were
-// recorded. TestCounts records the driver's SUMMARY counts so the
-// report can diff JVM vs native behavior.
+// success. PinSkipped records a degraded Pin count phase: the
+// timed data is valid (Ok stays true) but the namespace exceeded
+// the Pin budget, so no pin summary was recorded. TestCounts
+// records the driver's SUMMARY counts so the report can diff JVM
+// vs native behavior.
 type CaseResult struct {
-	Label            string       `json:"label"`
-	Stem             string       `json:"stem"`
-	Script           string       `json:"script"`
-	Case             string       `json:"case"`
-	Ok               bool         `json:"ok"`
-	Error            *string      `json:"error"`
-	Runs             []RunMetrics `json:"runs"`
-	AllocRuns        []int64      `json:"alloc_runs"`
-	Summary          *CaseSummary `json:"summary"`
-	TestCounts       *TestCounts  `json:"test_counts"`
-	CallgrindSkipped *string      `json:"callgrind_skipped,omitempty"`
-	Skipped          *string      `json:"skipped,omitempty"`
+	Label      string       `json:"label"`
+	Stem       string       `json:"stem"`
+	Script     string       `json:"script"`
+	Case       string       `json:"case"`
+	Ok         bool         `json:"ok"`
+	Error      *string      `json:"error"`
+	Runs       []RunMetrics `json:"runs"`
+	AllocRuns  []int64      `json:"alloc_runs"`
+	Summary    *CaseSummary `json:"summary"`
+	TestCounts *TestCounts  `json:"test_counts"`
+	PinSkipped *string      `json:"pin_skipped,omitempty"`
+	Skipped    *string      `json:"skipped,omitempty"`
 }
 
 // SkippedResult records a sweep_skips.json exclusion: Ok stays

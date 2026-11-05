@@ -20,7 +20,7 @@ func (e *TimeoutError) Error() string {
 
 // Run executes argv with stdin bytes on stdin, capturing stdout and
 // stderr, killing the whole process group after timeoutSecs (so
-// perf/time/valgrind grandchildren never outlive a timeout). It
+// perf/time/Pin grandchildren never outlive a timeout). It
 // returns stdout, stderr, and either nil, *TimeoutError, or
 // *exec.ExitError.
 //
@@ -34,8 +34,7 @@ func Run(argv []string, stdin []byte, timeoutSecs int) (stdout, stderr []byte, e
 
 // RunEnv is Run with extra child-process environment entries
 // (KEY=value strings, appended after os.Environ so they win on
-// duplicates). The native callgrind recipe uses it to inject
-// LD_PRELOAD for the allocation-counting run.
+// duplicates).
 func RunEnv(argv []string, stdin []byte, timeoutSecs int, extraEnv []string) (stdout, stderr []byte, err error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	if len(extraEnv) > 0 {

@@ -32,19 +32,20 @@ type Runtime struct {
 	Classpath       string  `json:"classpath"`
 	TimeBin         string  `json:"time_bin"`
 	PerfUsed        bool    `json:"perf_used"`
-	CallgrindUsed   bool    `json:"callgrind_used"`
+	PinUsed         bool    `json:"pin_used"`
+	PinVersion      *string `json:"pin_version"`
 }
 
 // Config records the run configuration.
 type Config struct {
-	Repeat           int     `json:"repeat"`
-	Jobs             int     `json:"jobs"`
-	Timeout          int     `json:"timeout"`
-	Only             string  `json:"only"`
-	Shard            *string `json:"shard"`
-	AllocRepeat      *int    `json:"alloc_repeat"`
-	CallgrindRepeat  int     `json:"callgrind_repeat"`
-	CallgrindTimeout int     `json:"callgrind_timeout"`
+	Repeat      int     `json:"repeat"`
+	Jobs        int     `json:"jobs"`
+	Timeout     int     `json:"timeout"`
+	Only        string  `json:"only"`
+	Shard       *string `json:"shard"`
+	AllocRepeat *int    `json:"alloc_repeat"`
+	PinRepeat   int     `json:"pin_repeat"`
+	PinTimeout  int     `json:"pin_timeout"`
 }
 
 // Report is the full perf-report JSON document.

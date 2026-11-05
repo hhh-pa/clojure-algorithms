@@ -9,9 +9,9 @@ import (
 )
 
 // SelfTest runs the subprocess-free check suite (no JVM, time,
-// perf, valgrind, or C compiler): parser checks for every text
-// format the sweep reads, template checks, and gate checks.
-// Returns the process exit code (0 when all checks pass).
+// perf, Pin, or C compiler): parser checks for every text format
+// the sweep reads, template checks, and gate checks. Returns the
+// process exit code (0 when all checks pass).
 func SelfTest(out io.Writer) int {
 	var checks []algocore.Check
 	add := func(name string, ok bool, detail string) {
@@ -29,24 +29,16 @@ func SelfTest(out io.Writer) int {
 	add("summary-gate-fail", CheckSummary(Summary{Test: 1, Fail: 1}) != "", "")
 	add("summary-gate-error", CheckSummary(Summary{Test: 1, Error: 1}) != "", "")
 
-	// Callgrind summary.
-	ir, err := ParseCallgrindSummary("events: Ir\nsummary: 1234567\n")
-	add("callgrind-valid", err == nil && ir == 1234567, fmt.Sprint(ir, err))
-	_, err = ParseCallgrindSummary("events: Ir\n")
-	add("callgrind-missing", err != nil, fmt.Sprint(err))
-	_, err = ParseCallgrindSummary("summary: nope\n")
-	add("callgrind-malformed", err != nil, fmt.Sprint(err))
-
-	// Alloc-shim total.
-	used, err := ParseAllocShimTotal("noise\nsnip_alloc_total_bytes=987654\n")
-	add("allocshim-valid", err == nil && used == 987654, fmt.Sprint(used, err))
-	_, err = ParseAllocShimTotal("nothing here\n")
-	add("allocshim-missing", err != nil, fmt.Sprint(err))
-	_, err = ParseAllocShimTotal("snip_alloc_total_bytes=zzz\n")
-	add("allocshim-malformed", err != nil, fmt.Sprint(err))
+	// Pin count.
+	count, err := ParsePinCount("Count 846018869\n")
+	add("pin-valid", err == nil && count == 846018869, fmt.Sprint(count, err))
+	_, err = ParsePinCount("no counts here\n")
+	add("pin-missing", err != nil, fmt.Sprint(err))
+	_, err = ParsePinCount("Count nope\n")
+	add("pin-malformed", err != nil, fmt.Sprint(err))
 
 	// EpsilonGC log.
-	used, err = ParseEpsilonUsed("[0.1s] Heap: 12M reserved, 3M (25%) committed, 1536K (4%) used\n")
+	used, err := ParseEpsilonUsed("[0.1s] Heap: 12M reserved, 3M (25%) committed, 1536K (4%) used\n")
 	add("epsilon-valid", err == nil && used == 1536*1024, fmt.Sprint(used, err))
 	_, err = ParseEpsilonUsed("no heap line\n")
 	add("epsilon-missing", err != nil, fmt.Sprint(err))
@@ -71,12 +63,6 @@ func SelfTest(out io.Writer) int {
 	add("leg-java", InnerIsJava([]string{"java", "-cp", "x"}) && InnerIsJava([]string{"/usr/bin/java"}), "")
 	add("leg-native", !InnerIsJava([]string{"clojure-rs", "run"}) && !InnerIsJava(nil), "")
 	add("leg-template", TemplateHeadIsJava(DefaultCommandTemplate) && !TemplateHeadIsJava("clojure-rs run {ns}"), "")
-
-	// Skip classifiers.
-	add("skip-timeout", IsCallgrindTimeout("TIMEOUT (>600s)"), "")
-	add("skip-shim-timeout", IsCallgrindTimeout("alloc-shim TIMEOUT (>600s)"), "")
-	add("skip-shim", IsAllocShimSkip("alloc-shim unavailable: x"), "")
-	add("skip-no-false-positive", !IsCallgrindTimeout("exit 1: boom") && !IsAllocShimSkip("exit 1: boom"), "")
 
 	failed := 0
 	for _, c := range checks {

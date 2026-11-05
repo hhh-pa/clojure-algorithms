@@ -8,7 +8,7 @@ import (
 )
 
 // setProcessGroup makes the child a group leader so KillProcessGroup
-// can reap valgrind/perf/time grandchildren on timeout.
+// can reap Pin/perf/time grandchildren on timeout.
 func setProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }

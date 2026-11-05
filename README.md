@@ -117,24 +117,24 @@ resources/
 
 ## Perf (JVM vs clojure-rs)
 
-Every push runs a deterministic callgrind sweep over all test
+Every push runs a deterministic Pin sweep over all test
 namespaces under both JVM Clojure and
 [clojure-rs](https://github.com/hhh-pa/clojure)
-(`.github/workflows/perf-callgrind.yml`), reporting
-`callgrind_instructions` and `callgrind_allocated_bytes` per
-namespace to Bencher (same benchmark names, distinct testbeds —
-see `docs/1/specification.md`).
+(`.github/workflows/perf-pin.yml`), reporting
+`pin_instructions` per namespace to Bencher (same benchmark
+names, distinct testbeds — see `docs/1/specification.md`).
+Pin counts instructions only; memory is benchmarked via peak
+RSS (in BMF and the summary table).
 
 - Each namespace runs `perf/driver.clj`, which prints one
   `SUMMARY {:test :pass :fail :error}` line; the sweep gates on
   it (failures fail loudly), and a report job diffs the counts
   between runtimes so behavioral drift can never hide behind
   perf numbers.
-- Semantic note: the JVM allocation number is EpsilonGC
-  heap-used-at-exit, the native number is malloc-request bytes
-  (LD_PRELOAD counting shim). Both are "total requested
-  allocation" for the same program run — ratio-meaningful per
-  benchmark, not bit-comparable absolutes.
+- Semantic note: `pin_instructions` is the min of two Pin
+  count runs per namespace (compared within one Pin version);
+  memory is peak RSS from the timed run — ratio-meaningful
+  per benchmark, not bit-comparable absolutes.
 
 ## License
 
