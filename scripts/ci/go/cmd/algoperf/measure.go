@@ -21,6 +21,8 @@ const measureUsage = `Load-independent performance measurement for the algorithm
 Runs perf/driver.clj once per test namespace and records cpu_s,
 maxrss_kb, allocated_bytes, instructions/cycles, plus (under the
 new flags) callgrind instruction counts and Pin instruction counts.
+--repeat 0 skips the timed phase and runs only the instrument
+phases (pin-only legs).
 
 Usage: algoperf measure [--cp CP] [--repeat N] [--jobs N] [--timeout S]
                         [--only SUBSTR] [--output F] [--bmf-output F]
@@ -92,8 +94,8 @@ func runMeasure(argv []string) int {
 	if merge {
 		return runMerge(positionals, output, bmfOutput, summaryFile)
 	}
-	if repeat < 1 {
-		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat must be >= 1")
+	if repeat < 0 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat must be >= 0")
 		return 2
 	}
 	if allocRepeat < 1 {
@@ -215,6 +217,10 @@ func runMeasure(argv []string) int {
 	effectivePin := 0
 	if usePin {
 		effectivePin = pinRepeat
+	}
+	if repeat == 0 && effectiveAlloc == 0 && effectiveCg == 0 && effectivePin == 0 {
+		fmt.Fprintln(os.Stderr, "algoperf measure: --repeat 0 needs a measurement phase (--alloc, --callgrind, or --pin)")
+		return 2
 	}
 
 	results := make([]measure.CaseResult, len(tasks))

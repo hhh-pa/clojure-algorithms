@@ -33,7 +33,11 @@ func BuildBMF(results []CaseResult) BMF {
 	out := BMF{}
 	for i := range results {
 		res := &results[i]
-		if !res.Ok || res.Summary == nil {
+		// Pin-only summaries (Runs 0) carry instrument
+		// counts but no time/memory: BMF tracks timed
+		// signals, so they stay out (and can never emit
+		// zero cpu_time/peak_memory rows).
+		if !res.Ok || res.Summary == nil || res.Summary.Runs == 0 {
 			continue
 		}
 		s := res.Summary

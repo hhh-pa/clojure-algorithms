@@ -591,7 +591,10 @@ func MeasureCase(o CaseOpts) CaseResult {
 		if reason := CheckSummary(sum); reason != "" {
 			return fmt.Sprintf("%s: %s", prefix, reason)
 		}
-		if phase == "" && res.TestCounts == nil {
+		// Recorded from the first gated phase: the timed
+		// runs when they exist, else the first instrument
+		// phase (--repeat 0).
+		if res.TestCounts == nil {
 			res.TestCounts = &TestCounts{Test: sum.Test, Pass: sum.Pass, Fail: sum.Fail, Error: sum.Error}
 		}
 		return ""
@@ -612,6 +615,13 @@ func MeasureCase(o CaseOpts) CaseResult {
 		res.Runs = append(res.Runs, *metrics)
 	}
 	res.Summary = SummarizeCase(res.Runs)
+	if res.Summary == nil && (o.AllocRepeat > 0 || o.CallgrindRepeat > 0 || o.PinRepeat > 0) {
+		// --repeat 0 skips the timed phase; the instrument
+		// phases still need a summary to hang their signals
+		// on (Runs stays 0, which table/BMF renderers use to
+		// tell pin-only results from timed ones).
+		res.Summary = &CaseSummary{}
+	}
 	if o.AllocRepeat > 0 {
 		for i := 0; i < o.AllocRepeat; i++ {
 			stdout, used, runErr := MeasureAllocOnce(inner, o.Timeout)

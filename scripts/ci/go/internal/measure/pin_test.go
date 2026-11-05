@@ -1,7 +1,11 @@
 package measure
 
 import (
+	"bytes"
+	"strings"
 	"testing"
+
+	"github.com/hhh-pa/clojure-algorithms/scripts/ci/go/internal/pyjson"
 )
 
 func TestParsePinCount(t *testing.T) {
@@ -24,6 +28,20 @@ func TestPinUsableMissing(t *testing.T) {
 	}
 	if PinUsable("/nonexistent/pin", "/nonexistent/tool.so") {
 		t.Fatal("missing pin files must be unusable")
+	}
+}
+
+func TestPinOnlySummary(t *testing.T) {
+	pin := MinMedMax{Min: pyjson.IntNum(100), Median: pyjson.IntNum(150), Max: pyjson.IntNum(200)}
+	res := CaseResult{Label: "l", Stem: "s", Case: "run", Ok: true,
+		Summary: &CaseSummary{Runs: 0, PinInstructions: &pin}}
+	var buf bytes.Buffer
+	PrintTable(&buf, []CaseResult{res}, nil)
+	if !strings.Contains(buf.String(), "l/s/run: ok pin_min=100 pin_med=150 pin_max=200") {
+		t.Fatalf("pin-only table line wrong:\n%s", buf.String())
+	}
+	if bmf := BuildBMF([]CaseResult{res}); len(bmf) != 0 {
+		t.Fatalf("pin-only results must stay out of BMF: %+v", bmf)
 	}
 }
 
