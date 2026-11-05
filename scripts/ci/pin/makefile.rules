@@ -1,0 +1,14 @@
+# Build rules for the algoperf_count Pin tool. The setup-pin
+# action copies this file plus algoperf_count.cpp into
+# $PIN_ROOT/source/tools/algoperf/ (alongside the kit's own
+# makefile boilerplate, copied from Config/makefile.tmpl so it
+# always matches the kit) and runs `make TARGET=intel64`.
+TEST_TOOL_ROOTS :=
+TEST_ROOTS :=
+TOOL_ROOTS := algoperf_count
+SA_TOOL_ROOTS :=
+APP_ROOTS :=
+OBJECT_ROOTS :=
+APP_OBJECT_ROOTS :=
+DLL_ROOTS :=
+LIB_ROOTS :=
